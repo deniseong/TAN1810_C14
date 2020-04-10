@@ -1,0 +1,128 @@
+---
+title: "C14"
+author: "Denise Ong"
+date: "4/2/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+  knitr::opts_chunk$set(message=FALSE,
+                        warning=FALSE)
+```
+
+# Load data
+```{r}
+C14 <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.xlsx", sheet = 2)
+C14$EXP <- as.character(C14$EXP)
+C14
+```
+
+# Load libraries, and narrow down the columns for the dataset.
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+# create a new dataset
+C14_1 <- select(C14, julian_day, Cycle, STN, EXP, SAMPLE, Lat_DD, Long_DD, DEPTH, 'Vial code', 'sorting population', 'Cells sorted', DPM1)
+C14_1
+```
+
+To include only essential columns. Can edit code to include other columns that are essential later.
+```{r}
+# Tidy for essential columns
+C14_DPM <- C14_1 %>%
+  select ( EXP, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1)
+C14_DPM
+```
+
+#First, I focused on experiment 1 only to try 2 different methods I had in mind.
+```{r}
+#filter for exp 1
+C14_E1 <- filter(C14_DPM, EXP==1)
+C14_E1
+```
+
+To make calculations easier, I first created a new dataset that would bring vial D to a new column called DPM_dark. I then create another column DPM2 = light - dark. DPM2 would be DPM data that I will use to calculate my PP.
+# Problem: this method only works for complete dataset, and I would need to repeat for every experiment and depth. How do I set conditions to make sure that DPM_dark moves to its corresponding population? I would like to have a code that will apply to the entire dataset, without needed to subset the data.
+```{r}
+# create new column for D, repeating from A to C
+# select values for DPM dark
+subset1 <- subset(C14_E1, `Vial code` == "D",  select = c("DPM1"))
+subset1
+# select for vials A to C
+C14_E1 <- filter(C14_E1, `Vial code` != "D")
+# create DPM dark column
+C14_E1 <- mutate(C14_E1, DPM_dark = rep(subset1$DPM1, 3))
+# DPMD2 = DPM light - dark
+C14_E1 <- mutate(C14_E1, DPM2 = DPM1 - DPM_dark)
+C14_E1
+```
+
+# IGNORE Method 1: Calculate coefficient when vials A to C combined (I have decided not to use this method as it reduces my number of replicates)
+```{r}
+E1 <- C14_E1 %>%
+  group_by(`sorting population`, `Cells sorted`, `Vial code`) %>%
+  summarise(DPM2)
+E1
+```
+
+
+```{r}
+E1_nano <- E1 %>% 
+  ungroup() %>%
+  filter(`sorting population` == "Nano")
+E1_plot_nano <- ggplot(E1_nano, aes(x = `Cells sorted`, y = DPM2)) + geom_point()
+E1_plot_nano
+```
+
+```{r}
+E1_pico <- E1 %>% 
+  ungroup() %>%
+  filter(`sorting population` == "Pico")
+E1_plot_pico <- ggplot(E1_pico, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
+E1_plot_pico
+E1_model_pico <- lm(DPM2 ~ `Cells sorted`, data=E1_pico)
+E1_model_pico
+summary(E1_model_pico)
+```
+
+```{r}
+E1_syn <- E1 %>% 
+  ungroup() %>%
+  filter(`sorting population` == "Syn")
+E1_plot_syn <- ggplot(E1_syn, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
+E1_plot_syn
+E1_model_syn <- lm(DPM2 ~ `Cells sorted`, data=E1_syn)
+E1_model_syn
+summary(E1_model_syn)
+```
+
+# Method 2: calculate regression coefficient for each vial
+This method is the one that I would like to use. The idea that I have is to group the data by sorting population (nano, pico, syn) and then by vial code. I would like to use a map function to create a new column that creates an LM function for each sorting population and vial, such that lm(DPM2~cells sorted), and then corresponding columns for the slope, p-value or each LM.
+# Problem: I took some examples online to try and fit to my data but the code doesnt work.
+```{r}
+library(dplyr)
+library(broom)
+library(tsibble)
+```
+
+```{r}
+# This is the code example that I used. The link is https://community.rstudio.com/t/how-to-calculate-slope-with-conditions-in-r/36053.
+df %>% 
+    group_nest(Source.Name, visbility, soundvolume) %>% 
+    mutate(model = map(data, ~lm(m ~ stim_ending_t, data = .x))) %>% 
+    mutate(slope = map_dbl(model, ~tidy(.x)$estimate[2]))
+```
+
+```{r}
+C14_E1_ts <- as.tibble(C14_E1)
+C14_E1_ts
+E1_trial <- C14_E1_ts %>% 
+  ungroup() %>%
+  group_by(`sorting population`, `Vial code`)  %>%
+  mutate(model = map(data, ~lm(DPM2~`Cells sorted`, data = .))) %>%
+  mutate(slope = map_dbl(model, ~tidy(.)$estimate[2]))
+E1_trial
+```
+
