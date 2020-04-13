@@ -65,7 +65,7 @@ C14_E1
 E1 <- C14_E1 %>%
   group_by(`sorting population`, `Cells sorted`, `Vial code`) %>%
   summarise(DPM2)
-# E1
+E1
 ```
 
 
@@ -74,7 +74,7 @@ E1_nano <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Nano")
 E1_plot_nano <- ggplot(E1_nano, aes(x = `Cells sorted`, y = DPM2)) + geom_point()
-#E1_plot_nano
+E1_plot_nano
 ```
 
 ```{r}
@@ -82,10 +82,10 @@ E1_pico <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Pico")
 E1_plot_pico <- ggplot(E1_pico, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
-#E1_plot_pico
+E1_plot_pico
 E1_model_pico <- lm(DPM2 ~ `Cells sorted`, data=E1_pico)
 E1_model_pico
-#summary(E1_model_pico)
+summary(E1_model_pico)
 ```
 
 ```{r}
@@ -93,10 +93,10 @@ E1_syn <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Syn")
 E1_plot_syn <- ggplot(E1_syn, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
-#E1_plot_syn
+E1_plot_syn
 E1_model_syn <- lm(DPM2 ~ `Cells sorted`, data=E1_syn)
 E1_model_syn
-#summary(E1_model_syn)
+summary(E1_model_syn)
 ```
 
 # Method 2: calculate regression coefficient for each vial
@@ -108,7 +108,7 @@ library(broom)
 library(tsibble)
 ```
 
-```{r}
+```{r, eval=FALSE}
 # This is the code example that I used. The link is https://community.rstudio.com/t/how-to-calculate-slope-with-conditions-in-r/36053.
 df %>% 
     group_nest(Source.Name, visbility, soundvolume) %>% 
@@ -116,7 +116,7 @@ df %>%
     mutate(slope = map_dbl(model, ~tidy(.x)$estimate[2]))
 ```
 
-```{r}
+```{r, eval=FALSE}
 C14_E1_ts <- as.tibble(C14_E1)
 C14_E1_ts
 E1_trial <- C14_E1_ts %>% 
@@ -127,3 +127,123 @@ E1_trial <- C14_E1_ts %>%
 E1_trial
 ```
 
+
+# Daniel solution
+
+A few things
+* Please read in detail R for data science chapter on grouping data: https://r4ds.had.co.nz/transform.html
+* Please read in detail R for data science chpater on joining data:  https://r4ds.had.co.nz/relational-data.html
+* You can also go back to my class here: https://vaulot.github.io/course-ntu-data-science-2020/R-session-04-data_wrangling.html
+* When you group data you must explicty tell which operation you want to perform (e.g. n() for counting, sum(), mean ()). If not no need to group data
+* Make your code general from the start so that to extend to all cases, no need to rewrite it.  
+* It is much better to rename immediately your varibales in a clean way
+
+## Read the data
+
+```{r}
+C14_DPM <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.xlsx", sheet = "Sheet1") %>%  # Explicit name and not position
+     select ( EXP, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1) %>%   # Can add more variables latter
+     rename(exp = EXP, 
+            sample = SAMPLE, 
+            vial = `Vial code`, 
+            population = `sorting population`, 
+            cells_sorted = `Cells sorted`, 
+            dpm = DPM1) %>% 
+     filter(exp == 1)  # You will just need to remove this line to make the code valid for all experiments
+```
+
+
+## Substract the dark DPM
+
+You need to make join based on the common variables 
+
+```{r}
+ C14_DPM_Dark <- C14_DPM %>% 
+  filter(vial == "D") %>% 
+  rename(dpm_dark = dpm) %>% 
+  select(-vial) # Remove the vial column
+C14_DPM_Dark
+
+
+C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark ) %>% 
+  filter (vial != "D") %>% 
+  mutate(dpm_corrected = dpm - dpm_dark) %>% 
+  filter(dpm_corrected >= 0) # Remove negative values
+  
+C14_DPM_corrected  
+  
+```
+
+## Method 1 - Compute lm by grouping ABC together
+
+### Plots
+Do plots for each group. One regression line based on the EXP, Sample and Populations
+
+```{r}
+ ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population)) +
+  geom_point() + stat_smooth(method="lm") +
+  facet_grid(rows=vars(exp), cols=vars(sample)) +
+  scale_color_viridis_d()
+```
+
+### Do linear model
+
+y = ax + b
+
+See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
+
+```{r}
+ C14_DPM_model_1 <- C14_DPM_corrected %>%
+  group_by(exp, sample, population) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
+    tidied = purrr::map(fit, tidy)
+  ) %>% 
+  unnest(tidied)
+
+C14_DPM_model_output_1 <- C14_DPM_model_1 %>% 
+  select(exp:population, term, estimate) %>% 
+  pivot_wider(names_from="term", values_from ="estimate" ) %>% 
+  rename (a = cells_sorted, b = `(Intercept)`)
+
+C14_DPM_model_output_1
+  
+```
+
+## Method 2 - Compute lm for  ABC separately
+
+### Plots
+Do plots for each group. One regression line based on the EXP, Sample and Populations
+
+```{r}
+ ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population, shape=vial)) +
+  geom_point() + stat_smooth(method="lm", se=FALSE) +
+  facet_grid(rows=vars(exp), cols=vars(sample)) +
+  scale_color_viridis_d()
+```
+
+### Do linear model
+
+y = ax + b
+
+See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
+
+```{r}
+ C14_DPM_model_2 <- C14_DPM_corrected %>%
+  group_by(exp, sample, population, vial) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
+    tidied = purrr::map(fit, tidy)
+  ) %>% 
+  unnest(tidied)
+
+C14_DPM_model_output_2 <- C14_DPM_model_2 %>% 
+  select(exp:population, term, estimate) %>% 
+  pivot_wider(names_from="term", values_from ="estimate" ) %>% 
+  rename (a = cells_sorted, b = `(Intercept)`)
+
+C14_DPM_model_output_2
+  
+```
