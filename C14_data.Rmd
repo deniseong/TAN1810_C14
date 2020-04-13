@@ -44,6 +44,7 @@ C14_E1
 ```
 
 To make calculations easier, I first created a new dataset that would bring vial D to a new column called DPM_dark. I then create another column DPM2 = light - dark. DPM2 would be DPM data that I will use to calculate my PP.
+
 # Problem: this method only works for complete dataset, and I would need to repeat for every experiment and depth. How do I set conditions to make sure that DPM_dark moves to its corresponding population? I would like to have a code that will apply to the entire dataset, without needed to subset the data.
 ```{r}
 # create new column for D, repeating from A to C
@@ -64,7 +65,7 @@ C14_E1
 E1 <- C14_E1 %>%
   group_by(`sorting population`, `Cells sorted`, `Vial code`) %>%
   summarise(DPM2)
-E1
+# E1
 ```
 
 
@@ -73,7 +74,7 @@ E1_nano <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Nano")
 E1_plot_nano <- ggplot(E1_nano, aes(x = `Cells sorted`, y = DPM2)) + geom_point()
-E1_plot_nano
+#E1_plot_nano
 ```
 
 ```{r}
@@ -81,10 +82,10 @@ E1_pico <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Pico")
 E1_plot_pico <- ggplot(E1_pico, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
-E1_plot_pico
+#E1_plot_pico
 E1_model_pico <- lm(DPM2 ~ `Cells sorted`, data=E1_pico)
 E1_model_pico
-summary(E1_model_pico)
+#summary(E1_model_pico)
 ```
 
 ```{r}
@@ -92,10 +93,10 @@ E1_syn <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Syn")
 E1_plot_syn <- ggplot(E1_syn, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
-E1_plot_syn
+#E1_plot_syn
 E1_model_syn <- lm(DPM2 ~ `Cells sorted`, data=E1_syn)
 E1_model_syn
-summary(E1_model_syn)
+#summary(E1_model_syn)
 ```
 
 # Method 2: calculate regression coefficient for each vial
