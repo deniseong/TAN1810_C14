@@ -8,7 +8,8 @@ output:
 ---
 ```{r setup, include=FALSE}
   knitr::opts_chunk$set(message=FALSE,
-                        warning=FALSE)
+                        warning=FALSE,
+                        cache=TRUE)
 ```
 
 # Load data
@@ -127,10 +128,12 @@ E1_trial <- C14_E1_ts %>%
 E1_trial
 ```
 
+\pagebreak
 
 # Daniel solution
 
-A few things
+A few things:
+
 * Please read in detail R for data science chapter on grouping data: https://r4ds.had.co.nz/transform.html
 * Please read in detail R for data science chpater on joining data:  https://r4ds.had.co.nz/relational-data.html
 * You can also go back to my class here: https://vaulot.github.io/course-ntu-data-science-2020/R-session-04-data_wrangling.html
@@ -177,6 +180,7 @@ C14_DPM_corrected
 ## Method 1 - Compute lm by grouping ABC together
 
 ### Plots
+
 Do plots for each group. One regression line based on the EXP, Sample and Populations
 
 ```{r}
