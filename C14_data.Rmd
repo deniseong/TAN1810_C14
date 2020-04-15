@@ -261,7 +261,8 @@ C14_DPM_model_output_2
 I made some additional changes. I filtered out Nano population, so the data will only have Pico and Syn. I also removed the filter for experiment 1, so the code is the entire dataset. I only used method 2 (compute lm for ABC separately). This set of edits will continue until the computation of PP as I have added the DIC and SA values from Andres, joining tables based on station no and depth (m). 
 
 # Final problems:
-Missing data. 
+- From experiment 6: SUR: vial C: pico: 2000 cells sorted -> corrected DPM value = 1485, much higher than DPM of 4000 and 10000 cells counted.
+- What should I do with negative slope values that result in negative pp values?
 
 ## Read the data
 
