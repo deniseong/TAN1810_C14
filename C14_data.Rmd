@@ -396,7 +396,9 @@ https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single
 final_cal <- mutate(final_cal, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
   ungroup() %>%
   select( -c(station, depth))
-final_cal <- complete(final_cal, nesting(cycle, exp), sample, vial, population) #add missing rows for data analysis later
+#add missing rows for data analysis later
+final_cal <- complete(final_cal, nesting(cycle, exp), sample, vial, population) 
+
 final_cal
 ```
 
