@@ -9,7 +9,8 @@ output:
 ```{r setup, include=FALSE}
   knitr::opts_chunk$set(message=FALSE,
                         warning=FALSE,
-                        cache=TRUE)
+                        cache=TRUE,
+                        tidy = FALSE)
 ```
 
 # Load data
@@ -37,7 +38,7 @@ C14_DPM <- C14_1 %>%
 C14_DPM
 ```
 
-#First, I focused on experiment 1 only to try 2 different methods I had in mind.
+# First, I focused on experiment 1 only to try 2 different methods I had in mind.
 ```{r}
 #filter for exp 1
 C14_E1 <- filter(C14_DPM, EXP==1)
@@ -101,7 +102,7 @@ summary(E1_model_syn)
 ```
 
 # Method 2: calculate regression coefficient for each vial
-This method is the one that I would like to use. The idea that I have is to group the data by sorting population (nano, pico, syn) and then by vial code. I would like to use a map function to create a new column that creates an LM function for each sorting population and vial, such that lm(DPM2~cells sorted), and then corresponding columns for the slope, p-value or each LM.
+This method is the one that I would like to use. The idea that I have is to group the data by sorting population (nano, pico, syn) and then by vial code. I would like to use a map function to create a new column that creates an LM function for each sorting population and vial, such that lm(DPM2~cells sorted), and then corresponding columns for the slope, p-value or each LM.  
 # Problem: I took some examples online to try and fit to my data but the code doesnt work.
 ```{r}
 library(dplyr)
@@ -153,6 +154,7 @@ C14_DPM <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.x
             cells_sorted = `Cells sorted`, 
             dpm = DPM1) %>% 
      filter(exp == 1)  # You will just need to remove this line to make the code valid for all experiments
+C14_DPM
 ```
 
 
@@ -251,3 +253,146 @@ C14_DPM_model_output_2 <- C14_DPM_model_2 %>%
 C14_DPM_model_output_2
   
 ```
+
+\pagebreak
+
+# Denise edits
+
+I made some additional changes. I filtered out Nano population, so the data will only have Pico and Syn. I also removed the filter for experiment 1, so the code is the entire dataset. I only used method 2 (compute lm for ABC separately). This set of edits will continue until the computation of PP as I have added the DIC and SA values from Andres, joining tables based on station no and depth (m). 
+
+# Final problems:
+Missing data. 
+
+## Read the data
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(tsibble)
+```
+
+
+```{r}
+C14_DPM <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.xlsx", sheet = "Sheet1") %>%  # Explicit name and not position
+     select ( EXP, STN, DEPTH, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1) %>%   
+  # Can add more variables latter
+  # station and depth for adding updated DIC values
+     rename(exp = EXP, 
+            station = STN,
+            depth = DEPTH,
+            sample = SAMPLE, 
+            vial = `Vial code`, 
+            population = `sorting population`, 
+            cells_sorted = `Cells sorted`, 
+            dpm = DPM1) %>%
+    filter(population != "Nano")
+
+C14_DPM
+```
+
+
+## Substract the dark DPM
+
+You need to make join based on the common variables 
+
+```{r}
+ C14_DPM_Dark <- C14_DPM %>% 
+  filter(vial == "D") %>% 
+  rename(dpm_dark = dpm) %>% 
+  #select(-vial) # Remove the vial column
+C14_DPM_Dark
+```
+
+```{r}
+C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark ) %>% 
+  filter (vial != "D") %>% 
+  mutate(dpm_corrected = dpm - dpm_dark) %>% 
+  filter(dpm_corrected >= 0) # Remove negative values
+  
+C14_DPM_corrected  
+  
+```
+
+## Method 2 - Compute lm for  ABC separately
+
+### Plots
+Do plots for each group. One regression line based on the EXP, Sample and Populations
+
+```{r}
+ ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population, shape=vial)) +
+  geom_point() + stat_smooth(method="lm", se=FALSE) +
+  facet_grid(rows=vars(exp), cols=vars(sample)) +
+  scale_color_viridis_d()
+```
+
+### Do linear model
+
+y = ax + b
+
+See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
+
+```{r}
+ C14_DPM_model_3 <- C14_DPM_corrected %>%
+  group_by(exp, station, depth, sample, population, vial) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
+    tidied = purrr::map(fit, tidy)
+  ) %>% 
+  unnest(tidied)
+
+C14_DPM_model_output_3 <- C14_DPM_model_3 %>% 
+  select(exp:population, term, estimate) %>% 
+  pivot_wider(names_from="term", values_from ="estimate" ) %>% 
+  rename (slope = cells_sorted, intercept = `(Intercept)`)
+
+C14_DPM_model_output_3
+  
+```
+
+## Include DIC and SA values
+
+Import DIC data from Andres. I will use this data to join with the DPM model output. The corrected data frame will have the DIC and SA values. The data will join based on the common columns: station and depth. 
+
+### Create DIC table
+```{r}
+DIC_data <- readxl::read_excel("Chla NPP Raw TAN1810 Sept.xlsx", sheet = "Compiled TAN1810 NPP data")
+
+# excel sheet not optimal for R, have to delete columns and make row 5 headers.
+names(DIC_data) <- DIC_data[5,] # make row 5 header
+DIC_data <- DIC_data [-c(1, 2, 3, 4, 5), c(1:34)] 
+DIC_data <- DIC_data [, -c(1, 27)] # remove repeated columns
+colnames(DIC_data) # check 
+
+# select for station, depth, DIC, SA. Change all columns to integer to join with DPM output.
+DIC_data_corrected <- select(DIC_data, Station, `Depth m`, DIC, SA) %>%
+  unique() %>% # delete repeated rows
+  rename(station = Station,
+         depth = `Depth m`) %>%
+  filter(depth != "35/40?") %>% # filter out character to change to integer
+  mutate_if(is.character, as.double) # change to double (same format as DPM dataset)
+
+DIC_data_corrected
+```
+
+### Merge DIC/SA table and DPM output
+```{r}
+# merge tables
+final_cal <- left_join(C14_DPM_model_output_3, DIC_data_corrected)
+final_cal
+```
+
+# Calculate PP value, based on Daniel's formula found here:  
+https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
+
+```{r}
+final_cal <- mutate(final_cal, pp = DIC*slope*(1/(SA*24))*10^9*1.05)
+final_cal
+```
+
+### Some notes from 14 April:
+- For the purposes of Eleanor's class, I will use method 2 (compute lm values for ABC separately) for more replicates, but method 1 will be used for actual calculations later.
+- No need to check p value of the slope.
+- Will not set intercept to 0.
