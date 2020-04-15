@@ -276,10 +276,11 @@ library(tsibble)
 
 ```{r}
 C14_DPM <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.xlsx", sheet = "Sheet1") %>%  # Explicit name and not position
-     select ( EXP, STN, DEPTH, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1) %>%   
+     select ( Cycle, EXP, STN, DEPTH, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1) %>%   
   # Can add more variables latter
   # station and depth for adding updated DIC values
-     rename(exp = EXP, 
+     rename(cycle = Cycle,
+            exp = EXP, 
             station = STN,
             depth = DEPTH,
             sample = SAMPLE, 
@@ -301,7 +302,7 @@ You need to make join based on the common variables
  C14_DPM_Dark <- C14_DPM %>% 
   filter(vial == "D") %>% 
   rename(dpm_dark = dpm) %>% 
-  #select(-vial) # Remove the vial column
+  select(-vial) # Remove the vial column
 C14_DPM_Dark
 ```
 
@@ -309,7 +310,8 @@ C14_DPM_Dark
 C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark ) %>% 
   filter (vial != "D") %>% 
   mutate(dpm_corrected = dpm - dpm_dark) %>% 
-  filter(dpm_corrected >= 0) # Remove negative values
+  filter(dpm_corrected >= 0) %>% # Remove negative values
+  filter(!(exp == 2 & sample == "DCM" & vial == "A")) # I removed this row as there was only one value for the population in the vial.
   
 C14_DPM_corrected  
   
@@ -327,6 +329,8 @@ Do plots for each group. One regression line based on the EXP, Sample and Popula
   scale_color_viridis_d()
 ```
 
+# need to check exp 6: SUR: Pico: C: 2000 cells sorted. Value is too high. Slope value is negative.
+
 ### Do linear model
 
 y = ax + b
@@ -335,7 +339,7 @@ See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.htm
 
 ```{r}
  C14_DPM_model_3 <- C14_DPM_corrected %>%
-  group_by(exp, station, depth, sample, population, vial) %>% 
+  group_by(cycle, exp, station, depth, sample, population, vial) %>% 
   tidyr::nest() %>% 
   mutate(
     fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
@@ -388,9 +392,13 @@ final_cal
 https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
 
 ```{r}
-final_cal <- mutate(final_cal, pp = DIC*slope*(1/(SA*24))*10^9*1.05)
+final_cal <- mutate(final_cal, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
+  ungroup() %>%
+  select( -c(station, depth))
+final_cal <- complete(final_cal, nesting(cycle, exp), sample, vial, population) #add missing rows for data analysis later
 final_cal
 ```
+
 
 ### Some notes from 14 April:
 - For the purposes of Eleanor's class, I will use method 2 (compute lm values for ABC separately) for more replicates, but method 1 will be used for actual calculations later.
