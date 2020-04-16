@@ -27,7 +27,7 @@ library(tidyverse)
 library(ggplot2)
 # create a new dataset
 C14_1 <- select(C14, julian_day, Cycle, STN, EXP, SAMPLE, Lat_DD, Long_DD, DEPTH, 'Vial code', 'sorting population', 'Cells sorted', DPM1)
-C14_1
+#C14_1
 ```
 
 To include only essential columns. Can edit code to include other columns that are essential later.
@@ -35,14 +35,14 @@ To include only essential columns. Can edit code to include other columns that a
 # Tidy for essential columns
 C14_DPM <- C14_1 %>%
   select ( EXP, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1)
-C14_DPM
+#C14_DPM
 ```
 
 # First, I focused on experiment 1 only to try 2 different methods I had in mind.
 ```{r}
 #filter for exp 1
 C14_E1 <- filter(C14_DPM, EXP==1)
-C14_E1
+#C14_E1
 ```
 
 To make calculations easier, I first created a new dataset that would bring vial D to a new column called DPM_dark. I then create another column DPM2 = light - dark. DPM2 would be DPM data that I will use to calculate my PP.
@@ -52,14 +52,15 @@ To make calculations easier, I first created a new dataset that would bring vial
 # create new column for D, repeating from A to C
 # select values for DPM dark
 subset1 <- subset(C14_E1, `Vial code` == "D",  select = c("DPM1"))
-subset1
+#subset1
 # select for vials A to C
 C14_E1 <- filter(C14_E1, `Vial code` != "D")
 # create DPM dark column
 C14_E1 <- mutate(C14_E1, DPM_dark = rep(subset1$DPM1, 3))
 # DPMD2 = DPM light - dark
 C14_E1 <- mutate(C14_E1, DPM2 = DPM1 - DPM_dark)
-C14_E1
+
+#C14_E1
 ```
 
 # IGNORE Method 1: Calculate coefficient when vials A to C combined (I have decided not to use this method as it reduces my number of replicates)
@@ -67,7 +68,7 @@ C14_E1
 E1 <- C14_E1 %>%
   group_by(`sorting population`, `Cells sorted`, `Vial code`) %>%
   summarise(DPM2)
-E1
+#E1
 ```
 
 
@@ -76,7 +77,7 @@ E1_nano <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Nano")
 E1_plot_nano <- ggplot(E1_nano, aes(x = `Cells sorted`, y = DPM2)) + geom_point()
-E1_plot_nano
+#E1_plot_nano
 ```
 
 ```{r}
@@ -84,10 +85,10 @@ E1_pico <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Pico")
 E1_plot_pico <- ggplot(E1_pico, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
-E1_plot_pico
+#E1_plot_pico
 E1_model_pico <- lm(DPM2 ~ `Cells sorted`, data=E1_pico)
-E1_model_pico
-summary(E1_model_pico)
+#E1_model_pico
+#summary(E1_model_pico)
 ```
 
 ```{r}
@@ -95,10 +96,10 @@ E1_syn <- E1 %>%
   ungroup() %>%
   filter(`sorting population` == "Syn")
 E1_plot_syn <- ggplot(E1_syn, aes(x = `Cells sorted`, y = DPM2)) + geom_point() + geom_smooth(method = lm)
-E1_plot_syn
+#E1_plot_syn
 E1_model_syn <- lm(DPM2 ~ `Cells sorted`, data=E1_syn)
-E1_model_syn
-summary(E1_model_syn)
+#E1_model_syn
+#summary(E1_model_syn)
 ```
 
 # Method 2: calculate regression coefficient for each vial
@@ -120,13 +121,13 @@ df %>%
 
 ```{r, eval=FALSE}
 C14_E1_ts <- as.tibble(C14_E1)
-C14_E1_ts
+#C14_E1_ts
 E1_trial <- C14_E1_ts %>% 
   ungroup() %>%
   group_by(`sorting population`, `Vial code`)  %>%
   mutate(model = map(data, ~lm(DPM2~`Cells sorted`, data = .))) %>%
   mutate(slope = map_dbl(model, ~tidy(.)$estimate[2]))
-E1_trial
+#E1_trial
 ```
 
 \pagebreak
@@ -260,7 +261,7 @@ C14_DPM_model_output_2
 
 I made some additional changes. I filtered out Nano population, so the data will only have Pico and Syn. I also removed the filter for experiment 1, so the code is the entire dataset. I only used method 2 (compute lm for ABC separately). This set of edits will continue until the computation of PP as I have added the DIC and SA values from Andres, joining tables based on station no and depth (m). 
 
-# Final problems:
+# Problems:
 - From experiment 6: SUR: vial C: pico: 2000 cells sorted -> corrected DPM value = 1485, much higher than DPM of 4000 and 10000 cells counted.
 - What should I do with negative slope values that result in negative pp values?
 
@@ -397,7 +398,7 @@ final_cal <- mutate(final_cal, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
   ungroup() %>%
   select( -c(station, depth))
 #add missing rows for data analysis later
-final_cal <- complete(final_cal, nesting(cycle, exp), sample, vial, population) 
+final_cal <- complete(final_cal, nesting(cycle, exp, sample), vial, population) 
 
 final_cal
 ```
