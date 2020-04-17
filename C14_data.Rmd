@@ -421,6 +421,11 @@ Compute means quickly
 final_cal %>% 
   group_by(population, sample) %>% 
   summarise(pp_mean = mean(pp, na.rm = TRUE))
+
+final_cal %>% 
+  ggplot() +
+  geom_point(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
+  xlab("Sample")
 ```
 
 Rii (2016) finds 5–11 fmol C/cell/day for Syn  need to convert from fmol C to fg C and from hours to day... to compare
