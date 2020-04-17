@@ -311,8 +311,12 @@ C14_DPM_Dark
 ```{r}
 C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark ) %>% 
   filter (vial != "D") %>% 
-  mutate(dpm_corrected = dpm - dpm_dark) %>% 
-  filter(dpm_corrected >= 0) %>% # Remove negative values
+  # DV - The next line sets dpm_dark to average dpm_dark if no value
+  mutate(dpm_dark = case_when (is.na(dpm_dark) ~ mean(dpm_dark, na.rm = TRUE),
+                               TRUE ~ dpm_dark))  %>% 
+  # DV - The next line set dpm_correct to zero if negative
+  mutate(dpm_corrected = case_when (dpm >= dpm_dark ~ dpm - dpm_dark,
+                                    TRUE ~0)) %>% 
   filter(!(exp == 2 & sample == "DCM" & vial == "A")) # I removed this row as there was only one value for the population in the vial.
   
 C14_DPM_corrected  
@@ -324,10 +328,11 @@ C14_DPM_corrected
 ### Plots
 Do plots for each group. One regression line based on the EXP, Sample and Populations
 
-```{r}
+```{r fig.height=15, fig.width=10}
  ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population, shape=vial)) +
   geom_point() + stat_smooth(method="lm", se=FALSE) +
-  facet_grid(rows=vars(exp), cols=vars(sample)) +
+  # DV - Set the y_scale to free so that graph is more easy to read
+  facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
   scale_color_viridis_d()
 ```
 
@@ -364,12 +369,17 @@ Import DIC data from Andres. I will use this data to join with the DPM model out
 
 ### Create DIC table
 ```{r}
-DIC_data <- readxl::read_excel("Chla NPP Raw TAN1810 Sept.xlsx", sheet = "Compiled TAN1810 NPP data")
+
+# DV - Read the help for Excel you can choose the number of rows to skip and use select rather than base R
+DIC_data <- readxl::read_excel("Chla NPP Raw TAN1810 Sept.xlsx", sheet = "Compiled TAN1810 NPP data", skip = 5) %>% 
+  select(c(1:34), -c(1,27))
+
+# DV - The code below is replaced by line above
 
 # excel sheet not optimal for R, have to delete columns and make row 5 headers.
-names(DIC_data) <- DIC_data[5,] # make row 5 header
-DIC_data <- DIC_data [-c(1, 2, 3, 4, 5), c(1:34)] 
-DIC_data <- DIC_data [, -c(1, 27)] # remove repeated columns
+# names(DIC_data) <- DIC_data[5,] # make row 5 header
+# DIC_data <- DIC_data [-c(1, 2, 3, 4, 5), c(1:34)] 
+# DIC_data <- DIC_data [, -c(1, 27)] # remove repeated columns
 colnames(DIC_data) # check 
 
 # select for station, depth, DIC, SA. Change all columns to integer to join with DPM output.
@@ -386,6 +396,7 @@ DIC_data_corrected
 ### Merge DIC/SA table and DPM output
 ```{r}
 # merge tables
+# DV - Bad habit to call an objet final... nothing is really ever final
 final_cal <- left_join(C14_DPM_model_output_3, DIC_data_corrected)
 final_cal
 ```
@@ -395,7 +406,7 @@ https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single
 
 ```{r}
 final_cal <- mutate(final_cal, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
-  ungroup() %>%
+  ungroup() %>%  # DV - Why are using ungroup here ?
   select( -c(station, depth))
 #add missing rows for data analysis later
 final_cal <- complete(final_cal, nesting(cycle, exp, sample), vial, population) 
@@ -403,6 +414,16 @@ final_cal <- complete(final_cal, nesting(cycle, exp, sample), vial, population)
 final_cal
 ```
 
+Compute means quickly
+
+```{r}
+ 
+final_cal %>% 
+  group_by(population, sample) %>% 
+  summarise(pp_mean = mean(pp, na.rm = TRUE))
+```
+
+Rii (2016) finds 5–11 fmol C/cell/day for Syn  need to convert from fmol C to fg C and from hours to day... to compare
 
 ### Some notes from 14 April:
 - For the purposes of Eleanor's class, I will use method 2 (compute lm values for ABC separately) for more replicates, but method 1 will be used for actual calculations later.
