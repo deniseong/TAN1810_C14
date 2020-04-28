@@ -1,0 +1,133 @@
+---
+title: "Experimental Design Project"
+author: "Denise Ong"
+date: "4/19/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+  knitr::opts_chunk$set(message=FALSE,
+                        warning=FALSE,
+                        cache=TRUE,
+                        tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(lme4)
+theme_set(theme_bw())
+```
+
+# Load data
+```{r}
+pp_data <- readxl::read_excel("C14_Denise.xlsx") %>%
+  dplyr::select(cycle, exp, sample, vial, population, pp) %>%
+  rename(depth = sample) %>%
+  arrange(cycle, exp, depth, population, vial, pp) 
+  
+pp_data$cycle <- as.character(pp_data$cycle)
+pp_data$exp <- as.character(pp_data$exp)
+pp_data
+```
+
+I first plot the raw data to visualise.
+
+A histogram of the primary productivity values suggest that it is right-skewed. There could be a need to transform the data later if the assumptions of normality are not met.
+```{r}
+hist(pp_data$pp)
+```
+
+First, I visualise the data without considering the random effects.
+```{r}
+ggplot(pp_data, aes(x=depth, y=pp)) + geom_boxplot()
+ggplot(pp_data, aes(x=population, y=pp)) +geom_boxplot()
+ggplot(pp_data, aes(x=population, y=pp, color=depth)) +geom_boxplot()+ylab("Primary productivity (fgC/h/cell)")+xlab("Plankton group")
+```
+The boxplot suggest that the primary productivity of Pico is higher than Syn. However, the boxes overlap so the difference might not be significant. The depth does not seem to have any difference in the Pico population, but the Synechococcus population at the DCM might have higher productivity compared to the surface.
+
+Now I consider the influence of experiments.
+```{r}
+ggplot(pp_data, aes(x=population, y=pp, color = exp)) + geom_boxplot() +facet_wrap(~depth)+ylab("Primary productivity (fgC/h/cell)")+xlab("Plankton group")
+```
+As the sampling was designed as experiment nested in cycle, the random effect would be included in the model. There seems to be a difference between experiments, confirms the need to include (1|cycle/experiment) in the model. 
+
+I fit the full model to look at the variation explained by the random effects, and the diagnostic plots.
+```{r}
+m1 <- lmer(pp ~ depth * population + (1|cycle/exp), data = pp_data)
+summary(m1)
+```
+In this full model, the random effect explains 3.119+1.894/3.119+1.894+12.419=28.7% of the variation. There are 86 observations, with 11 experiments nested within 5 cycles. This shows that the data has been read correctly.
+
+```{r}
+plot(m1)
+qqnorm(resid(m1))
+```
+However, from the diagnostic plots, the data appears to be non-normal, skewed by very large values as suggested from the box plots and histogram above.
+
+Hence, I log-transform the data.
+```{r}
+# Replace a zero value in pp with NA for log transformation. The O value is not a true measurement, but missing replicate that became a data point when I merged with another table during my calculations for pp. So, it is actually an NA!
+pp_data <- naniar::replace_with_na(pp_data, replace = list(pp = 0))
+m1_log <- lmer(log10(pp) ~ depth * population + (1|cycle/exp), data = pp_data)
+summary(m1_log)
+plot(m1_log)
+qqnorm(resid(m1_log))
+```
+
+After log transformation, the random effects account for 71% of the variation, an increase compared to the data before transformation. The qqplot shows the data to be normally distributed and have similar variances. From now I will log-transform the primary productivity values to meet the assumptions of normality and homeoskedasticity.
+
+Now I test the fixed effects using REML = FALSE.
+```{r}
+m2_log <- lmer(log10(pp) ~ depth * population + (1|cycle/exp), data = pp_data, REML = FALSE)
+m3_log <- lmer(log10(pp) ~ depth + population + (1|cycle/exp), data = pp_data, REML = FALSE)
+m4_log <- lmer(log10(pp) ~ depth + (1|cycle/exp), data = pp_data, REML = FALSE)
+m5_log <- lmer(log10(pp) ~ population + (1|cycle/exp), data = pp_data, REML = FALSE)
+anova(m2_log, m3_log)
+```
+The interactions of fixed effects are not significant. Test each fixed effect against model without interaction.
+```{r}
+anova(m3_log, m4_log)
+anova(m3_log, m5_log)
+```
+Both are significantly different. Hence, both fixed effects are significant and should be included in the model.
+
+Fit the final model with REML = TRUE, and check the diagnostic plots. 
+```{r}
+m3_log_REML <- lmer(log10(pp) ~ depth + population + (1|cycle/exp), data = pp_data, REML = TRUE)
+plot(m3_log_REML)
+qqnorm(resid(m3_log_REML))
+summary(m3_log_REML)
+```
+From the diagnostic plots, both assumptions of assumptions of normality and homeoskedasticity are met.
+In this chosen model, random effects (1|cycle/exp) explain 67.4% of the variance.
+
+```{r}
+library(nlme)
+lme_m3 <- lme(log10(pp) ~ depth + population, random = ~1|cycle/exp, data = pp_data, na.action=na.exclude)
+anova(lme_m3)
+```
+
+The following graph was used to visualise the confidence interval for each fixed effect.
+```{r}
+library(multcomp)
+tmp <- as.data.frame(confint(glht(m3_log_REML))$confint)
+tmp$Comparison <- rownames(tmp)
+ggplot(tmp, aes(x = Comparison, y = Estimate, ymin = lwr, ymax = upr)) +
+  geom_errorbar() + geom_point()
+```
+
+The following outputs were used to obtain the Least Significant Difference (LSD) coefficients for each fixed effect.
+```{r}
+library(predictmeans)
+predictmeans(m3_log_REML, "depth")
+```
+
+```{r}
+predictmeans(m3_log_REML, "population")
+```
+
+
