@@ -7,6 +7,7 @@ output:
   html_document: default
 ---
 
+Code for Experimental Design module project. Data used from method 2 - computing lm for ABC separately.
 ```{r setup, include=FALSE}
   knitr::opts_chunk$set(message=FALSE,
                         warning=FALSE,
