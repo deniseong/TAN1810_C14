@@ -13,19 +13,14 @@ output:
                         tidy = FALSE)
 ```
 
-# Denise edits on 11 May 2020
-
-Notes:
-
-
-The code for method 1 (Compute lm by grouping ABC together) and method 2 (Compute lm for  ABC separately) is completed. The last steps are removing values that are too high/low.
-
 ```{r}
 library(dplyr)
 library(tidyverse)
 library(ggplot2)
 library(broom)
 ```
+
+# Denise edits on 11 May 2020
 
 # 1. Read C14 data
 ```{r}
