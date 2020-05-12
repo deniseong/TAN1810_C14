@@ -66,9 +66,9 @@ C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark ) %>%
   # DV - The next line set dpm_correct to zero if negative, as negative values are all close to zero.
   mutate(dpm_corrected = case_when (dpm >= dpm_dark ~ dpm - dpm_dark,
                                     TRUE ~0)) %>% 
-  filter(!(exp == 2 & sample == "DCM" & vial == "A")) %>% # I removed this row as there was only one value for the population in the vial.
-  filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Pico' & cells_sorted == 2000)) %>% # This value is too high
-  filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Syn' & cells_sorted == 2000)) # This value is too high
+  filter(!(exp == 2 & sample == "DCM" & vial == "A")) # I removed this row as there was only one value for the population in the vial.
+  #filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Pico' & cells_sorted == 2000)) %>% # This value is too high
+  #filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Syn' & cells_sorted == 2000)) # This value is too high
 
 C14_DPM_corrected  
 ```
@@ -281,7 +281,9 @@ pp_cal_1_join %>%
 pp_cal_1_join %>% 
   ggplot() +
   geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample")
+  xlab("Sample") +
+  scale_y_continuous(trans='log10')+
+  ylab("log10(pp)")
 ```
 
 # 4. Compute based on Method 2 - Compute lm for  ABC separately
