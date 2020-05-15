@@ -180,7 +180,7 @@ pp_cal_nano
 ```
 
 
-# 3. Compute based on Method 1 for pico and syn - Compute lm by grouping ABC together
+# 4. Compute based on Method 1 for pico and syn - Compute lm by grouping ABC together
 
 ## Plots
 
@@ -286,7 +286,7 @@ pp_cal_1_join %>%
   ylab("log10(pp)")
 ```
 
-# 4. Compute based on Method 2 - Compute lm for  ABC separately
+# 5. Compute based on Method 2 - Compute lm for  ABC separately
 
 ## Plots
 Do plots for each group. One regression line based on the EXP, Sample and Populations
