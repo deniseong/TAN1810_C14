@@ -20,34 +20,64 @@ library(ggplot2)
 library(broom)
 ```
 
-# Denise edits on 11 May 2020
+# Denise edits on 18 Sep 2020
 
-# 1. Read C14 data
+The following edits made to the data:
+•	Exp 1: SUR: nano – vial C and D swap
+•	Exp 3: SUR: pico: vial A – remove
+•	Exp 4: SUR: pico, nano, syn – repeated vial B, take the average
+•	Exp 6: SUR: nano – repeated vial A, remove lower value
+•	Exp 7: SUR: nano – remove
+•	Exp 7: DCM: nano – remove
+•	Exp 8: DCM: nano – remove
+•	Exp 8: SUR: nano: 2000 cell count – remove
+
+
+The calculations of primary production based on single cell C14 uptake for cells sorted by flow cytometry. (https://vaulot.netlify.app/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/)
+To calculate the pp values, pico and syn had cell counts of 2000, 4000, 10000. The gradient of the lm is calculated by grouping vials A, B, C together to get the DPM per cell for each experiment. For nano, the cells were sorted mostly with one cell count of 2000. The DPM per cell is calculated by the average of vial A, B, C to get the value for each experiment. 
+
+
+# 1. Calculations for pico and syn - Compute lm by grouping ABC together
+
+The following edits made to pico and syn data:
+•	Exp 3: SUR: pico: vial A – remove
+
+Edits to be made:
+•	Exp 4: SUR: pico, syn – repeated vial B, take the average
+
+Data points to check for pico and syn calculations:
+• Exp 2: DCM: pico vial A- only 1 value.
+• Exp 6: SUR: pico, syn - dpm corrected values at cells sorted 2000 much higher than 4000 and 10000
+
+
+## Read table for pico and syn. Data points to edit are made here. 
 ```{r}
-C14_DPM <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.xlsx", sheet = "Sheet1") %>%
-  dplyr::select (Cycle, EXP, STN, DEPTH, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1, `SA in DPM (aproximation)`) %>%   
-  # Can add more variables latter
-  # station and depth for adding updated DIC values
-     rename(cycle = Cycle,
-            exp = EXP, 
-            station = STN,
-            depth = DEPTH,
+C14_DPM <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA.xlsx", sheet = "Complete data TAN1810", skip = 11) %>%
+  dplyr::select (`Cycle#`, `EXP#`, SAMPLE, `Vial code             (i - initials, A to C - light incubation, D - dark)`, `sorting population`, `Cells sorted`, DPM1, DIC, `SA_dpm_mL`) %>%   
+     rename(cycle = `Cycle#`,
+            exp = `EXP#`,
             sample = SAMPLE, 
-            vial = `Vial code`, 
+            vial = `Vial code             (i - initials, A to C - light incubation, D - dark)`, 
             population = `sorting population`, 
             cells_sorted = `Cells sorted`, 
             dpm = DPM1,
-            SA = `SA in DPM (aproximation)`) %>%
-    filter(population != "Nano")
-
+            SA = `SA_dpm_mL`) %>%
+    filter(population != "Nano") %>%
+    filter(!(exp == 3 & sample == "SUR" & vial == "A" & population == "Pico"))  # Exp 3: SUR: pico: vial A – remove
+    #Exp 4: SUR: pico, nano, syn – repeated vial B, take the average
+#C14_DPM <- rowwise(cycle, exp, sample, population, vial, cells_sorted) %>% 
+#  summarise(m = mean(dpm, DIC, SA))
+  #filter(!(exp == 2 & sample == "DCM" & vial == "A")) # I removed this row as there was only one value for the population in the vial.
+  #filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Pico' & cells_sorted == 2000)) %>% # This value is too high
+  #filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Syn' & cells_sorted == 2000)) # This value is too high
 C14_DPM
 ```
 
-## Substract the dark DPM
+## Subtract the dark DPM
 Join tables based on common variables
 
 ```{r}
- C14_DPM_Dark <- C14_DPM %>% 
+C14_DPM_Dark <- C14_DPM %>% 
   filter(vial == "D") %>% 
   rename(dpm_dark = dpm) %>% 
   dplyr::select(-vial) # Remove the vial column
@@ -58,71 +88,107 @@ mean(C14_DPM_Dark$dpm_dark)
 ```
 
 ```{r}
-C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark ) %>% 
+C14_DPM_corrected <- left_join(C14_DPM,C14_DPM_Dark) %>% 
   filter (vial != "D") %>% 
   # DV - The next line replace dpm_dark to average dpm_dark if no value. Checked with histogram above.
   mutate(dpm_dark = case_when (is.na(dpm_dark) ~ mean(dpm_dark, na.rm = TRUE),
                                TRUE ~ dpm_dark))  %>% 
   # DV - The next line set dpm_correct to zero if negative, as negative values are all close to zero.
   mutate(dpm_corrected = case_when (dpm >= dpm_dark ~ dpm - dpm_dark,
-                                    TRUE ~0)) %>% 
-  filter(!(exp == 2 & sample == "DCM" & vial == "A")) # I removed this row as there was only one value for the population in the vial.
-  #filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Pico' & cells_sorted == 2000)) %>% # This value is too high
-  #filter(!(exp == 6 & sample == 'SUR' & vial == 'C' & population == 'Syn' & cells_sorted == 2000)) # This value is too high
+                                    TRUE ~0)) 
 
 C14_DPM_corrected  
 ```
 
+## Plots
 
-# 2. Include DIC
-
-Import DIC data from Andres. I will use this data to join with the DPM model output. The corrected data frame will have the DIC. The data will join based on the common columns: station and depth. 
-
-## Create DIC table
-```{r}
-DIC_data <- readxl::read_excel("Chla NPP Raw TAN1810 Sept.xlsx", sheet = "Compiled TAN1810 NPP data", skip = 5) %>% 
-  select(c(1:34), -c(1,27))
-
-# select for station, depth, DIC, SA. Change all columns to integer to join with DPM output.
-DIC_data_corrected <- select(DIC_data, Station, `Depth m`, DIC) %>%
-  unique() %>% # delete repeated rows
-  rename(station = Station,
-         depth = `Depth m`) %>%
-  filter(depth != "35/40?") %>% # filter out character to change to integer
-  mutate_if(is.character, as.double) # change to double (same format as DPM dataset)
-
-DIC_data_corrected
+Do plots for each group. One regression line based on the EXP, Sample and Populations
+```{r fig.height=15, fig.width=10}
+ ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population)) +
+  geom_point() + stat_smooth(method="lm", se=FALSE) +
+  facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
+  scale_color_viridis_d()
 ```
 
-# 3. Calculations for Nano (average)
+## Do linear model
 
-Data points to check for Nano calculations:
-1. exp 7: SUR and DCM. D is higher than A, B, C.
-2. exp 1: SUR. D is much higher than C
-3. exp 5: SUR. No D vial, using average dark value. However, there are very high dark values that skew the mean.
-4. exp 6: SUR. Two values for vial A
-5. exp 8: DCM values are low.
-6. to calculate lm for Nano (1000 and 2000 cells counted): 
-      exp 7: SUR and DCM
-      exp 8: SUR
+y = ax + b
+
+See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
 
 ```{r}
-C14_DPM_nano <- readxl::read_excel("TAN1810 Adriana samples complete _final_AGR_1.0.xlsx", sheet = "Sheet1") %>%
-  dplyr::select (Cycle, EXP, STN, DEPTH, SAMPLE, `Vial code`, `sorting population`, `Cells sorted`, DPM1, `SA in DPM (aproximation)`) %>%   
-  # Can add more variables latter
-  # station and depth for adding updated DIC values
-     rename(cycle = Cycle,
-            exp = EXP, 
-            station = STN,
-            depth = DEPTH,
+ C14_DPM_model_1 <- C14_DPM_corrected %>%
+  group_by(cycle, exp, sample, population, DIC, SA) %>% 
+  tidyr::nest() %>% 
+  mutate(
+    fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
+    tidied = purrr::map(fit, tidy)
+  ) %>% 
+  unnest(tidied)
+
+C14_DPM_model_output_1 <- C14_DPM_model_1 %>% 
+  select(exp:population, term, estimate) %>% 
+  pivot_wider(names_from="term", values_from ="estimate" ) %>% 
+  rename (slope = cells_sorted, intercept = `(Intercept)`)
+
+C14_DPM_model_output_1
+  
+```
+
+
+## Calculate PP value, based on Daniel's formula found here:  
+https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
+
+```{r}
+pp_cal_1 <- mutate(C14_DPM_model_output_1, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
+  ungroup() %>%
+  filter(pp >= 0) # remove negative pp values
+
+# add missing rows for data analysis later
+pp_cal_1 <- complete(pp_cal_1, nesting(cycle, exp, sample), population) 
+  
+pp_cal_1
+```
+
+# 2. Calculations for Nano (average)
+
+Data points to check for Nano calculations:
+•	exp 5: SUR. Vial D is high. Also marked in the exceel sheet. I removed.
+• exp 2: DCM. cells sorted for vial A is 496. removed
+
+The following edits made to Nano data:
+•	Exp 6: SUR: nano – repeated vial A, remove lower value
+•	Exp 7: SUR: nano – remove
+•	Exp 7: DCM: nano – remove
+•	Exp 8: DCM: nano – remove
+•	Exp 8: SUR: nano: 2000 cell count – remove
+
+Edits to be made:
+•	Exp 1: SUR: nano – vial C and D swap
+•	Exp 4: SUR: nano – repeated vial B, take the average
+      
+      
+```{r}
+# Changed the excel sheet read, with final dpm and DIC values
+C14_DPM_nano <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA.xlsx", sheet = "Complete data TAN1810", skip = 11)%>% 
+  dplyr::select (`Cycle#`, `EXP#`, SAMPLE, `Vial code             (i - initials, A to C - light incubation, D - dark)`, `sorting population`, `Cells sorted`, DPM1, DIC, `SA_dpm_mL`) %>%   
+     rename(cycle = `Cycle#`,
+            exp = `EXP#`,
             sample = SAMPLE, 
-            vial = `Vial code`, 
+            vial = `Vial code             (i - initials, A to C - light incubation, D - dark)`, 
             population = `sorting population`, 
             cells_sorted = `Cells sorted`, 
             dpm = DPM1,
-            SA = `SA in DPM (aproximation)`) %>%
+            SA = `SA_dpm_mL`) %>%
     filter(population == "Nano") %>%
-    filter(!(exp == 2 & sample == "DCM" & vial == "A"))
+    # values removed/replaced below
+    filter(!(exp == 5 & sample == "SUR" & vial =="D")) %>%
+    filter(!(exp == 7 & sample == "SUR")) %>%
+    filter(!(exp == 7 & sample == "DCM")) %>%
+    filter(!(exp == 8 & sample == "DCM")) %>%
+    filter(!(exp == 8 & sample == "SUR" & vial == "C" & cells_sorted == 2000)) %>%
+    filter(!(exp == 6 & sample == "SUR" & vial == "A" & dpm == 384)) %>%
+    filter(!(exp == 2 & sample == "DCM" & vial == "A")) 
 C14_DPM_nano
 ```
 
@@ -151,13 +217,13 @@ C14_DPM_corrected_nano <- left_join(C14_DPM_nano,C14_DPM_Dark_nano) %>%
 C14_DPM_corrected_nano
 ```
 
-## Merge DIC/SA table and DPM output, calculate mean
+## calculate mean
 ```{r}
 # merge tables
-pp_cal_nano <- left_join(C14_DPM_corrected_nano, DIC_data_corrected) %>%
+pp_cal_nano <-  C14_DPM_corrected_nano %>%
   group_by(SA, population, cycle, DIC, exp, sample) %>%
   mutate(mean_dpm_corrected=mean(dpm_corrected)) %>% #calculate mean
-  select(-vial, -dpm, -dpm_dark, -station, -depth, -dpm_corrected) %>%
+  select(-vial, -dpm, -dpm_dark, -dpm_corrected) %>%
   distinct() #remove duplicates
 
 pp_cal_nano
@@ -180,92 +246,13 @@ pp_cal_nano
 ```
 
 
-# 4. Compute based on Method 1 for pico and syn - Compute lm by grouping ABC together
 
-## Plots
-
-Do plots for each group. One regression line based on the EXP, Sample and Populations
-```{r fig.height=15, fig.width=10}
- ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population)) +
-  geom_point() + stat_smooth(method="lm", se=FALSE) +
-  facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
-  scale_color_viridis_d()
-```
-
-Data points to check:
-1. exp 4: SUR: pico. repeated vial B.
-2. exp 8: DCM is 0.
-
-
-## Do linear model
-
-y = ax + b
-
-See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
-
-```{r}
- C14_DPM_model_1 <- C14_DPM_corrected %>%
-  group_by(SA, cycle, exp, station, depth, sample, population) %>% 
-  tidyr::nest() %>% 
-  mutate(
-    fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
-    tidied = purrr::map(fit, tidy)
-  ) %>% 
-  unnest(tidied)
-
-C14_DPM_model_output_1 <- C14_DPM_model_1 %>% 
-  select(exp:population, term, estimate) %>% 
-  pivot_wider(names_from="term", values_from ="estimate" ) %>% 
-  rename (slope = cells_sorted, intercept = `(Intercept)`)
-
-C14_DPM_model_output_1
-  
-```
-
-## Merge DIC/SA table and DPM output
-```{r}
-# merge tables
-pp_cal_1 <- left_join(C14_DPM_model_output_1, DIC_data_corrected)
-pp_cal_1
-```
-
-## Calculate PP value, based on Daniel's formula found here:  
-https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
-
-```{r}
-pp_cal_1 <- mutate(pp_cal_1, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
-  ungroup() %>%
-  select( -c(station, depth)) %>%
-  filter(pp >= 0) # remove negative pp values
-
-# add missing rows for data analysis later
-pp_cal_1 <- complete(pp_cal_1, nesting(cycle, exp, sample), population) 
-  
-pp_cal_1
-```
 
 ```{r}
 pp_cal_1_join<-full_join(pp_cal_1,pp_cal_nano) %>%
   select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
   arrange(cycle, exp, sample, population)
 pp_cal_1_join
-```
-
-```{r}
- 
-pp_cal_1 %>% 
-  group_by(population, sample) %>% 
-  summarise(pp_mean = mean(pp, na.rm = TRUE))
-
-pp_cal_1 %>% 
-  ggplot() +
-  geom_point(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample")
-
-pp_cal_1 %>% 
-  ggplot() +
-  geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample")
 ```
 
 ```{r}
@@ -286,7 +273,11 @@ pp_cal_1_join %>%
   ylab("log10(pp)")
 ```
 
-# 5. Compute based on Method 2 - Compute lm for  ABC separately
+The units for pp is fgC/h/cell.
+Rii (2016) finds 5–11 fmol C/cell/day for Syn which corresponds to 60-132 fg /day/cell ie 2.5 to 5.5 fg/h/cell.
+
+
+# 3. Compute based on Method 2 - Compute lm for  ABC separately
 
 ## Plots
 Do plots for each group. One regression line based on the EXP, Sample and Populations
