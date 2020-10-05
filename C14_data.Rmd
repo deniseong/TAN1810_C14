@@ -255,21 +255,28 @@ pp_cal_1_join
 ```
 
 ```{r}
-pp_cal_1_join %>% 
+pp_cal_table <- pp_cal_1_join %>% 
   group_by(population,sample) %>% 
   summarise(pp_mean = mean(pp, na.rm = TRUE),
             ssd = sd(pp, na.rm = TRUE),
             count = n()) %>%
   mutate(se = ssd / sqrt(count),
         lower_CI = pp_mean - qt(1 - (0.05 / 2), count - 1) * se,
-        upper_CI = pp_mean + qt(1 - (0.05 / 2), count - 1) * se)
+        upper_CI = pp_mean + qt(1 - (0.05 / 2), count - 1) * se) %>%
+  select(population, sample, pp_mean, se, lower_CI, upper_CI)%>%
+  rename(Population = population,
+         Depth = sample,
+         `Mean primary production rate (fgC/h/cell)` = pp_mean,
+         `Standard error` = se,
+         `Lower CI` = lower_CI,
+         `Upper CI` = upper_CI)
 
-pp_cal_1_join %>% 
+pp_cal_point <- pp_cal_1_join %>% 
   ggplot() +
   geom_point(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
   xlab("Sample")
 
-pp_cal_1_join %>% 
+pp_cal_boxplot <- pp_cal_1_join %>% 
   ggplot() +
   geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
   xlab("Sample") +
@@ -280,6 +287,12 @@ pp_cal_1_join %>%
 The units for pp is fgC/h/cell.
 Rii (2016) finds 5–11 fmol C/cell/day for Syn which corresponds to 60-132 fg /day/cell ie 2.5 to 5.5 fg/h/cell.
 
+
+```{r}
+library(xtable)
+print(xtable(pp_cal_table),
+      comment = FALSE)
+```
 
 # 4. Compute based on Method 2 - Compute lm for  ABC separately
 
