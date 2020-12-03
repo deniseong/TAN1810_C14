@@ -20,18 +20,26 @@ library(ggplot2)
 library(broom)
 ```
 
-# Denise edits on 18 Sep 2020
+# Denise edits on 3 Dec 2020
 
-The following edits made to the data:
-•	Exp 1: SUR: nano – vial C and D swap
+Edits to be made:
+•	Exp 4: SUR: pico, syn – repeated vial B, take the average of the dpm value
+•	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
+•	Exp 1: SUR: nano – vial C and D swap dpm value
+
+
+The following edits have been made to the data:
 •	Exp 3: SUR: pico: vial A – remove
-•	Exp 4: SUR: pico, nano, syn – repeated vial B, take the average
+•	Add Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
+•	exp 5: SUR. Vial D is high. Also marked in the excel sheet. Removed, to be checked by Andres/Karl side.
 •	Exp 6: SUR: nano – repeated vial A, remove lower value
-•	Exp 6: SUR: vial C, error in recording. Changed in excel sheet
-•	Exp 7: SUR: nano – remove
-•	Exp 7: DCM: nano – remove
-•	Exp 8: DCM: nano – remove
+•	Exp 7: SUR: nano – remove (Dark incubation is much higher than A, B, C)
+•	Exp 7: DCM: nano – remove (Dark incubation is much higher than A, B, C)
+•	Exp 8: DCM: nano – remove 
 •	Exp 8: SUR: nano: 2000 cell count – remove
+• Moved Exp 2: DCM: pico vial A from pico/syn calculation (part 1) to nano calculation (part 2). only 1 value, cells sorted 1120.
+•	Moved Exp 8: SUR: nano – for vial B and D from nano calculation (part 2) to pico/syn calculation (part 1) for lm value, as there is cells sorted for both 1000 and 2000.
+•	Exp 6: SUR: vial C, error in recording. Changed in excel sheet so excel sheet name used changed from "TAN1810_14C-Pico_25052020_QA.xlsx" to "TAN1810_14C-Pico_25052020_QA_1.0.xlsx"
 
 
 The calculations of primary production are based on single cell C14 uptake for cells sorted by flow cytometry. (https://vaulot.netlify.app/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/)
@@ -42,14 +50,11 @@ To calculate the pp values, pico and syn had cell counts of 2000, 4000, 10000. T
 
 The following edits made to pico and syn data:
 •	Exp 3: SUR: pico: vial A – remove
+• Exp 2: DCM: pico vial A- only 1 value, cells sorted 1120. Moved to part 2 (nano calculations) for average value instead of lm value.
+•	Add Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
 
 Edits to be made:
-•	Exp 4: SUR: pico, syn – repeated vial B, take the average
-
-Data points to check for pico and syn calculations:
-• Exp 2: DCM: pico vial A- only 1 value.
-• Exp 6: SUR: pico, syn - dpm corrected values at cells sorted 2000 much higher than 4000 and 10000
-
+•	Exp 4: SUR: pico, syn – repeated vial B, take the average of the dpm value
 
 ## Read table for pico and syn. Data points to edit are made here. 
 ```{r}
@@ -63,13 +68,9 @@ C14_DPM <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "
             cells_sorted = `Cells sorted`, 
             dpm = DPM1,
             SA = `SA_dpm_mL`) %>%
-    filter(population != "Nano") %>%
+    filter(population != "Nano" | (population == "Nano" & exp == 8 & sample == "SUR" & vial == "B") | (population == "Nano" & exp == 8 & sample == "SUR" & vial == "D")) %>%
     filter(!(exp == 3 & sample == "SUR" & vial == "A" & population == "Pico")) %>%
     filter(!(exp == 2 & sample == "DCM" & vial == "A" & population == "Pico"))
-    #Exp 4: SUR: pico, nano, syn – repeated vial B, take the average
-#C14_DPM <- rowwise(cycle, exp, sample, population, vial, cells_sorted) %>% 
-#  summarise(m = mean(dpm, DIC, SA))
- 
   
 C14_DPM
 ```
@@ -105,10 +106,11 @@ C14_DPM_corrected
 
 Do plots for each group. One regression line based on the EXP, Sample and Populations
 ```{r fig.height=15, fig.width=10}
- ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population)) +
+ reg_plot <- ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population)) +
   geom_point() + stat_smooth(method="lm", se=FALSE) +
   facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
   scale_color_viridis_d()
+reg_plot
 ```
 
 ## Do linear model
@@ -154,19 +156,23 @@ pp_cal_1
 # 2. Calculations for Nano (average)
 
 Data points to check for Nano calculations:
-•	exp 5: SUR. Vial D is high. Also marked in the excel sheet. Removed, to be checked
-• exp 2: DCM. cells sorted for vial A is 496. 
+•	exp 5: SUR. Vial D is high. Also marked in the excel sheet. Removed, to be checked by Andres/Karl side.
+
 
 The following edits made to Nano data:
 •	Exp 6: SUR: nano – repeated vial A, remove lower value
-•	Exp 7: SUR: nano – remove
-•	Exp 7: DCM: nano – remove
-•	Exp 8: DCM: nano – remove
+•	Exp 7: SUR: nano – remove (Dark incubation is much higher than A, B, C)
+•	Exp 7: DCM: nano – remove (Dark incubation is much higher than A, B, C)
+•	Exp 8: DCM: nano – remove 
 •	Exp 8: SUR: nano: 2000 cell count – remove
+• exp 2: DCM: nano. cells sorted for vial A is 496. 
+• Added Exp 2: DCM: pico vial A- only 1 value, cells sorted 1120.
+•	Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
+
 
 Edits to be made:
-•	Exp 1: SUR: nano – vial C and D swap
-•	Exp 4: SUR: nano – repeated vial B, take the average
+•	Exp 1: SUR: nano – value for dpm for vial C and D swap
+•	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
       
       
 ```{r}
@@ -181,13 +187,16 @@ C14_DPM_nano <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", shee
             cells_sorted = `Cells sorted`, 
             dpm = DPM1,
             SA = `SA_dpm_mL`) %>%
-    filter(population == "Nano") %>%
+    filter(population == "Nano" | (exp == 2 & sample == "DCM" & vial == "A" & population == "Pico")) %>%
     filter(!(exp == 5 & sample == "SUR" & vial =="D")) %>%
     filter(!(exp == 7 & sample == "SUR")) %>%
     filter(!(exp == 7 & sample == "DCM")) %>%
     filter(!(exp == 8 & sample == "DCM")) %>%
     filter(!(exp == 8 & sample == "SUR" & vial == "C" & cells_sorted == 2000)) %>%
-    filter(!(exp == 6 & sample == "SUR" & vial == "A" & dpm == 384)) 
+    filter(!(exp == 6 & sample == "SUR" & vial == "A" & dpm == 384)) %>%
+    filter(!(exp == 8 & sample == "SUR" & vial == "B")) %>%
+    filter(!(exp == 8 & sample == "SUR" & vial == "D" & cells_sorted == 2000))
+  
 C14_DPM_nano
 ```
 
@@ -282,6 +291,10 @@ pp_cal_boxplot <- pp_cal_1_join %>%
   xlab("Sample") +
   scale_y_continuous(trans='log10')+
   ylab("log10(pp)")
+
+pp_cal_table
+pp_cal_point
+pp_cal_boxplot
 ```
 
 The units for pp is fgC/h/cell.
