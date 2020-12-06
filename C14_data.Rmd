@@ -70,7 +70,13 @@ C14_DPM <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "
             SA = `SA_dpm_mL`) %>%
     filter(population != "Nano" | (population == "Nano" & exp == 8 & sample == "SUR" & vial == "B") | (population == "Nano" & exp == 8 & sample == "SUR" & vial == "D")) %>%
     filter(!(exp == 3 & sample == "SUR" & vial == "A" & population == "Pico")) %>%
-    filter(!(exp == 2 & sample == "DCM" & vial == "A" & population == "Pico"))
+    filter(!(exp == 2 & sample == "DCM" & vial == "A" & population == "Pico")) %>% 
+     group_by(cycle, exp, sample, vial, population) %>% 
+     summarize(cells_sorted = mean(cells_sorted),
+               dpm= mean(dpm),
+               DIC = mean(DIC),
+               SA = mean(SA)) 
+    
   
 C14_DPM
 ```
@@ -195,7 +201,17 @@ C14_DPM_nano <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", shee
     filter(!(exp == 8 & sample == "SUR" & vial == "C" & cells_sorted == 2000)) %>%
     filter(!(exp == 6 & sample == "SUR" & vial == "A" & dpm == 384)) %>%
     filter(!(exp == 8 & sample == "SUR" & vial == "B")) %>%
-    filter(!(exp == 8 & sample == "SUR" & vial == "D" & cells_sorted == 2000))
+    filter(!(exp == 8 & sample == "SUR" & vial == "D" & cells_sorted == 2000)) %>% 
+    mutate(vial = case_when((exp == 1 & sample == "SUR" & vial == "C") ~ "D",
+                            (exp == 1 & sample == "SUR" & vial == "D") ~ "C",
+                            TRUE ~ vial)) %>% 
+   group_by(cycle, exp, sample, vial, population) %>% 
+   summarize(cells_sorted = mean(cells_sorted),
+             dpm= mean(dpm),
+             DIC = mean(DIC),
+             SA = mean(SA))
+
+
   
 C14_DPM_nano
 ```
