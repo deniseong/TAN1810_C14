@@ -52,8 +52,6 @@ The following edits made to pico and syn data:
 •	Exp 3: SUR: pico: vial A – remove
 • Exp 2: DCM: pico vial A- only 1 value, cells sorted 1120. Moved to part 2 (nano calculations) for average value instead of lm value.
 •	Add Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
-
-Edits to be made:
 •	Exp 4: SUR: pico, syn – repeated vial B, take the average of the dpm value
 
 ## Read table for pico and syn. Data points to edit are made here. 
@@ -70,12 +68,14 @@ C14_DPM <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "
             SA = `SA_dpm_mL`) %>%
     filter(population != "Nano" | (population == "Nano" & exp == 8 & sample == "SUR" & vial == "B") | (population == "Nano" & exp == 8 & sample == "SUR" & vial == "D")) %>%
     filter(!(exp == 3 & sample == "SUR" & vial == "A" & population == "Pico")) %>%
-    filter(!(exp == 2 & sample == "DCM" & vial == "A" & population == "Pico")) %>% 
-     group_by(cycle, exp, sample, vial, population) %>% 
+    filter(!(exp == 2 & sample == "DCM" & vial == "A" & population == "Pico")) %>%
+     group_by(cycle, exp, sample, vial, population, cells_sorted) %>% 
      summarize(cells_sorted = mean(cells_sorted),
                dpm= mean(dpm),
                DIC = mean(DIC),
-               SA = mean(SA)) 
+               SA = mean(SA)) %>%
+    ungroup()
+
     
   
 C14_DPM
@@ -174,9 +174,6 @@ The following edits made to Nano data:
 • exp 2: DCM: nano. cells sorted for vial A is 496. 
 • Added Exp 2: DCM: pico vial A- only 1 value, cells sorted 1120.
 •	Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
-
-
-Edits to be made:
 •	Exp 1: SUR: nano – value for dpm for vial C and D swap
 •	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
       
@@ -205,14 +202,13 @@ C14_DPM_nano <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", shee
     mutate(vial = case_when((exp == 1 & sample == "SUR" & vial == "C") ~ "D",
                             (exp == 1 & sample == "SUR" & vial == "D") ~ "C",
                             TRUE ~ vial)) %>% 
-   group_by(cycle, exp, sample, vial, population) %>% 
+   group_by(cycle, exp, sample, vial, population, cells_sorted) %>% 
    summarize(cells_sorted = mean(cells_sorted),
              dpm= mean(dpm),
              DIC = mean(DIC),
-             SA = mean(SA))
+             SA = mean(SA)) %>%
+    ungroup()
 
-
-  
 C14_DPM_nano
 ```
 
