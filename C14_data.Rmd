@@ -20,7 +20,7 @@ library(ggplot2)
 library(broom)
 ```
 
-# Denise edits on 3 Dec 2020
+# Denise edits on 7 Dec 2020
 
 The following edits have been made to the data:
 •	Exp 3: SUR: pico: vial A – remove
