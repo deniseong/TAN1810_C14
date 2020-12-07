@@ -22,12 +22,6 @@ library(broom)
 
 # Denise edits on 3 Dec 2020
 
-Edits to be made:
-•	Exp 4: SUR: pico, syn – repeated vial B, take the average of the dpm value
-•	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
-•	Exp 1: SUR: nano – vial C and D swap dpm value
-
-
 The following edits have been made to the data:
 •	Exp 3: SUR: pico: vial A – remove
 •	Add Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
@@ -40,6 +34,9 @@ The following edits have been made to the data:
 • Moved Exp 2: DCM: pico vial A from pico/syn calculation (part 1) to nano calculation (part 2). only 1 value, cells sorted 1120.
 •	Moved Exp 8: SUR: nano – for vial B and D from nano calculation (part 2) to pico/syn calculation (part 1) for lm value, as there is cells sorted for both 1000 and 2000.
 •	Exp 6: SUR: vial C, error in recording. Changed in excel sheet so excel sheet name used changed from "TAN1810_14C-Pico_25052020_QA.xlsx" to "TAN1810_14C-Pico_25052020_QA_1.0.xlsx"
+•	Exp 4: SUR: pico, syn – repeated vial B, take the average of the dpm value
+•	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
+•	Exp 1: SUR: nano – vial C and D swap dpm value
 
 
 The calculations of primary production are based on single cell C14 uptake for cells sorted by flow cytometry. (https://vaulot.netlify.app/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/)
@@ -76,8 +73,6 @@ C14_DPM <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "
                SA = mean(SA)) %>%
     ungroup()
 
-    
-  
 C14_DPM
 ```
 
@@ -301,8 +296,8 @@ pp_cal_boxplot <- pp_cal_1_join %>%
   ggplot() +
   geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
   xlab("Sample") +
-  scale_y_continuous(trans='log10')+
-  ylab("log10(pp)")
+ # scale_y_continuous(trans='log10')+
+  ylab("pp")
 
 pp_cal_table
 pp_cal_point
