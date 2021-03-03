@@ -22,8 +22,9 @@ library(ggpubr)
 # 1. Read table for C14 cold values, merge for cycle and experiment number
 ```{r}
 C14_cold_raw <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Cold 14C - Pico Results", skip = 5,  n_max = 93) %>%
-  dplyr::select (`Station`, `Depth m`, `Sample ID`, `DPM to full volume`, `SA_dpm_mL`, `DIC`, `NPP_cold`, `NPP_standard`)  %>%   
-     rename(station = `Station`,
+  dplyr::select (` Unique code or sample identifier`, `Station`, `Depth m`, `Sample ID`, `DPM to full volume`, `SA_dpm_mL`, `DIC`, `NPP_cold`, `NPP_standard`)  %>%   
+     rename(name = ` Unique code or sample identifier`,
+            station = `Station`,
             depth = `Depth m`,
             sample_id = `Sample ID`,
             DPM_full = `DPM to full volume`,
