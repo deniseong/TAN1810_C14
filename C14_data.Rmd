@@ -266,10 +266,14 @@ pp_cal_nano
 ```{r}
 pp_cal_1_join<-full_join(pp_cal_1,pp_cal_nano) %>%
   select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
-  arrange(cycle, exp, sample, population)
+  arrange(cycle, exp, sample, population) %>%
+  tidyr::drop_na()
 pp_cal_1_join
+pp_cal_1_join$cycle <- as.character(pp_cal_1_join$cycle) 
+pp_cal_1_join$exp <- as.character(pp_cal_1_join$exp)
 ```
 
+## Summary
 ```{r}
 pp_cal_table <- pp_cal_1_join %>% 
   group_by(population,sample) %>% 
@@ -308,13 +312,73 @@ The units for pp is fgC/h/cell.
 Rii (2016) finds 5–11 fmol C/cell/day for Syn which corresponds to 60-132 fg /day/cell ie 2.5 to 5.5 fg/h/cell.
 
 
+
 ```{r}
 library(xtable)
 print(xtable(pp_cal_table),
       comment = FALSE)
 ```
 
-# 4. Compute based on Method 2 - Compute lm for  ABC separately
+# Analysis based on ST and SA waters
+Subtropical waters- Cycle 3 and 4
+Subatlantic waters - Cycle 1, 2 and 5
+```{r}
+pp_cal_1_join$cycle <- factor(pp_cal_1_join$cycle,levels = c("3", "4", "1", "2", "5"))
+pp_cal_rename <- 
+cycle_boxplot <- ggplot(pp_cal_1_join, aes(x = cycle, y=pp, fill=population)) +
+                 geom_boxplot() + 
+                 scale_y_continuous(trans='log10') +
+                 ylab("Primary Production (fgC/h/cell)") +
+                 xlab("Cycle")+
+                 labs(fill= "Sorted cells")+
+                theme_minimal()
+
+cycle_boxplot
+cycle_table <- pp_cal_1_join %>% 
+  group_by(cycle, population) %>% 
+  summarise(pp_mean = mean(pp, na.rm = TRUE)) %>%
+  pivot_wider(names_from = cycle, values_from = pp_mean)
+cycle_table
+
+pp_cal_1_join$exp <- factor(pp_cal_1_join$exp,levels = c("3", "4", "5", "6", "7", "8", "1", "2", "9", "10", "11"))
+exp_boxplot <- ggplot(pp_cal_1_join, aes(x = exp, y=pp, fill=population)) +
+                 geom_boxplot() + 
+                 scale_y_continuous(trans='log10') +
+                 ylab("Primary Production (fgC/h/cell)") 
+exp_boxplot
+controlling overall appearence, r cookbook
+theme_bw
+facet_wrap
+
+david mah code from green edge    
+
+counter plot for nutrients
+```
+
+# Analysis based on Surface vs DCM
+```{r}
+
+depth_boxplot <- ggplot(pp_cal_1_join, aes(x = sample, y=pp, fill=population)) +
+                 geom_boxplot() + 
+                 scale_y_continuous(trans='log10') +
+                 ylab("Primary Production (fgC/h/cell)") 
+                 
+        
+depth_boxplot
+
+depth_table_1 <- pp_cal_1_join %>% 
+  group_by(cycle, sample, population) %>% 
+  summarise(pp_mean = mean(pp, na.rm = TRUE)) %>%
+  pivot_wider(names_from = cycle, values_from = pp_mean)
+depth_table_1
+depth_table_2 <- pp_cal_1_join %>% 
+  group_by(cycle, sample) %>% 
+  summarise(pp_mean = mean(pp, na.rm = TRUE)) %>%
+  pivot_wider(names_from = cycle, values_from = pp_mean)
+depth_table_2
+
+```
+# NA: Compute based on Method 2 - Compute lm for  ABC separately
 
 Not using this method.
 

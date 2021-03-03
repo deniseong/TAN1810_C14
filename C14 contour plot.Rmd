@@ -1,0 +1,19 @@
+---
+title: "C14 contour plot"
+author: "Denise Ong"
+date: "2/28/2021"
+output: pdf_document
+---
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(ggpubr)
+library(plotly)
+```
+
+```{r}
+CTD_raw <- readxl::read_excel("TK_CTD Downcasts.xlsx")
+```
+

@@ -1,0 +1,67 @@
+---
+title: "C14 cold"
+author: "Denise Ong"
+date: "2/28/2021"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+  knitr::opts_chunk$set(message=FALSE,
+                        warning=FALSE,
+                        cache=TRUE,
+                        tidy=FALSE)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(ggpubr)
+```
+
+# 1. Read table for C14 cold values, merge for cycle and experiment number
+```{r}
+C14_cold_raw <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Cold 14C - Pico Results", skip = 5,  n_max = 93) %>%
+  dplyr::select (`Station`, `Depth m`, `Sample ID`, `DPM to full volume`, `SA_dpm_mL`, `DIC`, `NPP_cold`, `NPP_standard`)  %>%   
+     rename(station = `Station`,
+            depth = `Depth m`,
+            sample_id = `Sample ID`,
+            DPM_full = `DPM to full volume`,
+            SA = `SA_dpm_mL`)
+C14_hot <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Complete data TAN1810", skip = 11) %>%
+  dplyr::select (`Cycle#`, `EXP#`, `SAMPLE`, `STN`, `DEPTH`) %>%   
+     rename(cycle = `Cycle#`,
+            exp = `EXP#`,
+            sample = `SAMPLE`, 
+            station = `STN`,
+            depth = `DEPTH`)%>%
+    distinct()
+C14_cold <- right_join(C14_hot, C14) %>%
+  na_if("missing")
+C14_cold$cycle <- as.character(C14_cold$cycle) 
+C14_cold$exp <- as.character(C14_cold$exp)
+C14_cold$NPP_standard <- as.double(C14_cold$NPP_standard)
+C14_cold
+```
+
+```{r}
+
+cold_mean_vial<- C14_cold %>%
+  group_by(cycle, sample) %>%
+  summarise(NPP_cold_mean = mean(NPP_cold, na.rm = TRUE))
+cold_mean_standard <- C14_cold %>%
+  group_by(cycle, sample) %>%
+  summarise(NPP_standard_mean = mean(NPP_standard, na.rm = TRUE))
+
+cold_mean <- full_join (cold_mean_standard,cold_mean_vial)
+cold_mean
+```
+```{r}
+C14_cold_2 <- C14_cold %>%
+  mutate(difference = NPP_cold - NPP_standard)
+C14_cold_2
+```
+
+standard fractionated?
+standard is too high compared to the exp. Its on the high size fraction, increase variability
+standard is too low. 
