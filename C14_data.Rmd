@@ -168,7 +168,14 @@ The following edits made to Nano data:
 •	Exp 8: SUR: nano: 2000 cell count – remove
 • exp 2: DCM: nano. cells sorted for vial A is 496. 
 • Added Exp 2: DCM: pico vial A- only 1 value, cells sorted 1120.
+<<<<<<< Updated upstream
 •	Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
+=======
+•	Moved Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
+
+
+Edits to be made:
+>>>>>>> Stashed changes
 •	Exp 1: SUR: nano – value for dpm for vial C and D swap
 •	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
       
