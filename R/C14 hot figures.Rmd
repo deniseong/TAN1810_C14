@@ -1,5 +1,5 @@
 ---
-title: "C14"
+title: "C14 hot Figures"
 author: "Denise Ong"
 date: "4/2/2020"
 output:
@@ -17,7 +17,11 @@ output:
 library(dplyr)
 library(tidyverse)
 library(ggplot2)
+theme_set(
+  theme_bw()
+  )
 library(broom)
+library(ggpubr)
 ```
 
 # Denise edits on 7 Dec 2020
@@ -53,7 +57,7 @@ The following edits made to pico and syn data:
 
 ## Read table for pico and syn. Data points to edit are made here. 
 ```{r}
-C14_DPM <- readxl::read_excel("TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Complete data TAN1810", skip = 11) %>%
+C14_DPM <- readxl::read_excel("../data_used/TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Complete data TAN1810", skip = 11) %>%
   dplyr::select (`Cycle#`, `EXP#`, SAMPLE, `Vial code             (i - initials, A to C - light incubation, D - dark)`, `sorting population`, `Cells sorted`, DPM1, DIC, `SA_dpm_mL`) %>%   
      rename(cycle = `Cycle#`,
             exp = `EXP#`,
@@ -144,7 +148,7 @@ C14_DPM_model_output_1
 https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
 
 ```{r}
-pp_cal_1 <- mutate(C14_DPM_model_output_1, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
+pp_cal_1 <- mutate(C14_DPM_model_output_1, pp = DIC*(slope/(SA*24))*10^9*1.05) %>%
   ungroup() %>%
   filter(pp >= 0) # remove negative pp values
 
@@ -168,14 +172,7 @@ The following edits made to Nano data:
 •	Exp 8: SUR: nano: 2000 cell count – remove
 • exp 2: DCM: nano. cells sorted for vial A is 496. 
 • Added Exp 2: DCM: pico vial A- only 1 value, cells sorted 1120.
-<<<<<<< Updated upstream
 •	Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
-=======
-•	Moved Exp 8: SUR: nano – for vial B and D, there is cells sorted for both 1000 and 2000. Move to syn and pico calculations for lm value.
-
-
-Edits to be made:
->>>>>>> Stashed changes
 •	Exp 1: SUR: nano – value for dpm for vial C and D swap
 •	Exp 4: SUR: nano – repeated vial B, take the average of the dpm value
       
@@ -271,10 +268,26 @@ pp_cal_nano
 # 3. Join pico, syn and nano values together
 
 ```{r}
+pp_cal_1_join_raw<-full_join(pp_cal_1,pp_cal_nano) %>%
+  select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
+  arrange(cycle, population)%>%
+  mutate(cycle_name = recode(cycle, "1" = "Subantarctic 1",
+                                    "2" = "Subantarctic 2",
+                                    "3" = "Subtropical 1",
+                                    "4" = "Subtropical 2",
+                                    "5" = "Subantarctic 3"))
+pp_cal_1_join_raw
+
 pp_cal_1_join<-full_join(pp_cal_1,pp_cal_nano) %>%
   select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
   arrange(cycle, exp, sample, population) %>%
-  tidyr::drop_na()
+  tidyr::drop_na() %>%
+  mutate(cycle_name = recode(cycle, "1" = "Subantarctic 1",
+                                    "2" = "Subantarctic 2",
+                                    "3" = "Subtropical 1",
+                                    "4" = "Subtropical 2",
+                                    "5" = "Subantarctic 3"))
+
 pp_cal_1_join
 pp_cal_1_join$cycle <- as.character(pp_cal_1_join$cycle) 
 pp_cal_1_join$exp <- as.character(pp_cal_1_join$exp)
@@ -328,44 +341,98 @@ print(xtable(pp_cal_table),
 
 # Analysis based on ST and SA waters
 Subtropical waters- Cycle 3 and 4
-Subatlantic waters - Cycle 1, 2 and 5
+Subantarctic waters - Cycle 1, 2 and 5
 ```{r}
-pp_cal_1_join$cycle <- factor(pp_cal_1_join$cycle,levels = c("3", "4", "1", "2", "5"))
-pp_cal_rename <- 
-cycle_boxplot <- ggplot(pp_cal_1_join, aes(x = cycle, y=pp, fill=population)) +
-                 geom_boxplot() + 
+#edit pp cal to exclude cycle 3:exp 8: SUR : pico and syn from boxplot. Values are too far from the median.
+pp_cal_1_join_edit <- pp_cal_1_join %>%
+  filter(!(exp == 8 & sample == "SUR" & population == "Pico")) %>%
+  filter(!(exp == 8 & sample == "SUR" & population == "Syn")) %>%
+  rename(pp_filtered = pp)
+
+pp_join <- left_join(pp_cal_1_join, pp_cal_1_join_edit)
+
+pp_join$cycle <- factor(pp_join$cycle_name,levels = c("Subtropical 1", "Subtropical 2", "Subantarctic 1", "Subantarctic 2", "Subantarctic 3")) 
+pp_join$population <- factor(pp_join$population,levels = c("Syn", "Pico", "Nano")) 
+
+cycle_boxplot <- pp_join %>%
+                 ggplot() +
+                 geom_boxplot(aes(y=pp_filtered, x= population , fill = population, colour = population), show.legend = FALSE) + 
+                 geom_point(aes(y=pp, x= population))+
+                 facet_grid(.~cycle_name)+
                  scale_y_continuous(trans='log10') +
-                 ylab("Primary Production (fgC/h/cell)") +
-                 xlab("Cycle")+
-                 labs(fill= "Sorted cells")+
-                theme_minimal()
+                 ylab("Primary Production rate\n(fgC/h/cell)") +
+                 xlab("Cycle") +
+                 scale_fill_manual(values = c("#FFCC00", "#56B4E9", "#009E73")) +
+                 scale_colour_manual(values = c("#C4961A", "#0000CC", "#003333"))
+cycle_boxplot_pico_syn <- pp_join %>%
+                 filter(population != "Nano") %>%
+                 ggplot() +
+                 geom_boxplot(aes(y=pp_filtered, x= population, fill=population), show.legend = FALSE)+
+                 geom_point(aes(y=pp, x= population)) +
+                 facet_grid(.~cycle_name) +
+                 ylab("Primary Production rate\n(fgC/h/cell)") +
+                 xlab("Cycle") +
+                 scale_fill_manual(values = c("#E69F00", "#56B4E9")) 
+
+cycle_boxplot_nano <- pp_join %>% 
+                 filter(population == "Nano") %>%
+                 ggplot() +
+                 geom_boxplot(aes(y=pp_filtered, x= population, fill=population), show.legend = FALSE) + 
+                 geom_point(aes(y=pp, x= population)) +
+                 facet_grid(.~ cycle_name) +
+                 ylab("Primary Production rate\n(fgC/h/cell)") +
+                 xlab("Cycle") +
+                 scale_fill_manual(values = c("#009E73")) 
 
 cycle_boxplot
-cycle_table <- pp_cal_1_join %>% 
-  group_by(cycle, population) %>% 
-  summarise(pp_mean = mean(pp, na.rm = TRUE)) %>%
-  pivot_wider(names_from = cycle, values_from = pp_mean)
-cycle_table
+cycle_boxplot_pico_syn
+cycle_boxplot_nano
+```
 
+```{r}
+c14_figure <- ggarrange(
+  cycle_boxplot, cycle_boxplot_pico_syn, cycle_boxplot_nano, 
+  labels = c("A", "B", "C"), 
+  ncol = 1, nrow = 3,
+  align = "v") 
+
+ggsave("c14_figure_1.png")
+
+
+c14_figure
+```
+
+
+```{r}
+cycle_table <- pp_cal_1_join %>% 
+  group_by(cycle_name, population) %>% 
+  summarise(pp_mean = mean(pp, na.rm = TRUE)) %>%
+  pivot_wider(names_from = cycle_name, values_from = pp_mean)
+cycle_table
+```
+
+```{r}
+# edit pp cal to exclude cycle 3:exp 8: SUR : pico and syn from boxplot. Values are too far from the median.
+cycle_table_1 <- pp_cal_1_join_edit %>% 
+  group_by(cycle_name, population) %>% 
+  summarise(pp_mean = mean(pp_filtered, na.rm = TRUE)) %>%
+  pivot_wider(names_from = cycle_name, values_from = pp_mean)
+cycle_table_1
+```
+Pico and Syn values are too low.
+
+```{r}
 pp_cal_1_join$exp <- factor(pp_cal_1_join$exp,levels = c("3", "4", "5", "6", "7", "8", "1", "2", "9", "10", "11"))
 exp_boxplot <- ggplot(pp_cal_1_join, aes(x = exp, y=pp, fill=population)) +
                  geom_boxplot() + 
                  scale_y_continuous(trans='log10') +
                  ylab("Primary Production (fgC/h/cell)") 
-exp_boxplot
-controlling overall appearence, r cookbook
-theme_bw
-facet_wrap
-
-david mah code from green edge    
-
-counter plot for nutrients
 ```
 
-# Analysis based on Surface vs DCM
+# Analysis based on Surface vs DCM - no difference
 ```{r}
 
-depth_boxplot <- ggplot(pp_cal_1_join, aes(x = sample, y=pp, fill=population)) +
+depth_boxplot <- ggplot(pp_cal_1_join, aes(x = population, y=pp, fill=sample)) +
                  geom_boxplot() + 
                  scale_y_continuous(trans='log10') +
                  ylab("Primary Production (fgC/h/cell)") 
@@ -385,90 +452,39 @@ depth_table_2 <- pp_cal_1_join %>%
 depth_table_2
 
 ```
-# NA: Compute based on Method 2 - Compute lm for  ABC separately
 
-Not using this method.
-
-## Plots
-Do plots for each group. One regression line based on the EXP, Sample and Populations
-
-```{r fig.height=15, fig.width=10}
- ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population, shape=vial)) +
-  geom_point() + stat_smooth(method="lm", se=FALSE) +
-  # DV - Set the y_scale to free so that graph is more easy to read
-  facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
-  scale_color_viridis_d()
-```
-
-
-
-## Do linear model
-
-y = ax + b
-
-See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.html
-
+#Cycle and depth - no difference
 ```{r}
- C14_DPM_model_2 <- C14_DPM_corrected %>%
-  group_by(cycle, exp, station, depth, sample, population, vial, SA) %>% 
-  tidyr::nest() %>% 
-  mutate(
-    fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
-    tidied = purrr::map(fit, tidy)
-  ) %>% 
-  unnest(tidied)
+cycle_depth_boxplot <- pp_join %>%
+                 ggplot() +
+                 geom_boxplot(aes(y=pp_filtered, x= population, fill = sample)) + 
+                 geom_point(aes(y=pp, x= population, fill = sample))+
+                 facet_grid(.~cycle_name)+
+                 scale_y_continuous(trans='log10') +
+                 ylab("Primary Production rate\n(fgC/h/cell)") +
+                 xlab("Cycle") +
+                 theme_bw()
+                
+cycle_depth_boxplot_pico_syn <- pp_join %>% filter(population != "Nano") %>%
+                 ggplot() +
+                 geom_boxplot(aes(y=pp_filtered, x= population, fill=sample)) + 
+                 geom_point(aes(y=pp, x= population, fill = sample))+
+                 facet_grid(.~cycle_name) +
+                 ylab("Primary Production rate\n(fgC/h/cell)") +
+                 xlab("Cycle")+
+                 theme_bw()     
 
-C14_DPM_model_output_2 <- C14_DPM_model_2 %>% 
-  dplyr::select(exp:population, term, estimate) %>% 
-  pivot_wider(names_from="term", values_from ="estimate" ) %>% 
-  rename (slope = cells_sorted, intercept = `(Intercept)`)
+cycle_depth_boxplot_nano <- pp_join %>% filter(population == "Nano") %>%
+                 ggplot() +
+                 geom_boxplot(aes(y=pp, x= population, fill = sample)) + 
+                 geom_point(aes(y=pp, x= population, fill = sample))+
+                 facet_grid(.~ cycle_name)+
+                 
+                 ylab("Primary Production rate\n(fgC/h/cell)") +
+                 xlab("Cycle")+
+                 theme_bw()   
 
-C14_DPM_model_output_2
-  
+cycle_depth_boxplot
+cycle_depth_boxplot_pico_syn
+cycle_depth_boxplot_nano
 ```
-
-
-## Merge DIC/SA table and DPM output
-```{r}
-# merge tables
-pp_cal_2 <- left_join(C14_DPM_model_output_2, DIC_data_corrected)
-pp_cal_2
-```
-
-## Calculate PP value, based on Daniel's formula found here:  
-https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
-
-```{r}
-pp_cal_2 <- mutate(pp_cal_2, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
-  ungroup() %>%
-  select( -c(station, depth)) %>%
-  filter(pp >= 0) # remove negative pp values
-
-# add missing rows for data analysis later
-pp_cal_2 <- complete(pp_cal_2, nesting(cycle, exp, sample), vial, population) 
-  
-pp_cal_2
-```
-
-
-Compute means quickly.
-
-```{r}
- 
-pp_cal_2 %>% 
-  group_by(population, sample) %>% 
-  summarise(pp_mean = mean(pp, na.rm = TRUE))
-
-pp_cal_2 %>% 
-  ggplot() +
-  geom_point(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample")
-
-pp_cal_2 %>% 
-  ggplot() +
-  geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample")
-```
-
-The units for pp is fgC/h/cell.
-Rii (2016) finds 5–11 fmol C/cell/day for Syn which corresponds to 60-132 fg /day/cell ie 2.5 to 5.5 fg/h/cell.
