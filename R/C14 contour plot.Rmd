@@ -103,7 +103,7 @@ ymin <- min(CTD$t) - 2
   
   gridint <- 1 # Multiplyong factor to increase the resolution of the grid
   gridx <- (xmax-xmin + 1)*gridint
-  gridy <- (ymax-ymin +1 )*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
   grid <- raster::raster(nrows= gridy, ncols=gridx, 
                          xmn=xmin, 
                          xmx=xmax, 
