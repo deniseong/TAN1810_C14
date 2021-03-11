@@ -1,0 +1,40 @@
+---
+title: "C14 nutrients"
+author: "Denise Ong"
+date: "3/11/2021"
+output: html_document
+---
+
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               tidy = FALSE,
+               fig.height=8, 
+               fig.width=8,
+               results = 'asis')
+opts_knit$set(width=75)
+```
+
+# Load libraries
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(readxl) # Read excel file
+library(lubridate) 
+library("cowplot")
+library("AquaEnv")
+library("gsw")
+```
+

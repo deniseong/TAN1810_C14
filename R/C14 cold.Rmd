@@ -152,7 +152,7 @@ cold_mean_pivot
 ```
 
 #summary statistics - something wrong here. Object cold not found
-```{r}
+```{r, eval=FALSE}
 summary_table <- cold_mean %>% 
   group_by(cycle, sample) %>% 
   summarise(standard_mean = mean(standard))%>%

@@ -28,7 +28,7 @@ Denise - Comments on 10 March 2021:
 
 # Read table for C14 cold values, merge for cycle and experiment number. Add new column to indicate dark. Added missing cycle and experiment information based on voyage report.
 ```{r}
-C14_cold_raw <- readxl::read_excel("../data_used/TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Cold 14C - Pico Results", skip = 5,  n_max = 93) %>%
+C14_cold_raw <- readxl::read_excel("../data_used/TAN1810_14C-Pico_25052020_QA_1.1.xlsx", sheet = "Cold 14C - Pico Results", skip = 5,  n_max = 93) %>%
   select (`Unique code or sample identifier`,`Station`,`Depth m`, `Sample ID`, `DPM to full volume`, `SA_dpm_mL`, `DIC`, `NPP_cold`, `NPP_standard`)  %>%
   dplyr::rename(name = `Unique code or sample identifier`,
             station = `Station`,
@@ -152,7 +152,7 @@ cold_mean_pivot
 ```
 
 #summary statistics - something wrong here. Object cold not found
-```{r}
+```{r, eval=FALSE}
 summary_table <- cold_mean %>% 
   group_by(cycle, sample) %>% 
   summarise(standard_mean = mean(standard))%>%
@@ -191,7 +191,7 @@ cold_mean_bar <- ggplot(data=df1, aes(x=cycle_name, y=NPP, fill=type))+
   scale_fill_brewer(palette = "Set2")
 
 
-ggsave("../figures/c14_cold_all.png", width = 7, height = 4)
+#ggsave("../figures/c14_cold_all.png", width = 7, height = 4)
 
 
 cold_mean_bar               
@@ -300,7 +300,7 @@ surface_plot <- ggplot(data=df3, aes(x=exp_name, y= NPP, fill = type))+
                  position=position_dodge(.9))
 surface_plot
 
-ggsave("../figures/c14_cold_surface.png", width = 7, height = 4)
+#ggsave("../figures/c14_cold_surface.png", width = 7, height = 4)
 ```
 
 #Cold vs standard at DCM
@@ -340,7 +340,7 @@ DCM_plot <- ggplot(data=df4, aes(x=exp_name, y= NPP, fill = type))+
                  position=position_dodge(.9))
 DCM_plot
 
-ggsave("../figures/c14_cold_DCM.png", width = 7, height = 4)
+#ggsave("../figures/c14_cold_DCM.png", width = 7, height = 4)
 ```
 
 surface vs DCM, keeping the type of experiment (standard vs cold) constant.
@@ -372,7 +372,7 @@ cold_plot <- ggplot(data=cold_mean, aes(x=exp_name, y= cold, fill = sample))+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 cold_plot
 
-ggsave("../figures/c14_cold_cold.png", width = 7, height = 4)
+#ggsave("../figures/c14_cold_cold.png", width = 7, height = 4)
 ```
 
 
@@ -409,7 +409,7 @@ cold_standard_cycle_plot <-
   scale_fill_brewer(palette = "Set2") 
 cold_standard_cycle_plot
 
-ggsave("../figures/c14_cold_cycle_standard.png", width = 7, height = 4)
+#ggsave("../figures/c14_cold_cycle_standard.png", width = 7, height = 4)
 
 ```
 
