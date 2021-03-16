@@ -64,7 +64,7 @@ CTD <- dplyr::right_join(C14_hot, CTD_raw) %>%
 CTD
 ```
 
-#Select depth every 5m
+#Select depth every 5m - because krigging takes too long.
 ```{r}
 depth_selected <- data.frame(seq(0, 500, by= 5))
 names(depth_selected)[1] <- "p"
@@ -86,7 +86,9 @@ depth_rep
 
 #Temperature contour plot
 ```{r}
-
+CTD_p <- CTD %>%
+  filter(p <= 500)
+CTD_p <- inner_join(CTD_p, depth_selected)
 x <- temp_data%>% select (julian_day, p)
 y <- temp_data$t_mean
 
@@ -170,8 +172,8 @@ temp <- ggplot(grid_t_krig, aes(x=date, y=depth_m)) +
                      date_minor_breaks = "1 day", 
                      date_labels =  "%d/%m/%y") +
         scale_y_reverse() +
-        #geom_point(data=CTD, 
-        #mapping=aes(x=date, y=depth_m), size=0.5, color="white") +
+        geom_point(data=CTD_p, 
+        mapping=aes(x=date, y=p), size=0.1, color="white") +
         ggtitle("Downcast temp")  +
         xlab("Date") + ylab("Depth (m)") +
         theme(panel.border = element_rect(colour = "black") ) +
@@ -489,8 +491,8 @@ fl_plot <- ggplot(grid_fl_krig, aes(x=date, y=depth_m)) +
                      date_minor_breaks = "1 day", 
                      date_labels =  "%d/%m/%y") +
         scale_y_reverse() +
-        #geom_point(data=CTD, 
-        #mapping=aes(x=date, y=depth_m), size=0.5, color="white") +
+        geom_point(data=CTD_p, 
+        mapping=aes(x=date, y=p), size=0.5, color="white") +
         ggtitle("Downcast flouresence")  +
         xlab("Date") + ylab("Depth (m)") +
         theme(panel.border = element_rect(colour = "black") ) +
@@ -612,6 +614,20 @@ plot(par_plot)
 ggsave("../figures/CTD_par.png")
 ```
 
+```{r}
+CTD_figure <- plot_grid(
+  temp, salinity, oxygen, fl_plot, par_plot,
+  labels = c("A", "B", "C", "D", "E"), 
+  ncol = 2, nrow = 3,
+  align = "v") 
+
+CTD_figure
+
+png("../figures/CTD_combined.png", width = 1500, height = 1500)
+
+
+
+```
 
 
 ```{r, eval=FALSE}

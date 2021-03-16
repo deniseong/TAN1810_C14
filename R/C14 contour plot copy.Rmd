@@ -1,0 +1,782 @@
+---
+title: "C14 CTD contour plot"
+author: "Denise Ong"
+date: "2/28/2021"
+output: pdf_document
+---
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               tidy = FALSE,
+               fig.height=8, 
+               fig.width=8,
+               results = 'asis')
+opts_knit$set(width=75)
+```
+
+
+Denise notes 20210315:
+- depth was selected until 200 m
+- depth interval selected every 5 m
+- cycle 1/subantarctic 1 - 25 Oct to 30 Oct
+- cycle 2/subantarctic 2 - 2 Nov to 6 Nov
+- cycle 3/subtropical 1 - 8 to 10 Nov
+- cycle 4/ subtropical 2 - 12 to 14 Nov
+- cycle 5/ subantarctic 3 - 16 to 17 Nov
+
+# Load libraries
+
+```{r, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(readxl) # Read excel file
+library(lubridate) 
+library(cowplot)
+#library(AquaEnv)
+#library(gsw)
+```
+
+
+# Read table, combine with C14 hot for the cycle, exp and station number.
+```{r}
+CTD_raw <- readxl::read_excel("../data_used/TK_CTD Downcasts.xlsx") %>%
+  dplyr::rename(CTD = `cast`) %>%
+  mutate(datetime =  dmy_hms(datetime)) %>%
+  filter(!is.na(t)) %>%
+  mutate(date = date(datetime)) %>%
+  mutate(time = hour(datetime)) %>%
+  mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
+  filter(time %in% (9:12) )
+
+  #filter(between(p, 0, 200))
+
+#C14_hot <- readxl::read_excel("../data_used/TAN1810_14C-Pico_25052020_QA_1.0.xlsx", sheet = "Complete data TAN1810", skip = 11) %>%
+#  dplyr::select (`Cycle#`, `EXP#`, `STN`, `CTD#`, `Julian Day`)%>%   
+#     dplyr::rename(cycle = `Cycle#`,
+#            exp = `EXP#`,
+#            station = `STN`)%>%
+#  mutate(ctd_char=stringr::str_remove_all(`CTD#`,"U"))%>%
+#  mutate(CTD=as.double(ctd_char))%>%
+#      distinct()
+
+#CTD_depth <- dplyr::full_join(C14_hot, CTD_raw) %>%
+#  select(-ctd_char, -`CTD#`)
+#CTD_depth <- CTD_depth %>% 
+#  filter(between(time, 9, 12)) %>% 
+#  filter(between(p, 0, 200))
+
+test <- CTD_raw %>%
+  filter(julian_day == 308)
+
+depth_selected <- data.frame(seq(0, 200, by= 5))
+names(depth_selected)[1] <- "p"
+
+CTD <- inner_join(CTD_raw,depth_selected)
+
+CTD
+```
+
+#Subset temp, calculate average
+```{r}
+temp_data <- CTD_raw %>% select(date, julian_day, time, CTD, lat, lon, p, t, t2) %>%
+  mutate(t_mean  =  (t+t2)/2)
+
+
+temp_data_c1 <- temp_data %>% filter(between(julian_day, 297, 302))
+temp_data_c2 <- temp_data %>% filter(between(julian_day, 305, 309))
+temp_data_c3 <- temp_data %>% filter(between(julian_day, 311, 313))
+temp_data_c4 <- temp_data %>% filter(between(julian_day, 315, 317))
+temp_data_c5 <- temp_data %>% filter(between(julian_day, 319, 320))
+
+temp_data_c2
+```
+
+
+#Temperature contour plot cycle 1
+```{r}
+x <- temp_data_c1%>% select (julian_day, p)
+y <- temp_data_c1$t_mean
+
+scaling_factor=15
+
+#Creating polygon and Grid for Raster 
+
+xmin_gg=as.Date("2018-10-23")
+xmax_gg=as.Date("2018-10-31")
+
+xmin <- min(temp_data$julian_day) -2
+xmax <- max(temp_data$julian_day) +2
+ymax <- 200
+ymin <- 0
+# Create binding polygon
+
+  x_coord <- c(xmin,
+               xmin,
+               xmax,
+               xmax,
+               xmin)
+  y_coord <- c(ymin,
+               ymax,
+               ymax,
+               ymin,
+               ymin)
+  polygon <- cbind(x_coord, y_coord)
+  polygon <- sp::Polygon(polygon)
+  
+  polygons = sp::SpatialPolygons(list(sp::Polygons(list(polygon), "s1")))
+  # plot(polygons)
+  
+  # Create grid
+  
+  gridint <- 1 # Multiplyong factor to increase the resolution of the grid
+  gridx <- (xmax-xmin + 1)*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
+  grid <- raster::raster(nrows= gridy, ncols=gridx, 
+                         xmn=xmin, 
+                         xmx=xmax, 
+                         ymn=ymin, ymx=ymax)
+
+
+#Using KRIGE fitting to interpolate grid
+
+# fit
+  fit_krig <- fields::Krig(x, y, theta=100)
+  #this part takes too long.
+
+# look at the surface
+# fields::surface(fit_krig, type="C") 
+
+# interpolate to the raster grid
+grid_krig <- raster::interpolate(grid, fit_krig)
+
+# Mask the grid
+grid_krig <- raster::mask(x=grid_krig, mask=polygons)
+
+# Plot the interpolation
+# raster::plot(grid_krig)
+
+# Transform to data frame for ggplot
+
+val <- data.frame(t_c1_fit = raster::getValues(grid_krig))
+xy <- as.data.frame(raster::xyFromCell(grid_krig,1:raster::ncell(grid_krig)))
+grid_t_c1_krig <- bind_cols(xy,val) %>%   
+  mutate(date=as_date(x, origin="2018-01-01"), 
+         t_c1_fit = if_else(t_c1_fit <0,0,t_c1_fit) ) %>%
+  dplyr::rename(depth_m=y) %>% 
+  filter(!is.na(t_c1_fit))
+
+# Plot with ggplot
+  
+temp_c1 <- ggplot(grid_t_c1_krig, aes(x=date, y=depth_m)) +
+        geom_raster(mapping=aes(fill = t_c1_fit)) + 
+        geom_contour(data = grid_t_c1_krig, mapping = aes(z=t_c1_fit), colour = "blue", 
+                               breaks = c(seq(7, 13, 2))) +
+        scale_fill_distiller(palette = "Spectral") +
+        scale_x_date(limits=c(xmin_gg,xmax_gg),
+                     date_breaks = "1 week", 
+                     date_minor_breaks = "1 day", 
+                     date_labels =  "%d/%m/%y") +
+        scale_y_reverse() +
+        geom_point(data=CTD, 
+        mapping=aes(x=date, y=p), size=0.5, color="white") +
+        ggtitle("Downcast temp c1, contour = 7, 9, 11, 13")  +
+        xlab("Date") + ylab("Depth (m)") +
+        theme(panel.border = element_rect(colour = "black") ) +
+        theme_bw(scaling_factor) +
+        labs(fill = "Temp") +    
+        theme(axis.text=element_text(size=28),
+        axis.title=element_text(size=28,face="bold"),
+        legend.title =element_text(size=28,face="bold"),
+        legend.text = element_text(size=20),        
+        title = element_text(size=28, face = "bold", hjust = 0.5))
+plot(temp_c1)
+
+```
+
+#temperature cycle 2
+```{r}
+
+x <- temp_data_c2 %>% select (julian_day, p)
+y <- temp_data_c2 $t_mean
+
+scaling_factor=15
+
+#Creating polygon and Grid for Raster 
+
+xmin_gg=as.Date("2018-11-01")
+xmax_gg=as.Date("2018-11-07")
+
+xmin <- min(temp_data$julian_day) -2
+xmax <- max(temp_data$julian_day) +2
+ymax <- 200
+ymin <- 0
+# Create binding polygon
+
+  x_coord <- c(xmin,
+               xmin,
+               xmax,
+               xmax,
+               xmin)
+  y_coord <- c(ymin,
+               ymax,
+               ymax,
+               ymin,
+               ymin)
+  polygon <- cbind(x_coord, y_coord)
+  polygon <- sp::Polygon(polygon)
+  
+  polygons = sp::SpatialPolygons(list(sp::Polygons(list(polygon), "s1")))
+  # plot(polygons)
+  
+  # Create grid
+  
+  gridint <- 1 # Multiplyong factor to increase the resolution of the grid
+  gridx <- (xmax-xmin + 1)*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
+  grid <- raster::raster(nrows= gridy, ncols=gridx, 
+                         xmn=xmin, 
+                         xmx=xmax, 
+                         ymn=ymin, ymx=ymax)
+
+
+#Using KRIGE fitting to interpolate grid
+
+# fit
+  fit_krig <- fields::Krig(x, y, theta=100)
+  #this part takes too long.
+
+# look at the surface
+# fields::surface(fit_krig, type="C") 
+
+# interpolate to the raster grid
+grid_krig <- raster::interpolate(grid, fit_krig)
+
+# Mask the grid
+grid_krig <- raster::mask(x=grid_krig, mask=polygons)
+
+# Plot the interpolation
+# raster::plot(grid_krig)
+
+# Transform to data frame for ggplot
+
+val <- data.frame(t_c2_fit = raster::getValues(grid_krig))
+xy <- as.data.frame(raster::xyFromCell(grid_krig,1:raster::ncell(grid_krig)))
+grid_t_c2_krig <- bind_cols(xy,val) %>%   
+  mutate(date=as_date(x, origin="2018-01-01"), 
+         t_c2_fit = if_else(t_c2_fit <0,0,t_c2_fit) ) %>%
+  dplyr::rename(depth_m=y) %>% 
+  filter(!is.na(t_c2_fit))
+
+# Plot with ggplot
+  
+temp_c2 <- ggplot(grid_t_c2_krig, aes(x=date, y=depth_m)) +
+        geom_raster(mapping=aes(fill = t_c2_fit)) + 
+        geom_contour(data = grid_t_c2_krig, mapping = aes(z=t_c2_fit), colour = "blue", 
+                               breaks = c(seq(7, 13, 2))) +
+        scale_fill_distiller(palette = "Spectral") +
+        scale_x_date(limits=c(xmin_gg,xmax_gg),
+                     date_breaks = "1 day", 
+                     #date_minor_breaks = "1 day", 
+                     date_labels =  "%d/%m/%y") +
+        scale_y_reverse() +
+        geom_point(data=CTD, 
+        mapping=aes(x=date, y=p), size=0.5, color="white") +
+        ggtitle("Downcast temp cycle 2, contour = 7, 9, 11, 13")  +
+        xlab("Date") + ylab("Depth (m)") +
+        theme(panel.border = element_rect(colour = "black") ) +
+        theme_bw(scaling_factor) +
+        labs(fill = "Temp") +    
+        theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=10,face="bold"),
+        legend.title =element_text(size=10,face="bold"),
+        legend.text = element_text(size=10),        
+        title = element_text(size=10, face = "bold", hjust = 0.5))
+plot(temp_c2)
+
+#ggsave("../figures/CTD_temp.png")
+
+```
+
+
+#Salinity plot
+```{r}
+salinity_data <- CTD %>% select(cycle, exp, station, julian_day, CTD, lat, lon, p, s, s2) %>%
+  mutate(s_mean  =  (s+s2)/2)
+salinity_data <- inner_join(salinity_data,depth_selected)
+salinity_data
+```
+```{r}
+x <- salinity_data %>% select (julian_day, p)
+y <- salinity_data$s_mean
+
+scaling_factor=15
+
+#Creating polygon and Grid for Raster 
+
+xmin_gg=as.Date("2018-10-22")
+xmax_gg=as.Date("2018-11-19")
+
+xmin <- min(salinity_data$julian_day) - 2
+xmax <- max(salinity_data$julian_day) + 2
+ymax <- 200
+ymin <- 0
+# Create binding polygon
+
+  x_coord <- c(xmin,
+               xmin,
+               xmax,
+               xmax,
+               xmin)
+  y_coord <- c(ymin,
+               ymax,
+               ymax,
+               ymin,
+               ymin)
+  polygon <- cbind(x_coord, y_coord)
+  polygon <- sp::Polygon(polygon)
+  
+  polygons = sp::SpatialPolygons(list(sp::Polygons(list(polygon), "s1")))
+  # plot(polygons)
+  
+  # Create grid
+  
+  gridint <- 1 # Multiplyong factor to increase the resolution of the grid
+  gridx <- (xmax-xmin + 1)*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
+  grid <- raster::raster(nrows= gridy, ncols=gridx, 
+                         xmn=xmin, 
+                         xmx=xmax, 
+                         ymn=ymin, ymx=ymax)
+  
+  #Using KRIGE fitting to interpolate grid
+
+# fit
+  fit_krig <- fields::Krig(x, y, theta=100)
+  #this part takes too long.
+
+# look at the surface
+# fields::surface(fit_krig, type="C") 
+
+# interpolate to the raster grid
+grid_krig <- raster::interpolate(grid, fit_krig)
+
+# Mask the grid
+grid_krig <- raster::mask(x=grid_krig, mask=polygons)
+
+# Plot the interpolation
+# raster::plot(grid_krig)
+
+# Transform to data frame for ggplot
+val <- data.frame(s_fit = raster::getValues(grid_krig))
+xy <- as.data.frame(raster::xyFromCell(grid_krig,1:raster::ncell(grid_krig)))
+grid_s_krig <- bind_cols(xy,val) %>%   
+  mutate(date=as_date(x, origin="2018-01-01"), 
+         s_fit = if_else(s_fit <0,0,s_fit) ) %>%
+  dplyr::rename(depth_m=y) %>% 
+  filter(!is.na(s_fit))
+
+# Plot with ggplot
+  
+salinity <- ggplot(grid_s_krig, aes(x=date, y=depth_m)) +
+        geom_raster(mapping=aes(fill = s_fit)) + 
+        geom_contour(data = grid_s_krig, mapping = aes(z=s_fit),   colour = "blue",
+                               breaks = c(seq (34.2, 35, 0.2))) +
+        scale_fill_distiller(palette = "Spectral") +
+        scale_x_date(limits=c(xmin_gg,xmax_gg), 
+                     date_breaks = "1 week", 
+                     date_minor_breaks = "1 day", 
+                     date_labels =  "%d/%m/%y") +
+        scale_y_reverse() +
+        geom_point(data=CTD, 
+        mapping=aes(x=date, y=p), size=0.5, color="white") +
+        ggtitle("Downcast salinity, contour = 34.2, 34.4, 34.6, 34.8, 35.0")  +
+        xlab("Date") + ylab("Depth (m)") +
+        theme(panel.border = element_rect(colour = "black") ) +
+        theme_bw(scaling_factor) +
+        labs(fill = "Salinity") +    
+        theme(axis.text=element_text(size=28),
+        axis.title=element_text(size=28,face="bold"),
+        legend.title =element_text(size=28,face="bold"),
+        legend.text = element_text(size=20),        
+        title = element_text(size=28, face = "bold", hjust = 0.5))
+plot(salinity)
+
+ggsave("../figures/CTD_salinity.png")
+```
+
+#Oxygen plot?
+```{r}
+oxygen_data <- CTD %>% select(julian_day, CTD, lat, lon, p, os, os2) %>%
+  mutate(os_mean  =  (os+os2)/2)
+oxygen_data <- inner_join(oxygen_data,depth_selected)
+oxygen_data
+```
+```{r}
+x <- oxygen_data %>% select (julian_day, p)
+y <- oxygen_data$os_mean
+
+scaling_factor=15
+
+#Creating polygon and Grid for Raster 
+
+xmin_gg=as.Date("2018-10-22")
+xmax_gg=as.Date("2018-11-19")
+
+xmin <- min(oxygen_data$julian_day) -2
+xmax <- max(oxygen_data$julian_day) +2
+ymax <- 200
+ymin <- 0
+# Create binding polygon
+
+  x_coord <- c(xmin,
+               xmin,
+               xmax,
+               xmax,
+               xmin)
+  y_coord <- c(ymin,
+               ymax,
+               ymax,
+               ymin,
+               ymin)
+  polygon <- cbind(x_coord, y_coord)
+  polygon <- sp::Polygon(polygon)
+  
+  polygons = sp::SpatialPolygons(list(sp::Polygons(list(polygon), "s1")))
+  # plot(polygons)
+  
+  # Create grid
+  
+  gridint <- 1 # Multiplyong factor to increase the resolution of the grid
+  gridx <- (xmax-xmin + 1)*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
+  grid <- raster::raster(nrows= gridy, ncols=gridx, 
+                         xmn=xmin, 
+                         xmx=xmax, 
+                         ymn=ymin, ymx=ymax)
+  
+  #Using KRIGE fitting to interpolate grid
+
+# fit
+  fit_krig <- fields::Krig(x, y, theta=100)
+  #this part takes too long.
+
+# look at the surface
+# fields::surface(fit_krig, type="C") 
+
+# interpolate to the raster grid
+grid_krig <- raster::interpolate(grid, fit_krig)
+
+# Mask the grid
+grid_krig <- raster::mask(x=grid_krig, mask=polygons)
+
+# Plot the interpolation
+# raster::plot(grid_krig)
+
+# Transform to data frame for ggplot
+val <- data.frame(os_fit = raster::getValues(grid_krig))
+xy <- as.data.frame(raster::xyFromCell(grid_krig,1:raster::ncell(grid_krig)))
+grid_os_krig <- bind_cols(xy,val) %>%   
+  mutate(date=as_date(x, origin="2018-01-01"), 
+         os_fit = if_else(os_fit <0,0,os_fit) ) %>%
+  dplyr::rename(depth_m=y) %>% 
+  filter(!is.na(os_fit))
+
+# Plot with ggplot
+  
+oxygen <- ggplot(grid_os_krig, aes(x=date, y=depth_m)) +
+        geom_raster(mapping=aes(fill = os_fit)) + 
+        geom_contour(data = grid_os_krig, mapping = aes(z=os_fit),   colour = "blue",
+                               breaks = c(seq (230, 290, 20))) +
+        scale_fill_distiller(palette = "Spectral") +
+        scale_x_date(limits=c(xmin_gg,xmax_gg), 
+                     date_breaks = "1 week", 
+                     date_minor_breaks = "1 day", 
+                     date_labels =  "%d/%m/%y") +
+        scale_y_reverse() +
+        geom_point(data=CTD, 
+        mapping=aes(x=date, y=p), size=0.5, color="white") +
+        ggtitle("Downcast oxygen, contour = 230, 250, 270, 290")  +
+        xlab("Date") + ylab("Depth (m)") +
+        theme(panel.border = element_rect(colour = "black") ) +
+        theme_bw(scaling_factor) +
+        labs(fill = "oxygen") +    
+        theme(axis.text=element_text(size=28),
+        axis.title=element_text(size=28,face="bold"),
+        legend.title =element_text(size=28,face="bold"),
+        legend.text = element_text(size=20),        
+        title = element_text(size=28, face = "bold", hjust = 0.5))
+plot(oxygen)
+
+ggsave("../figures/CTD_oxygen.png")
+```
+
+#Flourescence plot
+```{r}
+fl_data <- CTD %>% select(cycle, exp, date, station, julian_day, CTD, lat, lon, p, fl)
+```
+
+```{r}
+x <- fl_data %>% select (julian_day, p)
+y <- fl_data$fl
+
+scaling_factor=15
+
+#Creating polygon and Grid for Raster 
+
+xmin_gg=as.Date("2018-10-22")
+xmax_gg=as.Date("2018-11-19")
+
+xmin <- min(fl_data$julian_day) - 2
+xmax <- max(fl_data$julian_day) + 2
+ymax <- 200
+ymin <- 0
+# Create binding polygon
+
+  x_coord <- c(xmin,
+               xmin,
+               xmax,
+               xmax,
+               xmin)
+  y_coord <- c(ymin,
+               ymax,
+               ymax,
+               ymin,
+               ymin)
+  polygon <- cbind(x_coord, y_coord)
+  polygon <- sp::Polygon(polygon)
+  
+  polygons = sp::SpatialPolygons(list(sp::Polygons(list(polygon), "s1")))
+  # plot(polygons)
+  
+  # Create grid
+  
+  gridint <- 1 # Multiplyong factor to increase the resolution of the grid
+  gridx <- (xmax-xmin + 1)*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
+  grid <- raster::raster(nrows= gridy, ncols=gridx, 
+                         xmn=xmin, 
+                         xmx=xmax, 
+                         ymn=ymin, ymx=ymax)
+  
+  #Using KRIGE fitting to interpolate grid
+
+# fit
+  fit_krig <- fields::Krig(x, y, theta=100)
+  #this part takes too long.
+
+# look at the surface
+# fields::surface(fit_krig, type="C") 
+
+# interpolate to the raster grid
+grid_krig <- raster::interpolate(grid, fit_krig)
+
+# Mask the grid
+grid_krig <- raster::mask(x=grid_krig, mask=polygons)
+
+# Plot the interpolation
+# raster::plot(grid_krig)
+
+# Transform to data frame for ggplot
+val <- data.frame(fl_fit = raster::getValues(grid_krig))
+xy <- as.data.frame(raster::xyFromCell(grid_krig,1:raster::ncell(grid_krig)))
+grid_fl_krig <- bind_cols(xy,val) %>%   
+  mutate(date=as_date(x, origin="2018-01-01"), 
+         fl_fit = if_else(fl_fit <0,0,fl_fit) ) %>%
+  dplyr::rename(depth_m=y) %>% 
+  filter(!is.na(fl_fit))
+
+# Plot with ggplot
+  
+fl_plot <- ggplot(grid_fl_krig, aes(x=date, y=depth_m)) +
+        geom_raster(mapping=aes(fill = fl_fit)) + 
+        geom_contour(data = grid_fl_krig, mapping = aes(z=fl_fit),   colour = "blue",
+                               breaks = c(seq (0, 2.5, 0.5))) +
+        scale_fill_distiller(palette = "Spectral") +
+        scale_x_date(limits=c(xmin_gg,xmax_gg), 
+                     date_breaks = "1 week", 
+                     date_minor_breaks = "1 day", 
+                     date_labels =  "%d/%m/%y") +
+        scale_y_reverse() +
+        geom_point(data=CTD, 
+              mapping=aes(x=date, y=p), size=0.5, color="white") +
+        ggtitle("Downcast flouresence, contour = 0, 0.5, 1, 1.5, 2, 2.5")  +
+        xlab("Date") + ylab("Depth (m)") +
+        theme(panel.border = element_rect(colour = "black") ) +
+        theme_bw(scaling_factor) +
+        labs(fill = "Flourescence") +    
+        theme(axis.text=element_text(size=28),
+        axis.title=element_text(size=28,face="bold"),
+        legend.title =element_text(size=28,face="bold"),
+        legend.text = element_text(size=20),        
+        title = element_text(size=28, face = "bold", hjust = 0.5))
+plot(fl_plot)
+
+ggsave("../figures/CTD_flourescence.png")
+```
+
+#PAR plot
+```{r}
+par_data <- CTD %>% select(cycle, exp, station, julian_day, CTD, lat, lon, p, par)
+```
+
+```{r}
+x <- par_data %>% select (julian_day, p)
+y <- par_data$par
+
+scaling_factor=15
+
+#Creating polygon and Grid for Raster 
+
+xmin_gg=as.Date("2018-10-22")
+xmax_gg=as.Date("2018-11-19")
+
+xmin <- min(par_data$julian_day) - 2
+xmax <- max(par_data$julian_day) + 2
+ymax <- 200
+ymin <- 0
+# Create binding polygon
+
+  x_coord <- c(xmin,
+               xmin,
+               xmax,
+               xmax,
+               xmin)
+  y_coord <- c(ymin,
+               ymax,
+               ymax,
+               ymin,
+               ymin)
+  polygon <- cbind(x_coord, y_coord)
+  polygon <- sp::Polygon(polygon)
+  
+  polygons = sp::SpatialPolygons(list(sp::Polygons(list(polygon), "s1")))
+  # plot(polygons)
+  
+  # Create grid
+  
+  gridint <- 1 # Multiplyong factor to increase the resolution of the grid
+  gridx <- (xmax-xmin + 1)*gridint
+  gridy <- round((ymax-ymin +1 )*gridint)
+  grid <- raster::raster(nrows= gridy, ncols=gridx, 
+                         xmn=xmin, 
+                         xmx=xmax, 
+                         ymn=ymin, ymx=ymax)
+  
+  #Using KRIGE fitting to interpolate grid
+
+# fit
+  fit_krig <- fields::Krig(x, y, theta=100)
+  #this part takes too long.
+
+# look at the surface
+# fields::surface(fit_krig, type="C") 
+
+# interpolate to the raster grid
+grid_krig <- raster::interpolate(grid, fit_krig)
+
+# Mask the grid
+grid_krig <- raster::mask(x=grid_krig, mask=polygons)
+
+# Plot the interpolation
+# raster::plot(grid_krig)
+
+# Transform to data frame for ggplot
+val <- data.frame(par_fit = raster::getValues(grid_krig))
+xy <- as.data.frame(raster::xyFromCell(grid_krig,1:raster::ncell(grid_krig)))
+grid_par_krig <- bind_cols(xy,val) %>%   
+  mutate(date=as_date(x, origin="2018-01-01"), 
+         par_fit = if_else(par_fit <0,0,par_fit) ) %>%
+  dplyr::rename(depth_m=y) %>% 
+  filter(!is.na(par_fit))
+
+# Plot with ggplot
+
+par_plot <- ggplot(grid_par_krig, aes(x=date, y=depth_m)) +
+        geom_raster(mapping=aes(fill = par_fit)) + 
+        geom_contour(data = grid_par_krig, mapping = aes(z=par_fit),   colour = "blue",
+                               breaks = c(seq (0, 900, 300))) +
+        scale_fill_distiller(palette = "Spectral") +
+        scale_x_date(limits=c(xmin_gg,xmax_gg), 
+                     date_breaks = "1 week", 
+                     date_minor_breaks = "1 day", 
+                     date_labels =  "%d/%m/%y") +
+        scale_y_reverse() +
+        geom_point(data=CTD, 
+            mapping=aes(x=date, y=p), size=0.5, color="white") +
+        ggtitle("Downcast PAR, 0, 300, 600, 900")  +
+        xlab("Date") + ylab("Depth (m)") +
+        theme(panel.border = element_rect(colour = "black") ) +
+        theme_bw(scaling_factor) +
+        labs(fill = "PAR") +    
+        theme(axis.text=element_text(size=28),
+        axis.title=element_text(size=28,face="bold"),
+        legend.title =element_text(size=28,face="bold"),
+        legend.text = element_text(size=20),        
+        title = element_text(size=28, face = "bold", hjust = 0.5))
+plot(par_plot)
+
+ggsave("../figures/CTD_par.png")
+```
+
+
+```{r}
+CTD_figure_1 <- plot_grid(
+  temp, salinity, oxygen, fl_plot, par_plot,
+  labels = c("A", "B", "C", "D", "E"), 
+  ncol = 2, nrow = 3,
+  align = "v") 
+
+
+
+png("../figures/CTD_combined_1.png", width = 2000, height = 2500)
+
+plot(CTD_figure_1)
+
+```
+
+```{r, eval=FALSE}
+CTD <- dplyr::right_join(C14_hot, CTD_raw) %>%
+  select(-ctd_char, -`CTD#`) %>%
+  filter(between(time, 9, 12)) %>%
+  filter(julian_day == 297 & 298 & 299 & 300 & 301 & 302 & 305 & 306 & 307 & 308 & 309 & 319 & 320 & 311 & 312 & 313 & 315 & 316 & 317)# select only rows corresponding to cycle days
+CTD$julian_day <- as.character(CTD$julian_day)
+CTD$cycle[grep("297", CTD$julian_day)] = "1"
+CTD$cycle[grep("298", CTD$julian_day)] = "1"
+CTD$cycle[grep("299", CTD$julian_day)] = "1"
+CTD$cycle[grep("300", CTD$julian_day)] = "1"
+CTD$cycle[grep("301", CTD$julian_day)] = "1"
+CTD$cycle[grep("302", CTD$julian_day)] = "1"
+CTD$cycle[grep("305", CTD$julian_day)] = "2"
+CTD$cycle[grep("306", CTD$julian_day)] = "2"
+CTD$cycle[grep("307", CTD$julian_day)] = "2"
+CTD$cycle[grep("308", CTD$julian_day)] = "2"
+CTD$cycle[grep("309", CTD$julian_day)] = "2"
+CTD$cycle[grep("311", CTD$julian_day)] = "3"
+CTD$cycle[grep("312", CTD$julian_day)] = "3"
+CTD$cycle[grep("313", CTD$julian_day)] = "3"
+CTD$cycle[grep("315", CTD$julian_day)] = "4"
+CTD$cycle[grep("316", CTD$julian_day)] = "4"
+CTD$cycle[grep("317", CTD$julian_day)] = "4"
+CTD$cycle[grep("319", CTD$julian_day)] = "5"
+CTD$cycle[grep("320", CTD$julian_day)] = "5"
+
+CTD <- CTD %>%mutate(cycle_name = recode(cycle, "1" = "Subantarctic 1",
+                                    "2" = "Subantarctic 2",
+                                    "3" = "Subtropical 1",
+                                    "4" = "Subtropical 2",
+                                    "5" = "Subantarctic 3")) 
+CTD$cycle_name <- factor(CTD$cycle_name,levels = c("Subtropical 1", "Subtropical 2", "Subantarctic 1", "Subantarctic 2", "Subantarctic 3")) 
+ 
+```
+
