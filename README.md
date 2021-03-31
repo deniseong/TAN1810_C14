@@ -8,10 +8,25 @@ data_used: the current excel files being used in the R folder.
   - "C14 hot controls.Rmd", sheet "Hot C14 - Pico controls"
   - "C14 cold. Rmd", sheet "Cold C14 - Pico results"
   
- - TK_CTD Downcasts.xlsx - CTD downcasts for contour plots (temp, salinity) for cycles
-  - "C14 contour plot.Rmd"
+- TAN1810_14C-Pico_25052020_QA_1.1.xlsx -- rough edit for cold calculations, based on Andres comments. 
+  - Edited cold rmd to "C14 cold_edits. Rmd"
+
+- TAN1810_14C-Pico_25052020_QA_1.2.xlsx -- changed U1941 to U9141. I think its a mistake because the dates match to the voyage report
+- MD FCM DATA.xlsx --  FCM counts
+- C14_rates per group. xlsx -- PP rates per group from "C14 Hot. Rmd"
+   -  used together to calculate NPP per group. "C14 NPP per population.Rmd"
   
- - Copy of Chla NPP Raw TAN1810 V5.xlsx -- columns "chla >0.2", "chla >2", "chla>20"
+- TK_CTD Downcasts.xlsx - CTD downcasts for contour plots (temp, salinity) for cycles
+  - "C14 contour plot.Rmd"
+
+- TAN1810_nutrients.xls
+  - "C14 nutrients.Rmd" -- nutrient calculations.
+
+- A20183052018334.L3m_MO_CHL_chlor_a_4km.nc -- chl a satellite readings from NASA, average reading of 11/2018
+- AQUA_MODIS.20181101_20181130.L3m.MO.NSST.sst.4km.nc -- SST satellite readings from NASA, average reading of 11/2018
+  - C14 temp and chl map.Rmd
+  
+- Copy of Chla NPP Raw TAN1810 V5.xlsx -- columns "chla >0.2", "chla >2", "chla>20"
   - for fractionated chlorophyll calculations
   
  
