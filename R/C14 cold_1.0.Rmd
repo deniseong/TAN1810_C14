@@ -153,6 +153,7 @@ cold_mean_pivot
 
 #summary statistics - something wrong here. Object cold not found
 ```{r, eval=FALSE}
+cold_mean$sample<- as.character(cold_mean$sample)
 summary_table <- cold_mean %>% 
   group_by(cycle, sample) %>% 
   summarise(standard_mean = mean(standard))%>%
@@ -413,6 +414,20 @@ cold_standard_cycle_plot
 
 ```
 
+#compare cold readings against the total sum npp
+```{r}
+summary_table <- cold_mean %>%
+  dplyr::group_by(cycle, exp, sample) %>%
+  dplyr::summarise(standard_mean = mean(standard), cold_mean = mean(cold) )
+            
+summary_table
+            
+group_npp <- readxl::read_excel("../data_used/C14_sum npp per group.xlsx")
+group_npp
+
+npp_compare <- full_join(group_npp, summary_table)
+npp_compare
+```
 
 
 cycle 3: exp 7 : surface and DCM have very large differences (22-24) between standard and cold. 

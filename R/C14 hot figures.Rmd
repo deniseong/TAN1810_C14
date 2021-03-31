@@ -85,8 +85,8 @@ Join tables based on common variables
 
 ```{r}
 C14_DPM_Dark <- C14_DPM %>% 
-  filter(vial == "D") %>% 
-  rename(dpm_dark = dpm) %>% 
+  dplyr::filter(vial == "D") %>% 
+  dplyr::rename(dpm_dark = dpm) %>% 
   dplyr::select(-vial) # Remove the vial column
 C14_DPM_Dark
 # Check the values of dpm dark with histogram. The values are normally distributed, concentrated around the mean.
@@ -293,6 +293,51 @@ pp_cal_1_join$cycle <- as.character(pp_cal_1_join$cycle)
 pp_cal_1_join$exp <- as.character(pp_cal_1_join$exp)
 ```
 
+#Function for summarising the data
+```{r}
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+    library(plyr)
+
+    # New version of length which can handle NA's: if na.rm==T, don't count them
+    length2 <- function (x, na.rm=FALSE) {
+        if (na.rm) sum(!is.na(x))
+        else       length(x)
+    }
+
+    # This does the summary. For each group's data frame, return a vector with
+    # N, mean, and sd
+    datac <- ddply(data, groupvars, .drop=.drop,
+      .fun = function(xx, col) {
+        c(N    = length2(xx[[col]], na.rm=na.rm),
+          mean = mean   (xx[[col]], na.rm=na.rm),
+          sd   = sd     (xx[[col]], na.rm=na.rm)
+        )
+      },
+      measurevar
+    )
+
+    # Rename the "mean" column    
+    datac <- rename(datac, c("mean" = measurevar))
+
+    datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+
+    # Confidence interval multiplier for standard error
+    # Calculate t-statistic for confidence interval: 
+    # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+    ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+    datac$ci <- datac$se * ciMult
+
+    return(datac)
+}
+```
+
+#Summary
+```{r}
+pp_summary <- summarySE(pp_cal_1_join, measurevar="pp", groupvars=c("cycle_name", "population"), na.rm=TRUE) 
+pp_summary
+```
+
 ## Summary
 ```{r}
 pp_cal_table <- pp_cal_1_join %>% 
@@ -354,16 +399,21 @@ pp_join <- left_join(pp_cal_1_join, pp_cal_1_join_edit)
 pp_join$cycle <- factor(pp_join$cycle_name,levels = c("Subtropical 1", "Subtropical 2", "Subantarctic 1", "Subantarctic 2", "Subantarctic 3")) 
 pp_join$population <- factor(pp_join$population,levels = c("Syn", "Pico", "Nano")) 
 
+library(wesanderson)
 cycle_boxplot <- pp_join %>%
                  ggplot() +
-                 geom_boxplot(aes(y=pp_filtered, x= population , fill = population, colour = population), show.legend = FALSE) + 
+                 geom_boxplot(aes(y=pp_filtered, x= population , fill = population), show.legend = FALSE) + 
                  geom_point(aes(y=pp, x= population))+
                  facet_grid(.~cycle_name)+
                  scale_y_continuous(trans='log10') +
+                 annotation_logticks(sides = "l") +
                  ylab("Primary Production rate\n(fgC/h/cell)") +
                  xlab("Cycle") +
-                 scale_fill_manual(values = c("#FFCC00", "#56B4E9", "#009E73")) +
-                 scale_colour_manual(values = c("#C4961A", "#0000CC", "#003333"))
+                scale_fill_manual(values = wes_palette("Darjeeling1", n = 3))
+png("../figures/C14_hot_QE.png", width = 600, height = 300)
+plot(cycle_boxplot)
+```
+```{r}
 cycle_boxplot_pico_syn <- pp_join %>%
                  filter(population != "Nano") %>%
                  ggplot() +
@@ -384,7 +434,6 @@ cycle_boxplot_nano <- pp_join %>%
                  xlab("Cycle") +
                  scale_fill_manual(values = c("#009E73")) 
 
-cycle_boxplot
 cycle_boxplot_pico_syn
 cycle_boxplot_nano
 ```

@@ -67,7 +67,7 @@ Conventions <- ncatt_get(nc_SST,0,"Conventions")
 ```
 
 ```{r}
-#subset data for NZ area (coordinates lat -47 to -41, long 172 to -176)
+#subset data for NZ area (coordinates lat -47 to -41, lon 172 to -176)
 lon_sub <- which( nc_SST$dim$lon$vals > 172 | nc_SST$dim$lon$vals < -176)
 lat_sub <- which( nc_SST$dim$lat$vals > -47 & nc_SST $dim$lat$vals < -41)
 lon_sub <- c(which(nc_SST$dim$lon$vals > 172) , which(nc_SST$dim$lon$vals < -176) )
