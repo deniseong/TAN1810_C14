@@ -271,22 +271,22 @@ pp_cal_nano
 pp_cal_1_join_raw<-full_join(pp_cal_1,pp_cal_nano) %>%
   select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
   arrange(cycle, population)%>%
-  mutate(cycle_name = recode(cycle, "1" = "Subantarctic 1",
-                                    "2" = "Subantarctic 2",
-                                    "3" = "Subtropical 1",
-                                    "4" = "Subtropical 2",
-                                    "5" = "Subantarctic 3"))
+  mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3"))
 pp_cal_1_join_raw
 
 pp_cal_1_join<-full_join(pp_cal_1,pp_cal_nano) %>%
   select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
   arrange(cycle, exp, sample, population) %>%
   tidyr::drop_na() %>%
-  mutate(cycle_name = recode(cycle, "1" = "Subantarctic 1",
-                                    "2" = "Subantarctic 2",
-                                    "3" = "Subtropical 1",
-                                    "4" = "Subtropical 2",
-                                    "5" = "Subantarctic 3"))
+  mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3"))
 
 pp_cal_1_join
 pp_cal_1_join$cycle <- as.character(pp_cal_1_join$cycle) 
@@ -338,41 +338,6 @@ pp_summary <- summarySE(pp_cal_1_join, measurevar="pp", groupvars=c("cycle_name"
 pp_summary
 ```
 
-## Summary
-```{r}
-pp_cal_table <- pp_cal_1_join %>% 
-  group_by(population,sample) %>% 
-  summarise(pp_mean = mean(pp, na.rm = TRUE),
-            ssd = sd(pp, na.rm = TRUE),
-            count = n()) %>%
-  mutate(se = ssd / sqrt(count),
-        lower_CI = pp_mean - qt(1 - (0.05 / 2), count - 1) * se,
-        upper_CI = pp_mean + qt(1 - (0.05 / 2), count - 1) * se) %>%
-  select(population, sample, pp_mean, se, lower_CI, upper_CI)%>%
-  rename(Population = population,
-         Depth = sample,
-         `Mean primary production rate (fgC/h/cell)` = pp_mean,
-         `Standard error` = se,
-         `Lower CI` = lower_CI,
-         `Upper CI` = upper_CI)
-
-pp_cal_point <- pp_cal_1_join %>% 
-  ggplot() +
-  geom_point(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample")
-
-pp_cal_boxplot <- pp_cal_1_join %>% 
-  ggplot() +
-  geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
-  xlab("Sample") +
- # scale_y_continuous(trans='log10')+
-  ylab("pp")
-
-pp_cal_table
-pp_cal_point
-pp_cal_boxplot
-```
-
 The units for pp is fgC/h/cell.
 Rii (2016) finds 5–11 fmol C/cell/day for Syn which corresponds to 60-132 fg /day/cell ie 2.5 to 5.5 fg/h/cell.
 
@@ -392,11 +357,12 @@ Subantarctic waters - Cycle 1, 2 and 5
 pp_cal_1_join_edit <- pp_cal_1_join %>%
   filter(!(exp == 8 & sample == "SUR" & population == "Pico")) %>%
   filter(!(exp == 8 & sample == "SUR" & population == "Syn")) %>%
-  rename(pp_filtered = pp)
+  dplyr::rename(pp_filtered = pp)
 
 pp_join <- left_join(pp_cal_1_join, pp_cal_1_join_edit)
+pp_join$cycle_name<-as.character(pp_join$cycle_name)
+pp_join$cycle_name <- factor(pp_join$cycle_name, levels = c("ST1", "ST2", "SA1", "SA2", "SA3"))
 
-pp_join$cycle <- factor(pp_join$cycle_name,levels = c("Subtropical 1", "Subtropical 2", "Subantarctic 1", "Subantarctic 2", "Subantarctic 3")) 
 pp_join$population <- factor(pp_join$population,levels = c("Syn", "Pico", "Nano")) 
 
 library(wesanderson)
@@ -409,8 +375,11 @@ cycle_boxplot <- pp_join %>%
                  annotation_logticks(sides = "l") +
                  ylab("Primary Production rate\n(fgC/h/cell)") +
                  xlab("Cycle") +
-                scale_fill_manual(values = wes_palette("Darjeeling1", n = 3))
-png("../figures/C14_hot_QE.png", width = 600, height = 300)
+                scale_fill_manual(values = c("#E69F00","#009E73","#D55E00"))+
+                theme(axis.title=element_text(size=16),
+                      axis.text = element_text(size = 14),
+                      strip.text = element_text(size = 16))
+png("../figures/C14_hot_QE.png", width = 1200, height = 250)
 plot(cycle_boxplot)
 ```
 ```{r}

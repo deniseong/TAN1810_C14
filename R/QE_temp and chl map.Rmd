@@ -67,9 +67,9 @@ Conventions <- ncatt_get(nc_SST,0,"Conventions")
 ```
 
 ```{r}
-#subset data for NZ area (coordinates lat -47 to -41, lon 172 to -176)
+#subset data for NZ area (coordinates lat -46 to -41, lon 172 to -176)
 lon_sub <- which( nc_SST$dim$lon$vals > 172 | nc_SST$dim$lon$vals < -176)
-lat_sub <- which( nc_SST$dim$lat$vals > -47 & nc_SST $dim$lat$vals < -41)
+lat_sub <- which( nc_SST$dim$lat$vals > -46 & nc_SST $dim$lat$vals < -41)
 lon_sub <- c(which(nc_SST$dim$lon$vals > 172) , which(nc_SST$dim$lon$vals < -176) )
 # replace netCDF fill values with NA's
 tmp_array[tmp_array==fillvalue$value] <- NA
@@ -93,8 +93,22 @@ ls()
 raster_temp_nz <- raster(temp_nz)
 raster_temp_nz <-  t(raster_temp_nz)
 plot(raster_temp_nz)
+raster_temp_nz
 ```
-Plot looks ok, now to convert to ggplot format with geom_raster?
+
+```{r}
+temp_nz_df <- as.data.frame(raster_temp_nz, xy = TRUE)
+str(temp_nz_df)
+
+#error here. The axis values are not coordinates (lat -46 to -41, lon 172 to -176). I think the way would be to create a new create a column with the coordinates, but because of the way the data is formed I'm not sure how to do.
+plot_temp<- ggplot() +
+    geom_raster(data = temp_nz_df , aes(x = x, y = y, fill = layer)) +
+    scale_fill_viridis_c() +
+    coord_quickmap()+
+    theme(aspect.ratio = 3/4)
+plot_temp
+
+```
 
 # Plot Chlorophyll data
 ```{r}

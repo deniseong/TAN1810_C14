@@ -83,11 +83,11 @@ fcm_corrected$exp <- as.character(fcm_corrected$exp)
 
 #arrange, add cycle names
 fcm_corrected$population <- factor(fcm_corrected$population,levels = c("Syn", "Pico", "Nano")) 
-fcm_corrected <- fcm_corrected%>% mutate(cycle_name = recode(cycle, "1" = "Subantarctic 1",
-                                    "2" = "Subantarctic 2",
-                                    "3" = "Subtropical 1",
-                                    "4" = "Subtropical 2",
-                                    "5" = "Subantarctic 3"))
+fcm_corrected <- fcm_corrected%>% mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3"))
 
 ```
 
@@ -124,17 +124,24 @@ npp_point
 
 ```{r}
 library(wesanderson)
+fcm_corrected$cycle_name<-as.character(fcm_corrected$cycle_name)
+fcm_corrected$cycle_name <- factor(fcm_corrected$cycle_name, levels = c("ST1", "ST2", "SA1", "SA2", "SA3"))
+
 npp_cycle <- fcm_corrected %>%
   ggplot() +
   geom_boxplot(aes(y=npp, x= population , fill = population), show.legend = FALSE) + 
                  geom_point(aes(y=npp, x= population))+
                  facet_grid(.~cycle_name)+
-  scale_fill_manual(values = wes_palette("Darjeeling1", n = 3)) +
-  ylab("Net Primary Production (mgC/m3/day)")+
+  scale_fill_manual(values = c("#E69F00","#009E73","#D55E00")) +
+  ylab("Net Primary Production\n(mgC/m3/day)")+
   xlab("Cycle")+
   scale_y_continuous(trans='log10')+
-  annotation_logticks(sides = "l") 
-png("../figures/C14_npp per group.png", width = 600, height = 300)
+  annotation_logticks(sides = "l")+
+  theme(axis.title=element_text(size=16),
+        axis.text = element_text(size = 14),
+        strip.text = element_text(size = 16))
+png("../figures/C14_npp per group.png", width = 1200, height = 250)
+
 npp_cycle
 ```
 ```{r}
