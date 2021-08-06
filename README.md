@@ -1,5 +1,5 @@
 # TAN1810_C14
-C14 data
+1. C14 data for rates calculation
 
 data_used: the current excel files being used in the R folder. 
 - TAN1810_14C-Pico_25052020_QA_1.0.xlsx -- the main file being used for hot and cold calculations.
@@ -30,3 +30,4 @@ data_used: the current excel files being used in the R folder.
   - for fractionated chlorophyll calculations
   
  
+2. C14 for metabarcoding analysis

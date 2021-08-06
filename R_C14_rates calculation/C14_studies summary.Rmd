@@ -1,0 +1,47 @@
+---
+title: "Studies comparison"
+author: "Denise Ong"
+date: "4/15/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+  knitr::opts_chunk$set(message=FALSE,
+                        warning=FALSE,
+                        cache=TRUE,
+                        tidy=FALSE)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(ggpubr)
+library(stringr)
+library(RColorBrewer)
+library(cowplot)
+```
+
+```{r}
+studies <- readxl::read_excel("../data_used/C14_studies.xlsx")  
+
+studies$Study <- factor(studies$Study, levels = c("Li 1994", "Jardilier 2010", "Grob 2011", "Rii 2016", "Irion 2021", "This study (ST)", "This study (SA)"))
+studies$Group<-factor(studies$Group, levels = c("Synechococcus", "Picoeukaryotes", "Nanoeukaryotes"))
+
+studies_plot<- studies %>%
+  ggplot(aes(x=Study, y=Rate)) +
+  geom_boxplot()+
+  facet_grid(.~ Group, scales = "free", space = "free")+
+  scale_y_continuous(trans='log10') +
+  annotation_logticks(sides = "l") +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  ylab("Primary Production rate\n(fgC/cell/h)")+
+         theme(axis.title=element_text(size=20),
+                      axis.text = element_text(size = 20),
+                      strip.text = element_text(size = 24))
+png("../figures/C14_studies.png", width = 1000, height = 500)
+
+studies_plot
+  
+```
