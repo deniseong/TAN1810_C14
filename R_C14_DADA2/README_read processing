@@ -1,0 +1,20 @@
+For petB:
+In fastq_petB folder, there are the fastq files for the petB amplified samples. 
+Three types of samples:
+1. CTD-NpetB-xx: CTD filtered samples, nested petB amplification
+2. CTD-petB-xx: CTD filtered samples, normal petB amplification
+3. syn-xx: sorted Synechococcus cells, nested petB amplification
+
+There needs to be two different DADA2 processing, one for nested petB (CTD-NpetB-xx and syn-xx) and one for normal petB (CTD-petB-XX).
+In folder databases, "petB_721_FIXED_715_seqs_ShortName_FullLength.fasta" is from Laurence, email on 12 Jan 2021 (email in archives)
+
+param_dada2_datasetD1.R : for nested petB amplification
+param_dada2_datasetD2.R : for normal petB amplification
+
+Databases:
+- petB database is based on the Farrant et al. (2016) https://www.pnas.org/content/115/9/E2010.short
+Uses ecologically taxonomic significant unit. "petB_721_FIXED_715_seqs_ShortName_FullLength.fasta"
+- To refer to the database:
+    - databases/Farrant_database_ESTU.fasta
+    - databases/Farrant_database_noESTU.fasta
+    - databases/Farrant_database_unassigned.fasta (there are a few taxonomically unassigned sequences. If there are sequences unassigned in the sorted samples can run DADA2 with this and BLAST)
