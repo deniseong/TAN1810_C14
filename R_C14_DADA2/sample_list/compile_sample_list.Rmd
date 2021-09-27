@@ -1,0 +1,159 @@
+---
+title: "Compile sample list"
+author: "Denise Ong"
+date: "9/2/2021"
+output: html_document
+---
+```{r}
+# Load libraries
+library(dplyr)
+library(readxl)
+library(tidyr)
+```
+
+```{r}
+# Load the relevant excel sheet
+
+C14_raw <- readxl::read_excel("sample_list/TAN1810_C14DNA_sortingJune2019_1.0 copy.xlsx", sheet = "total samples sort") %>%
+    dplyr::rename(DNA = `Type                        (D for DNA and S for scintilation)`,
+                  vial = `Vial code             (i - initials, A to C - light incubation, D - dark)`,
+                  sorting_number = `Sorting number`,
+                  sorting_population = `sorting population`,
+                  cells_sorted = `Cells sorted`) %>%
+    filter(DNA == "D")
+
+C14_name <- readxl::read_excel("sample_list/TAN1810_C14DNA_sortingJune2019_DNA_2.0 copy.xlsx", sheet = "Plate organisation") %>%
+    dplyr::rename(sorting_number = `Sorting number`,
+           sorting_population = `Sorting population`,
+           cells_sorted = `Number of cells sorted`,
+           sample_name_old = `Sample name`) %>%
+    select(sorting_number:sample_name_old)
+
+C14_raw <- full_join(C14_raw, C14_name) %>%
+    drop_na(Operator)
+
+
+```
+
+```{r}
+c14_syn <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "2X300 plate 3") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_name_old = `Sample name (OLD)`) %>%
+    select(sample_name, sample_name_old)
+c14_syn_2 <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "2x300 plate 2") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_name_old = `Sample name (NIWA)`) %>%
+    select(sample_name, sample_name_old)
+c14_nano <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "KUHA3 PLATE1") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_name_old = `Sample name (Old)`)  %>%
+    select(sample_name, sample_name_old)
+c14_pico <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "KUHA3 PLATE2") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_name_old = `Sample name (old)`) %>%
+    select(sample_name, sample_name_old)
+```
+
+```{r}
+C14_join_syn <- full_join(C14_raw, c14_syn) %>%
+    filter(sorting_population == "Syn")
+C14_join_syn_2 <- full_join(C14_raw, c14_syn_2) %>%
+    filter(!is.na(sample_name)) %>%
+    filter(sorting_population == "Syn")
+C14_join_syn <- full_join(C14_join_syn, C14_join_syn_2) %>%
+    filter(!is.na(sample_name)) %>%
+    select(-sample_name_old, DNA) %>%
+    arrange(sorting_number) %>%
+    add_row(sample_name = "syn-negr1-2")
+#row.names(C14_join_syn) <- C14_join_syn$sample_name
+writexl::write_xlsx(C14_join_syn, path = "sample_list/sampleList_sorted_syn.xlsx")
+
+C14_join_nano <- full_join(C14_raw, c14_nano) %>%
+    filter(sorting_population == "Nano") 
+writexl::write_xlsx(C14_join_nano, path = "sample_list/sampleList_sorted_nano.xlsx")
+
+C14_join_pico <- full_join(C14_raw, c14_pico) %>%
+    filter(sorting_population == "Pico")
+writexl::write_xlsx(C14_join_pico, path = "sample_list/sampleList_sorted_pico.xlsx")
+```
+
+```{r}
+CTD_raw <- readxl::read_excel("sample_list/DEB SENT Copy of TAN1810 extracted data_DNA Singapore copy.xlsx", skip = 3) %>%
+    dplyr::rename(sample_number = `For Denise`,
+           voyage_name = `name`,
+           sample_name_old = `sample`,
+           ctd_cast = `CTD Cast`,
+           depth = `Depth`) %>%
+    filter(sample_number %in% (128:186)) %>%
+    select(sample_number, voyage_name, area, sample_name_old, cycle, station, ctd_cast, depth) %>%
+    mutate(sample_type = voyage_name)
+CTD_raw$sample_type <- stringr::str_replace(CTD_raw$sample_type, "TAN1810", "2AM CTD")
+
+CTD_extra_raw <- readxl::read_excel("sample_list/DEB SENT Copy of TAN1810 extracted data_DNA Singapore copy.xlsx", skip = 3) %>%
+    dplyr::rename(sample_number = `For Denise`,
+           sample_name_old = `...15`,
+           voyage_name =`name`,
+           ctd_cast = `CTD Cast`,
+           depth = `Depth`,
+           area = `sample`,
+           sample_type = `area`) %>%
+    filter(sample_number %in% (213:224)) %>%
+    select(sample_number, voyage_name, area, sample_type, sample_name_old, cycle, station, ctd_cast, depth)
+CTD_extra_raw$cycle <- stringr::str_replace(CTD_extra_raw$cycle, "Cycle 1", "1")
+
+CTD_raw_join <- full_join(CTD_raw, CTD_extra_raw)
+CTD_raw_join$sample_number <- as.double(CTD_raw_join$sample_number)
+```
+
+```{r}
+CTD_nested_name <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "2X300 plate 1") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_number = `Sample no. (NIWA)`,
+           sample_name_old = `Sample name (NIWA)`,
+           type = `FROM plate`) %>%
+    select(sample_name: type) %>%
+    filter(type  == "Nested CTD")
+
+CTD_normal_name  <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "2X300 plate 1") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_number = `Sample no. (NIWA)`,
+           sample_name_old = `Sample name (NIWA)`,
+           type = `FROM plate`) %>%
+    select(sample_name: type) %>%
+    filter(type  == "Normal CTD")
+CTD_normal_name_2  <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "2x300 plate 2") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_number = `Sample no. (NIWA)`,
+           sample_name_old = `Sample name (NIWA)`,
+           type = `FROM plate`) %>%
+    select(sample_name: type) %>%
+    filter(type  == "Normal CTD")
+CTD_normal_name <- full_join(CTD_normal_name, CTD_normal_name_2)
+
+CTD_18s_name  <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "KUHA3 PLATE1") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_name_old = `Sample name (Old)`,
+           no = `No.`) %>%
+    select(no:sample_name_old)%>%
+    filter(no %in% (88:96)) %>%
+    select(sample_name, sample_name_old)
+CTD_18s_name_2  <- readxl::read_excel("sample_list/Plate organisation copy.xlsx", sheet = "KUHA3 PLATE2") %>%
+    dplyr::rename(sample_name = `Sample name`,
+           sample_name_old = `Sample name (old)`,
+           no = `No.`) %>%
+    select(no:sample_name_old)%>%
+    filter(no %in% (184:186)) %>%
+    select(sample_name, sample_name_old)
+CTD_18s_name <- full_join(CTD_18s_name, CTD_18s_name_2)
+```
+
+```{r}
+CTD_normal_join <- left_join(CTD_normal_name, CTD_raw_join) %>%
+    add_row(sample_name = "CTD-petB-neg2")
+writexl::write_xlsx(CTD_normal_join, path = "sample_list/sampleList_CTD_petB_normal.xlsx")
+CTD_nested_join <- left_join(CTD_nested_name, CTD_raw_join)
+writexl::write_xlsx(CTD_nested_join, path = "sample_list/sampleList_CTD_petB_nested.xlsx")
+CTD_18s_join <- left_join(CTD_18s_name, CTD_raw_join)
+writexl::write_xlsx(CTD_18s_join, path = "sample_list/sampleList_CTD_18SV4.xlsx")
+```
+

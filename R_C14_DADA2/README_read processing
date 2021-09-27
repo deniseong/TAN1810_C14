@@ -6,15 +6,33 @@ Three types of samples:
 3. syn-xx: sorted Synechococcus cells, nested petB amplification
 
 There needs to be two different DADA2 processing, one for nested petB (CTD-NpetB-xx and syn-xx) and one for normal petB (CTD-petB-XX).
-In folder databases, "petB_721_FIXED_715_seqs_ShortName_FullLength.fasta" is from Laurence, email on 12 Jan 2021 (email in archives)
-
-param_dada2_datasetD1.R : for nested petB amplification
-param_dada2_datasetD2.R : for normal petB amplification
 
 Databases:
 - petB database is based on the Farrant et al. (2016) https://www.pnas.org/content/115/9/E2010.short
-Uses ecologically taxonomic significant unit. "petB_721_FIXED_715_seqs_ShortName_FullLength.fasta"
+Uses ecologically taxonomic significant unit. "petB_721_FIXED_715_seqs_ShortName_FullLength.fasta" (from Laurence, email on 12 Jan 2021 (email in archives))
 - To refer to the database:
     - databases/Farrant_database_ESTU.fasta
     - databases/Farrant_database_noESTU.fasta
     - databases/Farrant_database_unassigned.fasta (there are a few taxonomically unassigned sequences. If there are sequences unassigned in the sorted samples can run DADA2 with this and BLAST)
+
+Use the source codes for the following processing: 
+- param_dada2_datasetD1.R : for nested petB amplification of sorted syn cells
+- param_dada2_datasetD2.R : for nested petB amplification of CTD filters
+- param_dada2_datasetD3.R : for normal petB amplification of CTD filters
+
+Also use the corresponding directories. 
+
+Plug into the "DADA2_DO.Rmd" , need to edit certain sections at the end.
+
+For 18SV4:
+There are three types of samples:
+1. pico-xx: sorted pico eukyarotes
+2. nano-xx: sorted nano eukaryotes
+3. CTD-18S-xx: CTD filtered samples
+
+All use the same DADA2 processing.
+
+Using pr2 database.
+
+Use source code "param_dada2_datasetD4.R" for 18SV4 region. Also use corresponding directory.
+
