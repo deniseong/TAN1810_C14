@@ -1,0 +1,61 @@
+---
+title: "vesearch testing for clustering"
+author: "Denise Ong"
+date: "10/4/2021"
+output: html_document
+---
+
+vsearch testing
+
+Download vsearch here: https://github.com/torognes/vsearch/releases/tag/v2.18.0  
+this file name: vsearch-2.18.0-linux-x86_64.tar.gz this file name. Needs to be a unix executable file.
+```{r}
+vsearch <- "/Users/deniseong/vsearch-2.18.0-macos-x86_64/bin/vsearch"
+system2(vsearch, args = "--version")
+
+cluster_file <- output_path("_no_taxo_befchim.fastq")
+output_file <-output_path("_test_cluster.fasta")
+system2(vsearch, args = c("--cluster_fast", #command we are using
+                          cluster_file,
+                          "--id", 0.95,
+                         "--centroids seq_95.fasta", 
+                         "--uc clusters.uc"
+                          ))                   
+```
+
+```{r}
+cluster_0.99 <- Biostrings::readDNAStringSet("~/Documents/GitHub/TAN1810_C14/R_C14_DADA2/seq_99.fasta")
+
+dss2df <- function(dss) data.frame(width=width(dss), seq=as.character(dss), names=names(dss))
+
+cluster_0.99_df <- dss2df(cluster_0.99)
+
+cluster_0.99_df <- t(cluster_0.99_df)
+colnames(cluster_0.99_df)<-cluster_0.99_df[2,]
+
+seqtab.nochim_test <- removeBimeraDenovo(cluster_0.99_df, method=method_chimera, multithread=multithread, verbose=TRUE) 
+
+```
+
+```{r}
+cluster_0.95 <- Biostrings::readDNAStringSet("~/Documents/GitHub/TAN1810_C14/R_C14_DADA2/seq_95.fasta")
+
+dss2df <- function(dss) data.frame(width=width(dss), seq=as.character(dss), names=names(dss))
+
+cluster_0.95_df <- dss2df(cluster_0.95)
+
+taxa_one <- assignTaxonomy(seqs=cluster_0.95_df$seq,
+                              refFasta=database_path,
+                              taxLevels = tax_levels,
+                              minBoot = 0, 
+                              outputBootstraps = TRUE,
+                              verbose = TRUE,
+                              multithread = multithread)
+  boot_one <- data.frame(taxa_one$boot) %>%
+        rename_all(funs(str_c(.,"_boot")))
+  taxa_one <- data.frame(taxa_one$tax)  %>% 
+        rownames_to_column(var = "sequence")
+      
+  taxa_list <- bind_cols(taxa_one, boot_one)
+```
+

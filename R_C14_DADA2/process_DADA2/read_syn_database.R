@@ -66,6 +66,15 @@ tax_seq_ESTU <- tax_seq %>%
 tax_seq_noESTU <- tax_seq_ESTU %>%
     select(-ESTU) #Remove ESTU
 
+#Fasta for each subclade to check similarity
+#tax_seq_Ia <- tax_seq_noESTU %>%
+#    filter(Subclade =="Ia")
+#tax_seq_out_Ia <- Biostrings::DNAStringSet(tax_seq_Ia$sequence)
+#names(tax_seq_out_Ia) <- tax_seq_Ia$Subclade
+#Biostrings::writeXStringSet(tax_seq_out_Ia, output_path("_FARRANT_taxo_Ia.fasta"), 
+#                            compress=FALSE, width = 20000)
+
+
 ## First combine taxonomic levels into one column
 tax_seq_ESTU$ESTU <- str_replace_na(tax_seq_ESTU$ESTU)
 tax_seq_ESTU <- tax_seq_ESTU %>%

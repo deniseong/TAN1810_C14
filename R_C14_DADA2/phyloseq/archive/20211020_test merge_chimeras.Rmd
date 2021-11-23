@@ -1,0 +1,104 @@
+---
+title: "20211007_test merge"
+author: "Denise Ong"
+date: "10/7/2021"
+output: html_document
+---
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+source("phyloseq/init.R") #for libraries
+source("phyloseq/init_markdown.R") #for markdown libraries
+source("phyloseq/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source("phyloseq/colours_petb.R") #colours
+```
+
+# no chimeras
+```{r}
+# Load the phyloseq files
+ps <- read_rds("output_petb_2x300/output_petb_Denise_testing/testing_v5/chimera_minfold/petB_merge_testphyloseq_sortedsyn_minfold.RDS") 
+
+# Remove ASVs that are not present in the dataset
+ps <- ps %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
+
+# Do normalizations and transformation
+ps <- phyloseq_normalize_median(ps)
+long <- phyloseq_transform_to_long(ps)
+
+```
+
+```{r}
+p <- long %>%
+  ggplot(aes(x=file_code, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(text=element_text(size=10),axis.text.x = element_text(angle = 45, hjust = 1)) + 
+    #    facet_grid(.~water_mass, scales = "free_x") +
+     #   facet_grid(.~cycle_location_name, scales = "free_x") +
+        ggtitle("C14 sorted syn Denise primer - merge minfold") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force)
+p
+
+pdf("phyloseq/figures_20211020/C14 syn Denise merge minfold.pdf", height=5, width=8) ; plot(p) ; dev.off()
+```
+
+
+```{r}
+# Load the phyloseq files
+ps_ctd_nested <- read_rds("output_petb_2x300/output_petb_Denise_testing/testing_v5/chimera_minfold/petB_merge_testphyloseq_ctd_minfold.RDS") 
+
+# Remove ASVs that are not present in the dataset
+ps_ctd_nested <- ps_ctd_nested %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
+
+# Do normalizations and transformation
+ps_ctd_nested <- phyloseq_normalize_median(ps_ctd_nested)
+long_ctd_nested <- phyloseq_transform_to_long(ps_ctd_nested)
+```
+
+```{r}
+p <- long_ctd_nested %>%
+   # mutate(Subclade = fct_infreq(Subclade))%>%
+   # filter(sample_name != "syn-negr1-2") %>%
+  ggplot(aes(x=file_code, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(text=element_text(size=10),axis.text.x = element_text(angle = 45, hjust = 1)) + 
+       #facet_grid(.~cycle_location_name, scales = "free_x") +
+        ggtitle("CTD petB Denise primer - merge minfold") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force)
+p
+
+pdf("phyloseq/figures_20211020/CTD Denise merge minfold.pdf", height=5, width=8) ; plot(p) ; dev.off()
+```
+
+```{r}
+# Load the phyloseq files
+ps_ctd_normal <- read_rds("output_petb_2x300/output_petb_Mazard_testing/merge_v1/TAN1810_petB_F-Rphyloseq_asv_set_ctdnested.RDS")  # adding new component, this case the phyloseq object to the "tag" all
+# Remove ASVs that are not present in the dataset
+
+ps_ctd_normal <- ps_ctd_normal %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
+
+# Do normalizations and transformation
+ps_ctd_normal <- phyloseq_normalize_median(ps_ctd_normal)
+long_ctd_normal <- phyloseq_transform_to_long(ps_ctd_normal)
+```
+
+```{r}
+p <- long_ctd_normal %>%
+   # mutate(Subclade = fct_infreq(Subclade))%>%
+    #filter(sample_name != "CTD-petB-neg2") %>%
+  ggplot(aes(x=file_code, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(text=element_text(size=10),axis.text.x = element_text(angle = 45, hjust = 1)) + 
+      #  facet_grid(.~cycle_location_name, scales = "free_x") +
+        ggtitle("CTD petB Mazard primer merge test") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force)
+p
+
+pdf("phyloseq/figures_20211007/CTD Mazard merge test.pdf", height=5, width=8) ; plot(p) ; dev.off()
+```

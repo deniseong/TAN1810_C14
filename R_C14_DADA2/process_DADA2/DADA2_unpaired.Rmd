@@ -1,22 +1,11 @@
 ---
-title: "Script DADA2 for for unpaired reads"
+title: "Script DADA2 for unpaired reads adapted from DV"
 author: "Denise Ong"
 date: "9/2/2021"
 output: html_document
 ---
 
-This script is adapted from "script_dada2.R" by Daniel. I copied over the sections to process unpaired reads and annotated some parts. This is just for the R1 reads from the 2X250 petB run to get preliminary data. To input the parameters and the directories, change the following:
-Parameters:
- -" param_dada2_datasetD1.1"
-
-For the directories:
-- "directories_DADA2_datasetD1.1.R" -- for C14 sorted syn cells R1
-- "directories_DADA2_datasetD1.2.R" -- for CTD petB nested R1
-- "directories_DADA2_datasetD1.3.R" -- for CTD petB normal R1
-- "directories_DADA2_datasetD1.4.R" -- for C14 sorted syn cells R2
-- "directories_DADA2_datasetD1.5.R" -- for CTD petB nested R2
-- "directories_DADA2_datasetD1.6.R" -- for CTD petB normal R2
-I also wrote the script at the end to export as phyloseq file.
+This script is adapted from "script_dada2.R" by Daniel. I copied over the sections to process unpaired reads and annotated some parts. 
 
 Note: careful to run because there are some options for R1 vs R2 reads.
 - For cutadapt for primers
@@ -59,7 +48,7 @@ dataset_id  = opt$dataset
 
 ## Read the parameter file and print it in output file  
 
-file_param <- str_c("process_DADA2/param_dada2_datasetD1.1.R") # Change this to the parameter source code
+file_param <- str_c("process_DADA2/datasetD2/param_dada2_datasetD2.R") # Change this to the parameter source code
 
 source(file_param)
 
@@ -87,7 +76,7 @@ if(!exists("remove_primers") & do_cutadapt == TRUE) remove_primers <- TRUE # For
 ## Define variables
 ```{r}
 # Maximum number of quality plots to print
-max_plot_quality = 6
+max_plot_quality = 8
 
 # For assigning taxonomy by chunks
 taxo_slice_size = 1000
@@ -99,7 +88,7 @@ primer_length_rev <- str_length(REV)
 
 ## Define directories
 ```{r} 
-source("process_DADA2/directories_DADA2_datasetD1.6.R")
+source("process_DADA2/datasetD2/directories_DADA2_datasetD2_R1.R")
 ```
 
 ## Get file names
@@ -107,8 +96,11 @@ source("process_DADA2/directories_DADA2_datasetD1.6.R")
 fns <- sort(list.files(dir_fastq, full.names = TRUE))
 fns <- fns[str_detect( basename(fns),file_identifier)]
 
-fns_R2 <- fns[str_detect( basename(fns),R2_identifier)]
-fns <- fns_R2
+fns_R1 <- fns[str_detect( basename(fns),R1_identifier)]
+fns <- fns_R1
+
+#fns_R2 <- fns[str_detect( basename(fns),R2_identifier)]
+#fns <- fns_R2
 
   fns.fastq <- fns
   fns.filtN <- str_c(dir_fastqN, basename(fns))
@@ -118,7 +110,9 @@ fns <- fns_R2
   sample.names <- str_split(basename(fns), pattern = file_name_separator, simplify = TRUE)
 
   # Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+#sample.names <- str_split(basename(fns_R1), pattern = file_name_separator, simplify = TRUE)
 sample.names <- str_split(basename(fns_R2), pattern = file_name_separator, simplify = TRUE)
+
 sample.names <- sample.names[,1]
 sample.names # check if sample.names are generated
 sample_names_check <- data.frame(sample.names) #Generate dataframe to compare againt the sample list.
@@ -140,7 +134,7 @@ ggplot(summary, aes(x = n_seq)) + geom_histogram(alpha = 0.5, position = "identi
 
 # Plot quality for reads
 
-plotQualityProfile(fns[1:10])
+plotQualityProfile(fns[1:8])
 ```
 
 ## Remove primers
@@ -162,6 +156,8 @@ plotQualityProfile(fns[1:10])
 #Step 2
 out_N <- filterAndTrim(fns.fastq, fns.filtN,  
                           maxN = 0, minQ = -10, multithread = multithread) 
+
+out_N
 
 # Step 3
 primerHits <- function(primer, fn) {
@@ -185,47 +181,45 @@ system2(cutadapt, args = "--version")
 FWD.RC <- dada2:::rc(FWD)
 REV.RC <- dada2:::rc(REV)
 
+flags_FWD = ""
+flags_REV = ""
+
 #For R1 reads
 
 # Assume all reads to be in the good orientation
 # Trim FWD and the reverse-complement of REV off of reads.  The reverse cannot be anchored)
-      flags_FWD = ""
-      flags_REV = ""
-      if (FWD != "") flags_FWD <- str_c("-g ", anchor, FWD) 
-      if (REV != "") flags_REV <- str_c("-a ", REV.RC) 
+if (FWD != "") flags_FWD <- str_c("-g ", anchor, FWD) 
+if (REV != "") flags_REV <- str_c("-a ", REV.RC) 
       
 #For R2 reads
 
 # Trim REV and the reverse-complement of FWD off of reads.  The reverse cannot be anchored)
-
-flags_FWD = ""
-flags_REV = ""
-if (FWD != "") flags_FWD <- str_c("-g ", anchor, REV) 
-if (REV != "") flags_REV <- str_c("-a", FWD.RC)
+#if (FWD != "") flags_FWD <- str_c("-g ", anchor, REV) 
+#if (REV != "") flags_REV <- str_c("-a", FWD.RC)
 
 for(i in seq_along(fns)) {
         system2(cutadapt, args = c(flags_FWD, 
                                    flags_REV,
                                    "-o",  fns.cut[i],           # output files
-                                   fns.fastq[i],                # input files
+                                   fns.filtN[i],                # input files
                                    "--cores=0",                 # automatic detection of number of cores
                                    "--max-n=0",                 # Remove any N
                                    "--trim-n",                  # Remove N at end of reads
-                                   "--discard-untrimmed"))      # remove all reads where primer not found   
-        # system2(cutadapt, args = c(flags_REV, 
-        #                    "-o", fns.cut[i],            # output files
-        #                     temp_file))      # Keep the reads even if reverse primer not found  
+                                   "--discard-untrimmed",       # remove all reads where primer not found  
+                                   "--minimum-length 200"))     # DO: added this line to enforce minimum length because of error later for summary and plot quality, probably because some reads with 0 bp (https://github.com/benjjneb/dada2/issues/159)
 }
+
 # To check the presence of primers after removal. Should appear as all 0.
 primer_test <- rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fns.cut[[1]]),  
-                         REV.ForwardReads = sapply(REV.orients, primerHits, fn = fns.cut[[1]]))
+                     REV.ForwardReads = sapply(REV.orients, primerHits, fn = fns.cut[[1]]))
 primer_test
+
 fns <- fns.cut
 ```
 
 ## Summary after remove primers
 ```{r}
-#SUmmary
+#Summary
 summary <- data.frame()
 fns.summary <- fns
 
@@ -235,6 +229,8 @@ fns.summary <- fns
       summary <- bind_rows(summary, summary_one_row)
       print(paste("Finished with file", fns.summary[i], ". ", round(i/length(fns.summary)*100, 2), "%", sep=""))
     }
+
+summary
     
 write_tsv(summary, output_path( "_summary_after_cutadapt.tsv"))
 ```
@@ -259,8 +255,8 @@ for(i in 1:min(length(fns), max_plot_quality)) {
 ## Filter and trim
 ```{r}
 #Filter and trim - edit the parameters
-  truncLen = c(230) # This influences the number of ASVs and the percent of asv recovered (need to remove 20 and 21). 
-  minLen = c(220) #remove reads that are shorter.
+  truncLen = c(280) # This influences the number of ASVs and the percent of asv recovered (need to remove 20 and 21). 
+  minLen = c(280) #remove reads that are shorter.
   truncQ = 2         
   maxEE = c(10) #after truncation, reads with higher than expected errors are discarded. 
   
@@ -269,19 +265,23 @@ out <- filterAndTrim(fns, fns.filt,
                            truncLen=truncLen[1], minLen=minLen[1], maxEE=maxEE[1],truncQ=truncQ,
                            compress=TRUE, multithread = multithread_filter)
 
-print(out)
-write_tsv(data.frame(out), output_path( "_summary_filtered_files.tsv")) 
 
+class(out) 
+dim(out) 
+
+out 
+
+write_tsv(data.frame(out), output_path( "_summary_filtered_files.tsv")) 
 ```
 
 
 ## Generate error plots
 ```{r}
 err_R1 <- learnErrors(fns.filt, multithread = multithread)
-      p <- plotErrors(err_R1, nominalQ=TRUE)
-      p_file <- output_path("_LearnErrors_R1.pdf")
-      ggsave( plot=p, filename= p_file, device = "pdf", 
-              width = 15, height = 15, scale=1, units="cm")
+p <- plotErrors(err_R1, nominalQ=TRUE)
+p_file <- output_path("_LearnErrors_R1.pdf")
+ggsave( plot=p, filename= p_file, device = "pdf", 
+        width = 15, height = 15, scale=1, units="cm")
 ```
 
 # DADA2
@@ -307,13 +307,21 @@ t_seqtab <- t(seqtab)
 ## Remove chimeras
 ```{r}
  seqtab.nochim <- removeBimeraDenovo(seqtab, method=method_chimera, multithread=multithread, verbose=TRUE)
-    
-    p <- ggplot(data.frame(seq_length=nchar(getSequences(seqtab.nochim)))) +
-      geom_histogram(aes(x=seq_length)) +
-      ggtitle(str_c("Number of asv: ", ncol(seqtab.nochim)))
-    p_file <- output_path("_asv_length_hist.pdf")
-    ggsave( plot=p, filename= p_file, device = "pdf", 
-            width = 15, height = 15, scale=1, units="cm") 
+
+#to check number of merged ASVs removed as chimera, compare dim of seqtab and seqtab.nochim
+dim(seqtab.nochim)
+dim(seqtab)
+
+#check percentage of reads that are non-chimera
+sum(seqtab.nochim)/sum(seqtab)
+t_seqtab.nochim <- t(seqtab.nochim)
+
+p <- ggplot(data.frame(seq_length=nchar(getSequences(seqtab.nochim)))) +
+     geom_histogram(aes(x=seq_length)) +
+     ggtitle(str_c("Number of asv: ", ncol(seqtab.nochim)))
+p_file <- output_path("_asv_length_hist.pdf")
+ggsave( plot=p, filename= p_file, device = "pdf", 
+        width = 15, height = 15, scale=1, units="cm") 
 saveRDS(seqtab.nochim, output_path("_seqtab.nochim.rds")) 
 ```
 
@@ -324,7 +332,7 @@ track <- cbind(out,
                sapply(dada_R1, getN), 
                      rowSums(seqtab), 
                      rowSums(seqtab.nochim))    
-      colnames(track) <- c("intput", "filtered", "denoised", "tabled", "nonchim")
+      colnames(track) <- c("cutadapt", "filtered", "denoised", "tabled", "nonchim")
     track <- data.frame(track) %>% 
       mutate(file_code = sample.names)
     
@@ -346,8 +354,9 @@ seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>%
 ```
 
 # Assign taxonomy
+NOTE: for function assignTaxonomy, change option tryRC depending on R1 or R2 reads. tryRC = TRUE will invert the read before assigning for reverse R2 reads.
 ```{r}
-#seqtab.nochim <- readRDS("output_CTD_petB_normal_unpaired/TAN1810_CTD_normal_seqtab.nochim.rds")
+seqtab.nochim <- readRDS("output_petb_2x300/output_petb_F-R/R2/TAN1810_petB_F-R_seqtab.nochim.rds")
 
 #Assigning taxonomy
 taxa_list <- list()
@@ -375,7 +384,7 @@ taxa_list <- list()
                                  minBoot = 0, outputBootstraps = TRUE,
                                  verbose = TRUE,
                                  multithread = multithread,
-                                 tryRC = TRUE #only for R2 reads
+                                 tryRC = TRUE #only for R2 reads CHANGE ACCORDINGLY
                                  )
       boot_one <- data.frame(taxa_one$boot) %>%
         rename_all(funs(str_c(.,"_boot")))
@@ -458,7 +467,7 @@ ps <- merge_phyloseq(otus, taxa, sample_join)
 
 ps
 
-saveRDS(ps, output_path("_phyloseq_asv_set.RDS"))
+saveRDS(ps, output_path("_phyloseq_asv_set_CTD_petBF-R_R2.RDS"))
 
 ```
 

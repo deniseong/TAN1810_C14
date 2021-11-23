@@ -1,4 +1,9 @@
+For DADA2 processing there are 2 Rmd files to choose:
+- DADA2_paired.Rmd (for paired sequences)
+- DADA2_unpaired.Rmd (for unpaired sequences)
+
 For petB:
+
 In fastq_petB folder, there are the fastq files for the petB amplified samples. 
 Three types of samples:
 1. CTD-NpetB-xx: CTD filtered samples, nested petB amplification
@@ -14,15 +19,19 @@ Uses ecologically taxonomic significant unit. "petB_721_FIXED_715_seqs_ShortName
     - databases/Farrant_database_ESTU.fasta
     - databases/Farrant_database_noESTU.fasta
     - databases/Farrant_database_unassigned.fasta (there are a few taxonomically unassigned sequences. If there are sequences unassigned in the sorted samples can run DADA2 with this and BLAST)
+- For now we are using without the ESTU
 
-Use the source codes for the following processing: 
-- param_dada2_datasetD1.R : for nested petB amplification of sorted syn cells
-- param_dada2_datasetD2.R : for nested petB amplification of CTD filters
-- param_dada2_datasetD3.R : for normal petB amplification of CTD filters
+For unpaired reads from the 2X250 petB run to get preliminary data. To input the parameters and the directories, change the following:
+Parameters:
+ -" param_dada2_datasetD1.1"
 
-Also use the corresponding directories. 
-
-Plug into the "DADA2_DO.Rmd" , need to edit certain sections at the end.
+For the directories:
+- "directories_DADA2_datasetD1.1.R" -- for C14 sorted syn cells R1
+- "directories_DADA2_datasetD1.2.R" -- for CTD petB nested R1
+- "directories_DADA2_datasetD1.3.R" -- for CTD petB normal R1
+- "directories_DADA2_datasetD1.4.R" -- for C14 sorted syn cells R2
+- "directories_DADA2_datasetD1.5.R" -- for CTD petB nested R2
+- "directories_DADA2_datasetD1.6.R" -- for CTD petB normal R2
 
 For 18SV4:
 There are three types of samples:

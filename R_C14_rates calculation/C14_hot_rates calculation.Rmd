@@ -113,6 +113,7 @@ Do plots for each group. One regression line based on the EXP, Sample and Popula
   facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
   scale_color_viridis_d()
 reg_plot
+pdf("figures/C14_regression.pdf", height=15, width=10) ; plot(reg_plot) ; dev.off()
 ```
 
 ## Do linear model
@@ -328,7 +329,7 @@ print(xtable(pp_cal_table),
       comment = FALSE)
 ```
 
-# Analysis based on ST and SA waters
+## Analysis based on ST and SA waters
 Subtropical waters- Cycle 3 and 4
 Subatlantic waters - Cycle 1, 2 and 5
 ```{r}
@@ -357,7 +358,7 @@ exp_boxplot <- ggplot(pp_cal_1_join, aes(x = exp, y=pp, fill=population)) +
 exp_boxplot
 ```
 
-# Analysis based on Surface vs DCM
+## Analysis based on Surface vs DCM
 ```{r}
 
 depth_boxplot <- ggplot(pp_cal_1_join, aes(x = sample, y=pp, fill=population)) +
@@ -380,7 +381,8 @@ depth_table_2 <- pp_cal_1_join %>%
 depth_table_2
 
 ```
-# NA: Compute based on Method 2 - Compute lm for  ABC separately
+
+#Method 2 - Compute lm for  ABC separately
 
 Not using this method.
 
@@ -388,11 +390,13 @@ Not using this method.
 Do plots for each group. One regression line based on the EXP, Sample and Populations
 
 ```{r fig.height=15, fig.width=10}
- ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population, shape=vial)) +
+ reg_plot_2<- ggplot(data = C14_DPM_corrected, aes(x=cells_sorted, y=dpm_corrected, color=population, shape=vial)) +
   geom_point() + stat_smooth(method="lm", se=FALSE) +
   # DV - Set the y_scale to free so that graph is more easy to read
   facet_grid(rows=vars(exp), cols=vars(sample), scales = "free_y") +
   scale_color_viridis_d()
+pdf("figures/C14_regression plot 2.pdf", height=15, width=10) ; plot(reg_plot_2) ; dev.off()
+
 ```
 
 
@@ -405,7 +409,7 @@ See: https://cran.r-project.org/web/packages/broom/vignettes/broom_and_dplyr.htm
 
 ```{r}
  C14_DPM_model_2 <- C14_DPM_corrected %>%
-  group_by(cycle, exp, station, depth, sample, population, vial, SA) %>% 
+  group_by(cycle, exp, sample, population, vial, DIC, SA) %>% 
   tidyr::nest() %>% 
   mutate(
     fit = purrr::map(data, ~ lm(dpm_corrected ~ cells_sorted, data = .x)),
@@ -423,43 +427,71 @@ C14_DPM_model_output_2
 ```
 
 
-## Merge DIC/SA table and DPM output
-```{r}
-# merge tables
-pp_cal_2 <- left_join(C14_DPM_model_output_2, DIC_data_corrected)
-pp_cal_2
-```
-
 ## Calculate PP value, based on Daniel's formula found here:  
 https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
 
 ```{r}
-pp_cal_2 <- mutate(pp_cal_2, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
+pp_cal_2 <- mutate(C14_DPM_model_output_2, pp = DIC*slope*(1/(SA*24))*10^9*1.05) %>%
   ungroup() %>%
-  select( -c(station, depth)) %>%
-  filter(pp >= 0) # remove negative pp values
-
-# add missing rows for data analysis later
-pp_cal_2 <- complete(pp_cal_2, nesting(cycle, exp, sample), vial, population) 
+  filter(pp > 0) # remove negative pp values
   
 pp_cal_2
 ```
+## calculate mean nano
+```{r}
+# merge tables
+pp_cal_nano_2 <-  C14_DPM_corrected_nano %>%
+  group_by(SA, population, cycle, DIC, exp, sample, vial) %>%
+  mutate(mean_dpm_corrected=mean(dpm_corrected)) %>% #calculate mean
+  select(-dpm, -dpm_dark, -dpm_corrected) %>%
+  distinct() #remove duplicates
 
+pp_cal_nano_2
+```
+
+
+## Calculate PP value, based on Daniel's formula found here:  
+https://vaulot.netlify.com/2018/05/20/compute-primary-production-based-on-single-cell-c14-uptake/
+
+```{r} 
+pp_cal_nano_2 <- mutate(pp_cal_nano_2, pp = DIC*mean_dpm_corrected*(1/(SA*24*cells_sorted))*10^9*1.05) %>% 
+  ungroup() %>%
+  filter(pp > 0) # remove negative pp values
+
+# add missing rows for data analysis later
+#pp_cal_nano_2 <- complete(pp_cal_nano_2, nesting(cycle, exp, sample), vial, population) %>%
+#  ungroup()
+  
+pp_cal_nano_2
+```
+
+
+## Join pico, syn and nano values together
+
+```{r}
+pp_cal_2_join<-full_join(pp_cal_2,pp_cal_nano_2) %>%
+  select(-SA,-intercept, -slope, -DIC, -cells_sorted, -mean_dpm_corrected)%>%
+  arrange(cycle, exp, sample, population) 
+pp_cal_2_join
+#pp_cal_2_join$cycle <- as.character(pp_cal_2_join$cycle) 
+#pp_cal_2_join$exp <- as.character(pp_cal_2_join$exp)
+writexl::write_xlsx(pp_cal_2_join,"C14_rates per group_method2.xlsx")
+```
 
 Compute means quickly.
 
 ```{r}
  
-pp_cal_2 %>% 
+pp_cal_2_join %>% 
   group_by(population, sample) %>% 
   summarise(pp_mean = mean(pp, na.rm = TRUE))
 
-pp_cal_2 %>% 
+pp_cal_2_join %>% 
   ggplot() +
   geom_point(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
   xlab("Sample")
 
-pp_cal_2 %>% 
+pp_cal_2_join %>% 
   ggplot() +
   geom_boxplot(aes(x= str_c(population,sample,  sep=" "), y = pp)) +
   xlab("Sample")
