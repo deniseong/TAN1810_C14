@@ -1,0 +1,351 @@
+---
+title: "20211129_petB compare v2"
+author: "Denise Ong"
+date: "11/29/2021"
+output: html_document
+---
+
+Removing singletons and Richellia. No difference in composition when removing or not removing singletons. not using figures made from this.
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+source("phyloseq/init.R") #for libraries
+source("phyloseq/init_markdown.R") #for markdown libraries
+source("phyloseq/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source("phyloseq/colours_petb.R") #colours
+```
+
+# Load data
+```{r}
+source("phyloseq/read_petb_ctd.R")
+
+# Remove ASVs that have 1 and no reads in the dataset
+ps_ctd_nested_2 <- ps_ctd_nested %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 1 , TRUE) 
+
+#Remove Richellia
+ps_ctd_nested_2 <- ps_ctd_nested_2 %>% 
+    subset_taxa(!(Genus == "Rich")) 
+
+# Do normalizations and transformation
+ps_ctd_nested_2 <- phyloseq_normalize_median(ps_ctd_nested_2)
+long_ctd_nested_2 <- phyloseq_transform_to_long(ps_ctd_nested_2)
+
+# Remove ASVs that have 1 or 0 reads in dataset
+ps_ctd_normal_2 <- ps_ctd_normal %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 1 , TRUE) 
+
+# Remove Richellia
+ps_ctd_normal_2 <- ps_ctd_normal_2 %>% 
+    subset_taxa(!(Genus == "Rich")) 
+
+# Do normalizations and transformation
+ps_ctd_normal_2 <- phyloseq_normalize_median(ps_ctd_normal_2)
+long_ctd_normal_2 <- phyloseq_transform_to_long(ps_ctd_normal_2)
+
+```
+
+# Compare composition between two primer sets
+## Subset CTD Denise so it only includes overlapping samples from CTD Mazard, transform no. of reads to percent
+```{r}
+# Denise CTD
+long_ctd_nested_sub_2 <- semi_join(long_ctd_nested_2, long_ctd_normal_2, by = "sample_number") %>%
+    select(water_mass, cycle_name, sample_number, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, sample_number, Subclade) %>%
+    summarise(n_reads = sum(n_reads)) %>%
+    filter(!is.na(sample_number))
+long_denise_pct_2 <- long_ctd_nested_sub_2 %>%
+    group_by(sample_number) %>% 
+    mutate(percent_denise = n_reads / sum(n_reads) * 100) %>%
+    select(-n_reads)
+
+# Mazard CTD with Richellia
+long_mazard_pct_2 <- long_ctd_normal_2 %>%
+    select(water_mass, cycle_name, sample_number, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, sample_number, Subclade) %>%
+    summarise(n_reads = sum(n_reads)) %>%
+    filter(!is.na(sample_number)) %>%
+    group_by(sample_number) %>% 
+    mutate(percent_mazard = n_reads / sum(n_reads) * 100) %>%
+    select(-n_reads)
+
+join_check_2 <- full_join(long_denise_pct_2, long_mazard_pct_2) 
+join_check_long_2 <- join_check_2 %>%
+  pivot_longer(percent_denise:percent_mazard,
+               names_to = "type",
+               values_to = "percent") %>%
+   mutate(type = recode(type, "percent_denise" = "This study",
+                              "percent_mazard" = "Mazard (2012)"))
+```
+
+## export table for composition stats
+```{r}
+stats_2 <- join_check_2 %>%
+  replace_na(list(percent_mazard = 0, percent_denise = 0))%>%
+  group_by(Subclade) %>%
+  summarise(mean_denise = mean(percent_denise),
+            max_denise = max(percent_denise),
+            min_denise = min(percent_denise),
+            SD_denise = sd(percent_denise),
+            mean_mazard = mean(percent_mazard),
+            max_mazard = max(percent_mazard),
+            min_mazard = min(percent_mazard),
+            SD_mazard = sd(percent_mazard)) %>%
+    arrange(-mean_denise)
+stats_2
+
+stats_join_2 <- full_join(asv_count_2, stats_2) %>%
+  select(-Clade) %>%
+    arrange(-mean_denise)
+join_all <- full_join(stats_join, stats_join_2)
+```
+## Compare % composition With violin plot
+```{r}
+join_check_long_2$type <- factor(join_check_long_2$type, levels = c("Mazard (2012)", "This study"))
+#for major clades
+p1 <- join_check_long_2 %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  mutate(Subclade = factor(Subclade, levels = c("Ib", "IVb", "IVa", "Ia"))) %>%
+  ggplot(aes(x=type, y=percent)) +
+  geom_violin()+
+  geom_point(aes(colour=Subclade))+
+ # geom_boxplot(width=0.2, alpha = 0, color = "#929292")+
+  facet_grid(.~Subclade, scales = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw()+
+  ylab("Percent composition in a sample")+
+  xlab(NULL)
+
+p1
+
+p2 <- join_check_long_2 %>%
+  filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+  mutate(Subclade = factor(Subclade, levels = c("CRD1", "EnvA", "EnvB", "WPC1", "IIh", "IIe", "UC-A", "Ic", "VIb", "V", "II-WPC2", "VIc"))) %>%
+  ggplot(aes(x=type, y=percent)) +
+  geom_violin()+
+  geom_point(aes(colour=Subclade))+
+#  geom_boxplot(width=0.2, alpha = 0, color="#929292")+
+  facet_grid(.~Subclade, scales = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw()+
+  ylab("Percent composition in a sample")+
+  xlab(NULL)+
+  theme(axis.text.x = element_text(angle =90, hjust=1))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")
+
+p2
+```
+
+# How many ASVs in subclade - only overlapping samples
+```{r}
+denise_count_2<- semi_join(long_ctd_nested_2, long_ctd_normal_2, by = "sample_number") %>% 
+  select(Clade, Subclade, asv_code) %>%
+  #filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  distinct() %>%
+  group_by(Clade, Subclade)%>%
+  tally(sort = TRUE) %>%
+  dplyr::rename("ASV_denise"= n)
+
+mazard_count_2<- long_ctd_normal_2 %>% 
+  select(Clade, Subclade, asv_code) %>%
+  #filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  distinct() %>%
+  group_by(Clade, Subclade)%>%
+  tally(sort = TRUE) %>%
+  dplyr::rename("ASV_mazard" = n)
+
+asv_count_2 <- full_join(denise_count_2,mazard_count_2) %>%
+    replace(is.na(.), 0) 
+
+asv_count_long_2 <- asv_count_2 %>%
+  arrange("ASV_denise") %>%
+  pivot_longer(cols = ASV_denise:ASV_mazard,
+               values_to = "ASV",
+               names_to = "type")%>%
+     mutate(type = recode(type, "ASV_denise" = "This study",
+                              "ASV_mazard" = "Mazard (2012)"))
+  
+```
+
+# How many reads per ASV in major clade
+```{r}
+denise_sub_2 <- long_ctd_nested_2 %>%
+  select(Subclade, asv_code, n_reads) %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  group_by(Subclade, asv_code) %>%
+  mutate(n_reads = sum(n_reads)) %>%
+  distinct()
+
+p1 <- denise_sub_2 %>%
+  drop_na() %>%
+  mutate(asv_code = fct_reorder(asv_code, n_reads)) %>%
+  ggplot(aes(x = reorder(asv_code, -n_reads), y= n_reads, color=Subclade, fill=Subclade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~Subclade, scales = "free") +
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")+
+  xlab("ASV code")+
+  scale_y_continuous(trans='log10') +
+  annotation_logticks(sides = "l") +
+  expand_limits(y = 0) +
+  ggtitle("This study")
+p1
+
+mazard_sub_2 <- long_ctd_normal_2 %>%
+  select(Subclade, asv_code, n_reads) %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  group_by(Subclade, asv_code) %>%
+  mutate(n_reads = sum(n_reads)) %>%
+  distinct()
+
+p2 <- mazard_sub_2 %>%
+  drop_na()%>%
+  mutate(asv_code = fct_reorder(asv_code, n_reads)) %>%
+  ggplot(aes(x = reorder(asv_code, -n_reads), y= n_reads, color=Subclade, fill=Subclade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~Subclade, scales = "free") +
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")+
+  scale_y_continuous(trans='log10') +
+  annotation_logticks(sides = "l")+
+  xlab("ASV code")+
+  ggtitle("Mazard (2012)")+
+  expand_limits(y=0)
+p2
+
+library(cowplot)
+g<- plot_grid(p2, p1,
+          ncol = 2,
+          nrow = 1,
+          labels = c("A", "B"))
+pdf("phyloseq/ASV distribution_remove singletons.pdf", height=4, width=8) ; plot(g) ; dev.off()
+```
+## dumbbell plot No of ASV
+```{r}
+p <- asv_count_long %>%
+  ggplot(aes(x=ASV, y = fct_relevel(Subclade, "VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib"), group= Subclade)) +
+#  geom_path(aes(color = Subclade), arrow = arrow(ends = "first", length = unit(0.15, "inches"), type = "closed") ) +
+  geom_point(aes(color = type), size = 3) + 
+  geom_path(arrow = arrow(ends = "first", length = unit(0.1, "inches")), color="black") +
+#  scale_color_manual(values=colours_petb_subclade, limits = force) +
+  scale_colour_paletteer_d("ggthemes::Color_Blind")+
+  scale_x_continuous(trans='log10') +
+  annotation_logticks(sides = "b") +
+  ylab("Subclade") +
+  xlab("No. of ASVs")
+
+p
+pdf("phyloseq/figures_petb compare/asv_dumbell_remove singletons.pdf", height=4, width=5) ; plot(p) ; dev.off()
+```
+
+# Barplot CTD only, compare petB-F29/R with petB-F/R
+```{r}
+long_nested_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") 
+
+join_ps <- full_join(long_nested_sub, long_ctd_normal) %>%
+  drop_na() %>%
+  mutate(type = recode(type, "Normal CTD" = "Mazard (2012)",
+                              "Nested CTD" = "This study"))
+
+join_ps$sample_number <- as.character(join_ps$sample_number)
+
+check <- join_ps %>%
+  select(sample_number) %>%
+  distinct
+p <- join_ps %>%
+  ggplot(aes(x=n_reads, y=fct_rev(sample_number), color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(#text=element_text(size=10),
+             # axis.text.x = element_text(angle = 45, hjust = 1),
+              #panel.spacing.x = unit(0,"lines"),
+              panel.spacing.y = unit(0,"lines"))+
+    #    facet_grid(.~water_mass, scales = "free_x") +
+        facet_grid(fct_relevel(station, "193", "239", "266", "316", "9", "39", "24", "108", "137","188" ,"324", "371")~type, scales = "free_y", space = "free") +
+      #  ggtitle("Compare primers") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+        xlab("Percent of reads")+
+        ylab("Sample number")
+p
+pdf("phyloseq/figures_petb compare/read distribution_no rich_remove singletons.pdf", height=8, width=7) ; plot(p) ; dev.off()
+
+```
+
+# Create separate fasta for each subclade
+```{r}
+phyloseq_otu_taxo <- function(ps) {
+otu_df <- as.data.frame(ps@otu_table@.Data, stringsAsFactors = FALSE) %>%
+    rowwise()%>%
+    summarise(n_reads_sum = sum(c_across(where(is.numeric)))) %>%
+    rownames_to_column(var = "asv_number") %>%
+    ungroup()
+
+taxo_df <- as.data.frame(ps@tax_table@.Data, stringsAsFactors = FALSE) %>%
+    rownames_to_column(var = "asv_code") %>%
+    rownames_to_column(var = "asv_number")
+otu_taxo <- full_join(taxo_df, otu_df)
+
+return(otu_taxo)
+}
+
+nested_otu_taxo <- phyloseq_otu_taxo(ps_ctd_nested)
+normal_otu_taxo <- phyloseq_otu_taxo(ps_ctd_normal) 
+
+#for Ong_2022 overlapping samples
+long_ctd_nested_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>%
+  select(asv_code:Subclade) %>%
+  distinct()
+
+nested_seq <- read.table(file = "output_petb_2x300/output_petb_Denise/merged_v2/petB_Denise primer_Farrant_asv.txt", header = TRUE) %>%
+    #full_join(nested_otu_taxo) %>%
+    semi_join(long_ctd_nested_sub) %>%
+    #select(-asv_number) %>%
+    drop_na()
+
+normal_seq <- read.table(file = "output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_Farrant_asv.txt", header = TRUE) %>%
+    full_join(normal_otu_taxo) %>%
+    select(-asv_number) %>%
+    drop_na()
+
+for (i in c("VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib")) {
+    nested_seq_sub <- nested_seq %>%
+        filter(Subclade == i) %>%
+      select(asv_code:Subclade_boot, sequence_hash)
+       # select(asv_code:Subclade_boot, n_reads_sum) %>%
+      #  arrange(-n_reads_sum)
+    writexl::write_xlsx(nested_seq_sub,str_c("phyloseq/output_checking alignment/Denise_CTD_subset/merged Denise CTD subset_", i, ".xlsx"))
+    seq_out <- Biostrings::DNAStringSet(nested_seq_sub$sequence)
+    names(seq_out) <- str_c(nested_seq_sub$asv_code,nested_seq_sub$Subclade, sep="|") #need to change.
+    Biostrings::writeXStringSet(seq_out, str_c("phyloseq/output_checking alignment/Denise_CTD_subset/merged Denise CTD subset_", i, ".fasta"),
+                                compress=FALSE, width = 20000)
+}
+
+for (i in c("Rich")) {
+    nested_seq_sub <- nested_seq %>%
+        filter(Subclade == i) %>%
+        select(asv_code:Subclade_boot, n_reads_sum) %>%
+        arrange(-n_reads_sum)
+    writexl::write_xlsx(nested_seq_sub,str_c("phyloseq/output_checking alignment/Denise_CTD/merged Denise CTD_", i, ".xlsx"))
+    seq_out <- Biostrings::DNAStringSet(nested_seq_sub$sequence)
+    names(seq_out) <- str_c(nested_seq_sub$asv_code,nested_seq_sub$Subclade, sep="|") #need to change.
+    Biostrings::writeXStringSet(seq_out, str_c("phyloseq/output_checking alignment/Denise_CTD/merged Denise CTD_", i, ".fasta"),
+                                compress=FALSE, width = 20000)
+}
+```
+

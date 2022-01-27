@@ -10,6 +10,7 @@ library(glue)
 library(cowplot)
 library(phyloseq)
 library(forcats)
+library(paletteer)
 
 # library(pr2database)
 # data("pr2")

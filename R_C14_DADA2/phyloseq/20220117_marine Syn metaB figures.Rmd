@@ -1,0 +1,56 @@
+---
+title: "20220117_marine Syn metaB figures"
+author: "Denise Ong"
+date: "1/17/2022"
+output: html_document
+---
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+source("phyloseq/init.R") #for libraries
+source("phyloseq/init_markdown.R") #for markdown libraries
+source("phyloseq/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source("phyloseq/colours_petb.R") #colours
+```
+
+# Read data
+```{r}
+source("phyloseq/read_petb.R")
+# For all 3 phyloseq: remove ASVs that are not present in the dataset, remove Richellia, do normalizations and transformation
+```
+
+## Subset Ong_2022 so it only includes overlapping samples from Mazard_2012, transform no. of reads to percent
+```{r}
+# Ong_2022
+long_ctd_nested_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>%
+    select(water_mass, cycle_name, sample_number, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, sample_number, Subclade) %>%
+    summarise(n_reads = sum(n_reads)) %>%
+    filter(!is.na(sample_number))
+long_denise_pct <- long_ctd_nested_sub %>%
+    group_by(sample_number) %>% 
+    mutate(percent_denise = n_reads / sum(n_reads) * 100) %>%
+    select(-n_reads)
+
+# Mazard CTD with Richellia
+long_mazard_pct <- long_ctd_normal %>%
+    select(water_mass, cycle_name, sample_number, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, sample_number, Subclade) %>%
+    summarise(n_reads = sum(n_reads)) %>%
+    filter(!is.na(sample_number)) %>%
+    group_by(sample_number) %>% 
+    mutate(percent_mazard = n_reads / sum(n_reads) * 100) %>%
+    select(-n_reads)
+
+join_check <- full_join(long_denise_pct, long_mazard_pct)  %>%
+ replace_na(list(percent_denise = 0, percent_mazard = 0))
+join_check_long <- join_check %>%
+  pivot_longer(percent_denise:percent_mazard,
+               names_to = "type",
+               values_to = "percent") %>%
+   mutate(type = recode(type, "percent_denise" = "This study",
+                              "percent_mazard" = "Mazard (2012)"))
+join_check_wide <- join_check %>%
+  pivot_wider(names_from = Subclade, values_from = c(percent_denise, percent_mazard))
+#writexl::write_xlsx(join_check_wide, "subclade_percent_wide.xlsx")
+```

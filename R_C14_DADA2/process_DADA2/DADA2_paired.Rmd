@@ -410,7 +410,7 @@ p_file <- output_path("asv_length_hist.pdf")
 ggsave( plot=p, filename= p_file, device = "pdf", width = 15, height = 15, scale=1, units="cm")  
 ```
 
-## Save RDS
+## Save sequence table after removing chimeras
 ```{r}
 saveRDS(seqtab.nochim, output_path("_seqtab.nochim.rds"))
 ```
@@ -466,7 +466,6 @@ Biostrings::writeXStringSet(seqtab_out, output_path("_no_taxo_befchim.fastq"),
 https://github.com/benjjneb/dada2/commit/21a615ca240d58b5aae0e69f54af697f746f35f0
 assignTaxonomy uses the RDPNaive Bayseian classifer (RDP k-mer based classification), same as Needham 2016 paper. Technically should work because using the same type of method.
 ```{r}
-#seqtab.nochim <- readRDS(output_path("_seqtab.nochim.rds"))
 #seqtab.nochim <- readRDS("output_sorted_syn/seqtab.nochim.rds")
 taxa_list <- list()
     
@@ -508,9 +507,6 @@ saveRDS(taxa.df, output_path("_taxa.rds"))
 
 ## Create ASV table
 ```{r}
-#taxa.df<-readxl::read_xlsx("output_18SV4/TAN1810_C14_18SV4_taxo.xlsx")
-#ASV.df<-readxl::read_xlsx("output_18SV4/TAN1810_C14_18SV4_ASV.xlsx")
-#taxa_asv<- full_join(taxa.df, ASV.df)
 seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% 
       rownames_to_column(var = "sequence") %>%
       rowid_to_column(var = "asv_number") %>%
@@ -518,8 +514,6 @@ seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>%
       mutate(sequence = str_replace_all(sequence, "(-|\\.)","")) %>% 
       left_join(taxa.df) %>%
   distinct()
-  #full_join(taxa_asv) %>%
-  #drop_na()
     
 write_tsv(seqtab.nochim_trans, output_path("_dada2.tsv"), na="")
 ```
@@ -548,17 +542,6 @@ write_tsv(metapr2_asv_abundance, output_path("_Farrant_asv_abundance.txt"), na="
 seq_out <- Biostrings::DNAStringSet(seqtab.nochim_trans$sequence)
 names(seq_out) <- str_c(seqtab.nochim_trans$asv_code,seqtab.nochim_trans$species, sep="|") #need to change.
 Biostrings::writeXStringSet(seq_out, output_path("_taxo.fasta"), 
-                            compress=FALSE, width = 20000)
-```
-
-## Write fasta file with taxonomy only for subclade IVb
-just for checking variation in one subclade. Not using.
-```{r eval=FALSE}
-seqtab.nochim_trans_IVa <- seqtab.nochim_trans %>%
-  filter(Subclade =="IVa")
-seq_out_IVa <- Biostrings::DNAStringSet(seqtab.nochim_trans_IVa$sequence)
-names(seq_out_IVa) <- str_c(seqtab.nochim_trans_IVa$asv_code,seqtab.nochim_trans_IVa$Subclade, sep="|")
-Biostrings::writeXStringSet(seq_out_IVa, output_path("_taxo_IVa.fasta"), 
                             compress=FALSE, width = 20000)
 ```
 
