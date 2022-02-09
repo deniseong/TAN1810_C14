@@ -26,7 +26,7 @@ source("phyloseq/colours_petb.R") #colours
 
 ## Read data
 ```{r}
-source("phyloseq/read_petb_ctd.R")
+source("phyloseq/read_petb.R")
 
 # Remove ASVs that are not present in the dataset
 ps_ctd_nested <- ps_ctd_nested %>% 
@@ -906,5 +906,10 @@ p
 
 pdf("phyloseq/figures_petb compare/read distribution_all_2.pdf", height=9, width=7) ; plot(p) ; dev.off()
 
+```
+
+## Unique OTUs -upset plot
+```{r}
+library(UpSetR)
 ```
 
