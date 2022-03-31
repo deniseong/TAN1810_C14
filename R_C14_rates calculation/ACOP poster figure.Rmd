@@ -104,7 +104,7 @@ p3 <- pp_rates %>%
 
 p3
 
-pdf("figures/ACOP_figures/pp_rates_group.pdf", height=5, width=4) ; plot(p3) ; dev.off()
+pdf("figures/ACOP_figures/pp_rates_group.pdf", height=4, width=6) ; plot(p3) ; dev.off()
 
 ```
 
@@ -224,10 +224,10 @@ p4
 
 p6 <- fcm_corrected %>%
   ggplot(aes(x = water_mass, y = npp))  +
-  geom_violin()+
+ # geom_violin()+
   #geom_boxplot(outlier.shape = NA) + 
   geom_jitter(aes(color = cycle_name, shape = sample), width = 0.1) +
-  geom_boxplot(width=0.2, alpha = 0, color = "#424242")+
+  geom_boxplot(width=0.5, alpha = 0, color = "#424242")+
 #  stat_summary(fun.y=median, geom="point", size=2, color="#424242")+
   xlab("Water mass") +
   ylab(expression(Net~Primary~Production~(mgC~m^3~day^-1))) +
@@ -239,6 +239,8 @@ p6 <- fcm_corrected %>%
   annotation_logticks(sides = "l")
 
 p6
+pdf("figures/ACOP_figures/pp_total.pdf", height=4, width=6) ; plot(p6) ; dev.off()
+
 
 library(cowplot)
 
@@ -307,9 +309,9 @@ p8
 
 p9 <- fcm_corrected %>%
   ggplot(aes(x = water_mass, y = conc_corrected))  +
-    geom_violin()+
+    #geom_violin()+
   geom_jitter(aes(color = cycle_name, shape = sample), width = 0.1) +
-  geom_boxplot(width=0.2, alpha = 0, color = "#424242") + 
+  geom_boxplot(width=0.5, alpha = 0, color = "#424242") + 
   xlab("Water mass") +
   ylab("Cell concentration (No. of cells ml)")+
   theme_bw() +
@@ -319,4 +321,5 @@ p9 <- fcm_corrected %>%
   annotation_logticks(sides = "l")
 
 p9
+pdf("figures/ACOP_figures/cell_conc.pdf", height=4, width=6) ; plot(p9) ; dev.off()
 ```

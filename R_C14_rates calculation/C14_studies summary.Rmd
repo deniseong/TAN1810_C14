@@ -41,7 +41,7 @@ studies_plot<- studies %>%
 
 studies_plot
 
-pdf("figures/ACOP_figures/pp_rates_studies.pdf", height=3, width=6) ; plot(studies_plot) ; dev.off()
+pdf("figures/ACOP_figures/pp_rates_studies.pdf", height=4, width=6) ; plot(studies_plot) ; dev.off()
 
 
   

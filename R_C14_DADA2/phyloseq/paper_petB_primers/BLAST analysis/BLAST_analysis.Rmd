@@ -1,0 +1,118 @@
+---
+title: "BLAST analysis"
+author: "Denise Ong"
+date: "1/20/2022"
+output: html_document
+---
+
+E-value: likelihood that the given sequence match is by chance. Lower e-value, likely a better match. If E <1e -50, high confidence. If 0.01<E<1e-50, confident. If E>0.01, not significant.
+
+Bitscore: similarity of sequence and database. Higher bitscore, higher alignment.
+```{r}
+library(dplyr)
+library(stringr)
+library(tidyr)
+#read excel sheet
+blast <- read.table(file = 'phyloseq/paper_petB_primers/petB_merged_Mazard_CTD.blast_remote.tsv', sep = '\t', header = TRUE, fill = TRUE) %>%
+    tidyr::separate(col=qseqid, into=c("ASV", "subclade"), sep="\\|")
+
+blast_select<- blast %>%
+    filter(evalue <= 0.01) %>% #first filter all e-values less than equal to 0.01
+    filter(length >= 100) %>% # only select alignment length more than 100
+    group_by(ASV) %>%
+    filter(evalue == min(evalue)) %>% #first select for lowest e score
+    filter(bitscore == max(bitscore)) %>% #then select for max bitscore
+    ungroup() %>%
+    group_by(ASV, sacc) %>% 
+    slice(1) %>% # after I filer there is still many repeated assignments from the same accession number, just at slighly diff location on the genome. Since I am looking at only assignment, I choose one random row per ASV 
+    ungroup()
+
+readr::write_tsv(blast_select,"phyloseq/paper_petB_primers/BLAST_subset_petB_merged_Mazard_CTD.txt", na="")
+
+uc_a<-blast_select %>%
+    filter(subclade == "UC-A")
+
+rich <- blast_select %>%
+    filter(subclade == "Rich")
+
+wpc <- blast_select %>%
+    filter(subclade == "II-WPC2")
+
+assigned_asv <- blast_select %>%
+    select(subclade, ASV) %>%
+    distinct()
+blast_asv_all <- blast %>%
+    select(subclade, ASV) %>%
+    distinct()
+assigned_count <- assigned_asv %>%
+    group_by(subclade) %>%
+    tally(sort = TRUE) %>%
+    dplyr::rename("assigned" = n)
+
+unassigned_asv <- anti_join(blast_asv_all, assigned_asv) %>%
+    distinct() %>%
+    filter(!(subclade %in% c("II-WPC2_2", "UC-A_2")))
+unassigned_count <- unassigned_asv %>%
+    group_by(subclade) %>%
+    tally(sort = TRUE) %>%
+    dplyr::rename("inconclusive_blast" = n)
+
+count_join <- full_join(assigned_count, unassigned_count) 
+
+readr::write_tsv(count_join,"phyloseq/paper_petB_primers/BLAST_output_count.txt", na="")
+
+```
+
+
+#Create supp material list of samples
+```{r}
+nested <- readxl::read_excel("sample_list/sampleList_CTD_petB_nested.xlsx") %>%
+    rename(sample_name_Ong = sample_name,
+           sample_name_old_Ong = sample_name_old,
+           Ong_2022 = type)
+normal <- readxl::read_excel("sample_list/sampleList_CTD_petB_normal.xlsx") %>%
+        rename(sample_name_Mazard = sample_name,
+           sample_name_old_Mazard = sample_name_old,
+           Mazard_2012 = type)
+sorted <- readxl::read_excel("sample_list/sampleList_sorted_syn.xlsx") %>%
+      filter(vial == "i") %>%
+    dplyr::rename(depth = DEPTH,
+                ctd_cast = `CTD#`,
+                station = STN,
+                sample_name_sorted = sample_name,
+                cycle = `Cycle#`)
+sorted$depth <- as.character(sorted$depth)
+sorted$cycle <- as.character(sorted$cycle)
+sorted$station <- as.character(sorted$station)
+join <- full_join(nested, normal)
+
+join <- full_join(join, sorted,  by = c("ctd_cast", "depth", "cycle", "station")) %>%
+    mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(cycle_station = str_c (cycle_name, station, sep = "_")) %>%
+  mutate(cycle_station = recode (cycle_station, "ST1_193" = "ST1_2",
+                                                "ST1_239" = "ST1_1",
+                                                "ST2_266" = "ST2_1",
+                                                "ST2_316" = "ST2_2",
+                                                "SA1_9" = "SA1_1",
+                                                "SA1_39" = "SA1_2",
+                                                "SA1_24" = "SA1_3",
+                                                "SA1_108" = "SA1_4",
+                                                "SA2_137" = "SA2_1",
+                                                "SA2_188" = "SA2_2",
+                                                "SA3_324" = "SA3_1",
+                                                "SA3_371" = "SA3_2",
+                                                "ST1_207" = "ST1_3",
+                                                "ST1_223" = "ST1_4",
+                                                "ST2_283" = "ST2_3",
+                                                "SA1_15" = "SA1_5",
+                                                "SA2_150" = "SA2_3",
+                                                "SA2_176" = "SA2_4",
+                                                "SA3_324" = "SA3_1")) 
+
+writexl::write_xlsx(join, "phyloseq/paper_petB_primers/supp_sample_list.xlsx")
+```
+

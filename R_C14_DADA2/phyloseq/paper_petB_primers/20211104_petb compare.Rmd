@@ -1,0 +1,888 @@
+---
+title: "20211104_petB compare"
+author: "Denise Ong"
+date: "11/4/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+petB figures for comparing between two primers.
+Remove Richellia
+
+1. Comparing proportion of clades in overlapping samples of CTD Denise primer and CTD Mazard primer.
+2. How many ASVs in major clades (Ia, Ib, IVa, IVb)
+3. What is the distribution of ASVs in the major clades
+
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+source("phyloseq/init.R") #for libraries
+source("phyloseq/init_markdown.R") #for markdown libraries
+source("phyloseq/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source("phyloseq/colours_petb.R") #colours
+```
+
+## Read data
+```{r}
+source("phyloseq/read_petb.R")
+
+# Remove ASVs that are not present in the dataset
+ps_ctd_nested <- ps_ctd_nested %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
+
+#Remove Richellia
+ps_ctd_nested <- ps_ctd_nested %>% 
+      subset_taxa(!(Genus == "Rich")) 
+
+# Do normalizations and transformation
+ps_ctd_nested <- phyloseq_normalize_median(ps_ctd_nested)
+long_ctd_nested <- phyloseq_transform_to_long(ps_ctd_nested)
+
+# Remove ASVs that are not present in the dataset
+ps_ctd_normal <- ps_ctd_normal %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
+
+# Remove Richellia
+ps_ctd_normal <- ps_ctd_normal %>% 
+      subset_taxa(!(Genus == "Rich")) 
+
+# Do normalizations and transformation
+ps_ctd_normal <- phyloseq_normalize_median(ps_ctd_normal)
+long_ctd_normal <- phyloseq_transform_to_long(ps_ctd_normal)
+```
+
+# No. of ASVs per sample 
+```{r}
+total_asv_normal <- long_ctd_normal %>%
+  select(asv_code, sample_number) %>%
+  distinct() %>%
+  group_by(sample_number) %>%
+  tally() %>%
+  drop_na()
+
+sample_number_list <- long_ctd_normal %>%
+  select(sample_number) %>%
+  distinct()
+#sample_number_list$sample_number <- as.character(sample_number_list$sample_number)
+total_asv_nested <- long_ctd_nested %>%
+  select(asv_code, sample_number) %>%
+  distinct() %>%
+  left_join(sample_number_list) %>%
+  group_by(sample_number) %>%
+  tally() %>%
+  drop_na() 
+```
+
+# Compare composition between two primer sets
+## Subset CTD Denise so it only includes overlapping samples from CTD Mazard, transform no. of reads to percent
+```{r}
+# Denise CTD
+long_ctd_nested_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>%
+    select(water_mass, cycle_name, sample_number, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, sample_number, Subclade) %>%
+    summarise(n_reads = sum(n_reads)) %>%
+    filter(!is.na(sample_number))
+long_denise_pct <- long_ctd_nested_sub %>%
+    group_by(sample_number) %>% 
+    mutate(percent_denise = n_reads / sum(n_reads) * 100) %>%
+    select(-n_reads)
+
+# Mazard CTD with Richellia
+long_mazard_pct <- long_ctd_normal %>%
+    select(water_mass, cycle_name, sample_number, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, sample_number, Subclade) %>%
+    summarise(n_reads = sum(n_reads)) %>%
+    filter(!is.na(sample_number)) %>%
+    group_by(sample_number) %>% 
+    mutate(percent_mazard = n_reads / sum(n_reads) * 100) %>%
+    select(-n_reads)
+
+join_check <- full_join(long_denise_pct, long_mazard_pct)  %>%
+ replace_na(list(percent_denise = 0, percent_mazard = 0))
+join_check_long <- join_check %>%
+  pivot_longer(percent_denise:percent_mazard,
+               names_to = "type",
+               values_to = "percent") %>%
+   mutate(type = recode(type, "percent_denise" = "This study",
+                              "percent_mazard" = "Mazard (2012)"))
+join_check_wide <- join_check %>%
+  pivot_wider(names_from = Subclade, values_from = c(percent_denise, percent_mazard))
+#writexl::write_xlsx(join_check_wide, "subclade_percent_wide.xlsx")
+```
+
+## Simpson  index
+```{r}
+simpson_data_denise<- join_check_wide %>%
+  select(sample_number:percent_denise_VIc) 
+simpson_data_denise[is.na(simpson_data_denise)] <- 0
+library(vegan)
+simpson_denise <- diversity(simpson_data_denise, index = "simpson")
+simpson_denise
+
+simpson_data_mazard <- join_check_wide %>%
+  select(sample_number, percent_mazard_EnvA:percent_mazard_VIc) 
+simpson_data_mazard[is.na(simpson_data_mazard)] <- 0
+simpson_mazard <- diversity(simpson_data_mazard, index = "simpson")
+simpson_mazard
+```
+
+## Wilcoxon test
+```{r}
+library("ggpubr")
+
+t_test_df<- join_check %>%
+  mutate(diff = percent_denise-percent_mazard) %>%
+  filter (Subclade %in% c("Ia", "Ib", "IVa", "IVb", "CRD1", "EnvA", "EnvB", "UC-A", "Ic", "II-WPC2"))
+
+summary <- t_test_df %>%
+  group_by(Subclade) %>%
+  summarise(
+    count = n(),
+    mean = mean(diff, na.rm = TRUE),
+    sd = sd(diff, na.rm = TRUE)
+  )
+
+for (i in c("Ia", "Ib", "IVa", "IVb", "CRD1", "EnvA", "EnvB", "UC-A", "Ic", "II-WPC2")) {
+  data <- t_test_df %>%
+    filter(Subclade == i) 
+  density_plot <- ggdensity(data$diff,
+            main = str_c("Density plot -", i),
+            xlab = "Difference")
+  print(density_plot)
+  qq_plot <- ggqqplot(data$diff,
+            main = str_c("QQ plot -", i))
+  print(qq_plot)
+  shapiro_test <- shapiro.test(data$diff)
+  print(shapiro_test)
+}
+
+#data not normal, use paired samples wilcoxon test
+for (i in c("Ia", "Ib", "IVa", "IVb", "CRD1", "EnvA", "EnvB", "UC-A", "Ic", "II-WPC2")) {
+  sub_data <- join_check_long %>%
+    filter(Subclade == i)
+  res <- wilcox.test(percent ~ type, data = sub_data, paired = TRUE)
+  print(res)
+  
+}
+
+res <- wilcox.test(percent ~ type, data = join_check_long, paired = TRUE)
+res
+```
+
+## Plot % composition Denise vs Mazard with geom_point. Not using
+```{r eval=FALSE}
+p <- join_check %>%
+    ggplot(aes(x = percent_denise, y = percent_mazard, color=Subclade)) +
+    geom_point() +
+    geom_abline() +
+    #stat_smooth(method="lm", se=FALSE) +
+    scale_colour_manual(values = colours_petb_subclade, limits = force) +
+    xlab("% of Subclade in each sample using petB-29F/R")+
+    ylab("% of Subclade in each sample using petB-F/R") +
+    xlim(-1, 100)+
+    ylim(-1, 100) +
+  theme(legend.text = element_text(size=8),
+        legend.key.size = unit(0.5, 'cm'))
+  #scale_y_continuous(trans='log10') +
+ # scale_x_continuous(trans='log10') 
+ #   annotation_logticks(sides = "lb")
+p
+
+#pdf("phyloseq/figures_petb compare/composition.pdf", height=5, width=6.25) ; plot(p) ; dev.off()
+
+p2 <- join_check %>%
+    filter (!(Subclade %in% c("Ia", "Ib", "IVa", "IVb")))%>%
+    ggplot(aes(x = percent_denise, y = percent_mazard, color=Subclade)) +
+    geom_point() +
+  #  stat_smooth(method="lm", se=FALSE) +
+    scale_colour_manual(values = colours_petb_subclade, limits = force) +
+    xlim(0, 5)+
+    ylim(0, 5)+
+    xlab("% of Subclade in each sample using petB-29F/R")+
+    ylab(NULL) +
+  geom_abline() +
+    scale_y_continuous(trans='log10') +
+  scale_x_continuous(trans='log10')  +
+   annotation_logticks(sides = "lb")
+p2
+
+#pdf("phyloseq/figures_petb compare/composition_zoom.pdf", height=5, width=6.25) ; plot(p) ; dev.off()
+
+library(cowplot)
+prow<- plot_grid(p1 + theme(legend.position="none"),
+              p2 + theme(legend.position="none"),
+              align = 'vh',
+              hjust = -1,
+              labels = c("A", "B"),
+          ncol = 2,
+          nrow = 1)
+legend <- get_legend(
+  # create some space to the left of the legend
+  p + theme(legend.box.margin = margin(0, 0, 0, 12))
+)
+
+g <- plot_grid(prow, legend, rel_widths = c(3, .4))
+g
+
+#pdf("phyloseq/figures_petb compare/composition_join.pdf", height=5, width=11) ; plot(g) ; dev.off()
+```
+
+## Compare % composition With violin plot - too messy 
+```{r}
+join_check_long$type <- factor(join_check_long$type, levels = c("Mazard (2012)", "This study"))
+#for major clades
+p1 <- join_check_long %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  mutate(Subclade = factor(Subclade, levels = c("Ib", "IVb", "IVa", "Ia"))) %>%
+  ggplot(aes(x=type, y=percent)) +
+  geom_violin()+
+  geom_point(aes(colour=Subclade))+
+ # geom_boxplot(width=0.2, alpha = 0, color = "#929292")+
+  facet_grid(.~Subclade, scales = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw()+
+  ylab("Percent composition in a sample")+
+  xlab(NULL)
+
+p1
+
+p2 <- join_check_long %>%
+  filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+  mutate(Subclade = factor(Subclade, levels = c("CRD1", "EnvA", "EnvB", "WPC1", "IIh", "IIe", "UC-A", "Ic", "VIb", "V", "II-WPC2", "VIc"))) %>%
+  ggplot(aes(x=type, y=percent)) +
+  geom_violin()+
+  geom_point(aes(colour=Subclade))+
+#  geom_boxplot(width=0.2, alpha = 0, color="#929292")+
+  facet_grid(.~Subclade, scales = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw()+
+  ylab("Percent composition in a sample")+
+  xlab(NULL)+
+  theme(axis.text.x = element_text(angle =90, hjust=1))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")
+
+p2
+prow<- plot_grid(p1 + theme(legend.position="none"),
+              p2 + theme(legend.position="none"),
+              align = 'v',
+              axis = 'l',
+              hjust = -1,
+              labels = c("A", "B"),
+          ncol = 1,
+          nrow = 2)
+
+g <- plot_grid(prow, legend, rel_widths = c(3, .4))
+g
+
+prow
+pdf("phyloseq/figures_petb compare/percent_distribution.pdf", height=7, width=10) ; plot(prow) ; dev.off()
+```
+
+## Boxplot - most likely using
+```{r}
+p1 <- join_check_long %>%
+    filter((Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+    ggplot(aes(x=percent, y = fct_relevel(Subclade, "Ia", "IVa", "IVb", "Ib"), colour =  type)) +
+    geom_boxplot(position=position_dodge(0.7), width=0.6) +
+    geom_point(position=position_jitterdodge(0.15), alpha = 3/10)+
+    #geom_jitter( height = 0.1, size = 1) +
+    scale_colour_paletteer_d("ggthemes::Color_Blind")+
+    ylab(NULL) +
+    xlab(NULL) 
+p1
+  
+p2 <- join_check_long %>%
+    filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+  ggplot(aes(x=percent, y = fct_relevel(Subclade, "VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1"), colour=type)) +
+  #geom_violin(position=position_dodge(0.3)) +
+  geom_boxplot(position=position_dodge(0.7), width=0.6) +
+  geom_point(position=position_jitterdodge(0.15), alpha = 3/10)+
+ # geom_jitter(height = 0.1, size = 1) +
+  scale_colour_paletteer_d("ggthemes::Color_Blind")+
+  scale_x_continuous(trans='log10') +
+  annotation_logticks(sides = "b") +
+  ylab("Subclade") +
+  xlab("Percent of reads per sample")
+
+p2
+
+p3 <- join_check_long %>%
+  #  filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+  ggplot(aes(x=percent, y = fct_relevel(Subclade, "VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib"), colour=type)) +
+  #geom_violin(position=position_dodge(0.3)) +
+  geom_boxplot(position=position_dodge(0.7), width=0.6) +
+  geom_point(position=position_jitterdodge(0.15), alpha = 5/10)+
+ # geom_jitter(height = 0.1, size = 1) +
+  scale_colour_paletteer_d("ggthemes::Color_Blind")+
+  scale_x_continuous(trans='log10') +
+  annotation_logticks(sides = "b") +
+  ylab("Subclade") +
+  xlab("Percent in one sample")
+
+p3
+
+prow<- plot_grid(p1 + theme(legend.position="none"),
+                 NULL,
+              p2 + theme(legend.position="none"),
+              NULL,
+              p + theme(legend.position="none"),
+              align = 'v',
+              axis = 'l',
+              hjust = -1,
+              labels = c("A" , NULL, "B", NULL, "C"),
+          ncol = 1,
+          nrow = 5,
+          rel_heights = c(1,0.05,2,0.1,1.5))
+legend_b <- get_legend(
+  p + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+g<- plot_grid( legend_b,prow, ncol = 1, rel_heights = c(.04, 1))
+g
+pdf("phyloseq/figures_petb compare/percent_distribution_asv.pdf", height=10, width=7) ; plot(g) ; dev.off()
+
+```
+
+## export table for composition stats
+```{r}
+stats <- join_check %>%
+  replace_na(list(percent_mazard = 0, percent_denise = 0))%>%
+  group_by(Subclade) %>%
+  summarise(mean_denise = mean(percent_denise),
+            max_denise = max(percent_denise),
+            min_denise = min(percent_denise),
+            SD_denise = sd(percent_denise),
+            mean_mazard = mean(percent_mazard),
+            max_mazard = max(percent_mazard),
+            min_mazard = min(percent_mazard),
+            SD_mazard = sd(percent_mazard))
+stats
+
+stats_join <- full_join(asv_count, stats) %>%
+  select(-Clade)
+writexl::write_xlsx(stats_join, "subclade_stats.xlsx")
+library(xtable)
+print(xtable(stats_join),
+      comment = FALSE)
+
+table<-  readxl::read_excel("phyloseq/figures_petb compare/supp_sample_list_v1.xlsx", sheet="corrected_cycle_v3")
+print(xtable(table),
+      comment = FALSE,
+      include.rownames=FALSE)
+
+```
+
+# How many ASVs in subclade - only overlapping samples
+```{r}
+denise_count<- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>% 
+  select(Clade, Subclade, asv_code) %>%
+  #filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  distinct() %>%
+  group_by(Clade, Subclade)%>%
+  tally(sort = TRUE) %>%
+  dplyr::rename("ASV_denise"= n)
+
+mazard_count<- long_ctd_normal %>% 
+  select(Clade, Subclade, asv_code) %>%
+  #filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  distinct() %>%
+  group_by(Clade, Subclade)%>%
+  tally(sort = TRUE) %>%
+  dplyr::rename("ASV_mazard" = n)
+
+asv_count <- full_join(denise_count,mazard_count) %>%
+    replace(is.na(.), 0) 
+
+asv_count_long <- asv_count %>%
+  arrange("ASV_denise") %>%
+  pivot_longer(cols = ASV_denise:ASV_mazard,
+               values_to = "ASV",
+               names_to = "Type")%>%
+     mutate(Type = recode(Type, "ASV_denise" = "Ong_2022",
+                              "ASV_mazard" = "Mazard_2012"))
+  
+```
+
+## compare ASV no. barplot - not using
+```{r}
+asv_count_long$Type <- factor(asv_count_long$Type, levels = c("Mazard_2012", "Ong_2022"))
+
+p3 <- asv_count_long %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb", "UC-A", "II-WPC2")) %>%
+  ggplot(aes(x=type, y= ASV, fill =Subclade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~reorder(Subclade, -ASV), scales = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw()+
+  ylab("No. of ASVs")+
+  xlab(NULL)+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))+
+  theme(legend.position = "none")
+  
+p3
+p4 <- asv_count_long %>%
+  filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb", "UC-A", "II-WPC2"))) %>%
+  ggplot(aes(x=type, y= ASV, fill =Subclade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~reorder(Subclade, -ASV), scales = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw()+
+  ylab("No. of ASVs")+
+  xlab(NULL)+
+  theme(axis.text.x = element_text(angle = 45, hjust=1))+
+  theme(legend.position = "none")
+  
+p4
+
+g <- plot_grid(p3, p4,
+              align = 'v',
+          ncol = 1,
+          nrow = 2)
+g
+
+#pdf("phyloseq/figures_petb compare/asv_barplot.pdf", height=6, width=7) ; plot(g) ; dev.off()
+
+```
+
+## dumbbell plot No of ASV
+```{r}
+p <- asv_count_long %>%
+  ggplot(aes(x=ASV, y = fct_relevel(Subclade, "VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib"), group= Subclade)) +
+#  geom_path(aes(color = Subclade), arrow = arrow(ends = "first", length = unit(0.15, "inches"), type = "closed") ) +
+  geom_point(aes(color = Type), size = 3) + 
+  geom_path(arrow = arrow(ends = "first", length = unit(0.1, "inches")), color="black") +
+#  scale_color_manual(values=colours_petb_subclade, limits = force) +
+  scale_colour_paletteer_d("ggthemes::Color_Blind")+
+  scale_x_continuous(trans='log10') +
+  annotation_logticks(sides = "b") +
+  ylab(NULL) +
+  xlab("No. of ASVs")
+
+p
+pdf("phyloseq/figures_petb compare/asv_dumbell.pdf", height=4, width=5) ; plot(p) ; dev.off()
+```
+
+
+#dumbbell plot % similarity within subclade
+```{r}
+pct_sim<-  readxl::read_excel("phyloseq/figures_petb compare/subclade_percent similarity.xlsx", sheet = "Sheet2") 
+
+long_pct_sim<- pct_sim%>%
+  pivot_longer(cols = "Ref. database":Ong_2022,
+               values_to = "pct",
+               names_to = "type")
+
+p1 <- long_pct_sim %>%
+  ggplot(aes(x=pct, y = fct_relevel(Subclade, "VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib"), group= Subclade)) +
+#  geom_path(aes(color = Subclade), arrow = arrow(ends = "first", length = unit(0.15, "inches"), type = "closed") ) +
+  geom_point(aes(color = type), size = 3) + 
+  geom_path(arrow = arrow(length = unit(0.07, "inches")), color="black", aes(color = type)) +
+  #geom_path(arrow = arrow(ends = "first", length = unit(0.1, "inches")), color="black") +
+#  scale_color_manual(values=colours_petb_subclade, limits = force) +
+  scale_colour_paletteer_d("ggthemes::Color_Blind")+
+  ylab("Subclade") +
+  xlab("% similarity")+
+  theme(legend.position="top")
+
+p1
+  
+#pdf("phyloseq/figures_petb compare/pct_sim_dumbbell.pdf", height=4, width=5) ; plot(p) ; dev.off()
+
+
+p2 <- pct_sim %>%
+  ggplot(aes(x=Number, y = fct_relevel(Subclade, "VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib"))) +
+  geom_bar(stat="identity") +
+  ylab(NULL) +
+  xlab("No. of ref seq")+
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
+p2
+
+library(cowplot)
+
+prow <- plot_grid(p1+ theme(legend.position="none"), NULL, p2+ theme(legend.position="none"), 
+               labels = c('A', NULL, 'B'), 
+               nrow = 1,
+               rel_widths = c(3,0.15, 1),
+               align = "h")
+
+legend_b <- get_legend(
+  p1 + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+p<- plot_grid(legend_b, prow, ncol = 1, rel_heights = c(.1, 1))
+p
+
+pdf("phyloseq/figures_petb compare/pct_sim_refseq.pdf", height=5, width=7) ; plot(p) ; dev.off()
+```
+
+# Singletons -How many reads per ASV in major clade
+```{r}
+# Count number of singletons
+denise_sub_count <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>%
+  select(Subclade, asv_code, n_reads) %>%
+  group_by(Subclade, asv_code) %>%
+  mutate(n_reads = sum(n_reads)) %>%
+  filter(n_reads == 1) %>%
+  group_by(Subclade) %>%
+  tally()
+mazard_sub_count <- long_ctd_normal %>%
+  select(Subclade, asv_code, n_reads) %>%
+  group_by(Subclade, asv_code) %>%
+  mutate(n_reads = sum(n_reads)) %>%
+  distinct() %>%
+  filter(n_reads == 1) %>%
+  group_by(Subclade) %>%
+  tally()
+
+
+denise_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>%
+  select(Subclade, asv_code, n_reads) %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  group_by(Subclade, asv_code) %>%
+  mutate(n_reads = sum(n_reads)) 
+
+p1 <- denise_sub %>%
+  drop_na() %>%
+  mutate(asv_code = fct_reorder(asv_code, n_reads)) %>%
+  ggplot(aes(x = reorder(asv_code, -n_reads), y= n_reads, color=Subclade, fill=Subclade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~Subclade, scales = "free") +
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")+
+  xlab("ASV code")+
+  scale_y_continuous(trans='log10') +
+  annotation_logticks(sides = "l") +
+  expand_limits(y = 0) +
+  ggtitle("This study")
+p1
+
+mazard_sub <- long_ctd_normal %>%
+  select(Subclade, asv_code, n_reads) %>%
+  filter(Subclade %in% c("Ia", "Ib", "IVa", "IVb")) %>%
+  group_by(Subclade, asv_code) %>%
+  mutate(n_reads = sum(n_reads)) %>%
+  distinct()
+
+p2 <- mazard_sub %>%
+  drop_na()%>%
+  mutate(asv_code = fct_reorder(asv_code, n_reads)) %>%
+  ggplot(aes(x = reorder(asv_code, -n_reads), y= n_reads, color=Subclade, fill=Subclade)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~Subclade, scales = "free") +
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")+
+  scale_y_continuous(trans='log10') +
+  annotation_logticks(sides = "l")+
+  xlab("ASV code")+
+  ggtitle("Mazard (2012)")+
+  expand_limits(y=0)
+p2
+
+library(cowplot)
+g<- plot_grid(p2, p1,
+          ncol = 2,
+          nrow = 1,
+          labels = c("A", "B"))
+pdf("phyloseq/ASV distribution.pdf", height=4, width=8) ; plot(g) ; dev.off()
+```
+
+# Barplot CTD only, compare petB-F29/R with petB-F/R
+```{r}
+long_nested_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") 
+
+join_ps <- full_join(long_nested_sub, long_ctd_normal) %>%
+  drop_na() %>%
+  mutate(type = recode(type, "Normal CTD" = "Mazard_2012",
+                             "Nested CTD" = "Ong_2022"))  %>%
+  mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(cycle_station = str_c (cycle_name, station, sep = "_")) %>%
+  mutate(cycle_station = recode (cycle_station, "ST1_193" = "ST1_2",
+                                                "ST1_239" = "ST1_1",
+                                                "ST2_266" = "ST2_1",
+                                                "ST2_316" = "ST2_2",
+                                                "SA1_9" = "SA1_1",
+                                                "SA1_39" = "SA1_2",
+                                                "SA1_24" = "SA1_3",
+                                                "SA1_108" = "SA1_4",
+                                                "SA2_137" = "SA2_1",
+                                                "SA2_188" = "SA2_2",
+                                                "SA3_324" = "SA3_1",
+                                                "SA3_371" = "SA3_2"))
+join_ps$cycle_station <- factor(join_ps$cycle_station, levels = c("ST1_1", "ST1_2", "ST2_1", "ST2_2", "SA1_1", "SA1_2", "SA1_3", "SA1_4", "SA2_1", "SA2_2", "SA3_1", "SA3_2"))
+join_ps$sample_number <- as.character(join_ps$sample_number)
+
+check <- join_ps %>%
+  select(cycle_station) %>%
+  distinct
+p <- join_ps %>%
+  mutate(Subclade = recode(Subclade, "VIc"= "Others", "II-WPC2"= "Others", "V"= "Others", "VIb"= "Others", "Ic"= "Others", "UC-A"= "Others", "IIe"= "Others", "IIh"= "Others", "WPC1" = "Others",  "EnvA"= "Others", "EnvB"= "Others")) %>%
+  ggplot(aes(x=n_reads, y=fct_rev(sample_number), color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(#text=element_text(size=10),
+             # axis.text.x = element_text(angle = 45, hjust = 1),
+              #panel.spacing.x = unit(0,"lines"),
+              panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA),
+        strip.text.y.right = element_text(angle = 0))+
+    #    facet_grid(.~water_mass, scales = "free_x") +
+    #    facet_grid(fct_relevel(station, "193", "239", "266", "316", "9", "39", "24", "108", "137","188" ,"324", "371")~type, scales = "free_y", space = "free") +
+      facet_grid(cycle_station~type, scales = "free_y", space = "free")+
+      #  ggtitle("Compare primers") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+        xlab("Percent of reads")+
+        ylab("Sample number")
+p
+pdf("phyloseq/figures_petb compare/read distribution_no rich_3.pdf", height=8, width=7) ; plot(p) ; dev.off()
+
+```
+
+# Compare CTD Denise with sorted syn
+
+# Sorted syn -petB Denise primer
+## Read data
+```{r}
+# Load the phyloseq files
+ps <- read_rds("output_petb_2x300/output_petb_Denise/merged_v2/petB_Denise primer_phyloseq_sortedsyn.RDS") 
+
+#copy the column of interest to create new column, and replacing names for water masses SA and ST
+sample_data(ps)$water_mass <- sample_data(ps)$Cycle.
+sample_data(ps)$water_mass = str_replace(sample_data(ps)$water_mass, "1|2|5", "SA") 
+sample_data(ps)$water_mass = str_replace(sample_data(ps)$water_mass, "3|4", "ST")
+
+#copy the column of interest, creating new column and replace for cycle names. Not using this column for now. 
+sample_data(ps)$cycle_location <- sample_data(ps)$Cycle.
+sample_data(ps)$cycle_location = str_replace(sample_data(ps)$cycle_location, "1", "C")
+sample_data(ps)$cycle_location = str_replace(sample_data(ps)$cycle_location, "2", "D") 
+sample_data(ps)$cycle_location = str_replace(sample_data(ps)$cycle_location, "5", "E") 
+sample_data(ps)$cycle_location = str_replace(sample_data(ps)$cycle_location, "3", "A")
+sample_data(ps)$cycle_location = str_replace(sample_data(ps)$cycle_location, "4", "B")
+
+sample_data(ps)$cycle_name <- sample_data(ps)$Cycle.
+sample_data(ps)$cycle_name = str_replace(sample_data(ps)$cycle_name, "1", "SA-Cycle_1")
+sample_data(ps)$cycle_name = str_replace(sample_data(ps)$cycle_name, "2", "SA-Cycle_2") 
+sample_data(ps)$cycle_name = str_replace(sample_data(ps)$cycle_name, "5", "SA-Cycle_5") 
+sample_data(ps)$cycle_name = str_replace(sample_data(ps)$cycle_name, "3", "ST-Cycle_3")
+sample_data(ps)$cycle_name = str_replace(sample_data(ps)$cycle_name, "4", "ST-Cycle_4")
+sample_data(ps)$cycle_location_name <- str_c(sample_data(ps)$cycle_location, sample_data(ps)$cycle_name, sep ="_")
+sample_data(ps)$cycle_exp_location_name <- str_c(sample_data(ps)$cycle_location, sample_data(ps)$cycle_name, sample_data(ps)$EXP., sep ="_")
+
+#vial type
+sample_data(ps)$vial_type <- sample_data(ps)$vial
+sample_data(ps)$vial_type = str_replace(sample_data(ps)$vial_type, "i", "initial") 
+sample_data(ps)$vial_type = str_replace(sample_data(ps)$vial_type, "A|B|C", "light")
+sample_data(ps)$vial_type = str_replace(sample_data(ps)$vial_type, "D", "dark")
+
+# Remove ASVs that are not present in the dataset
+ps <- ps %>% 
+    phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
+
+# Remove Richellia
+ps <- ps %>% 
+      subset_taxa(!(Genus == "Rich")) 
+
+# Do normalizations and transformation
+ps <- phyloseq_normalize_median(ps)
+long <- phyloseq_transform_to_long(ps)
+
+junk <- data.frame(ps@sam_data)
+```
+
+C14 syn initials check
+```{r}
+initials_check <- data.frame(ps@sam_data) %>%
+  filter(vial == "i")
+ctd_check <- data.frame(ps_ctd_nested@sam_data)
+  
+```
+
+## Barplot sorted syn, only initials.
+```{r}
+check <- long %>%
+  select(cycle_station,Lat_DD) %>%
+  distinct
+
+long <- long %>%
+  dplyr::rename(station = STN) %>%
+  mutate(cycle_name = recode(Cycle., "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(cycle_station = str_c (cycle_name, station, sep = "_")) %>%
+  filter(vial == "i") %>%
+  filter(sample_name != "syn-02-5") %>%
+  filter(sample_name != "syn-01-20") %>%
+  mutate(cycle_station = recode (cycle_station, "ST1_207" = "ST1_3",
+                                                "ST1_223" = "ST1_4",
+                                                "ST2_266" = "ST2_1",
+                                                "ST2_283" = "ST2_3",
+                                                "SA1_24" = "SA1_3",
+                                                "SA1_15" = "SA1_5",
+                                                "SA2_150" = "SA2_3",
+                                                "SA2_188" = "SA2_2",
+                                                "SA2_176" = "SA2_4",
+                                                "SA3_324" = "SA3_1")) %>%
+  mutate(ctd_depth = str_c(CTD)
+
+long$cycle_station <- factor(long$cycle_station, levels = c("ST1_3", "ST1_4", "ST2_1", "ST2_3", "SA1_3", "SA1_5", "SA2_2", "SA2_3", "SA2_4", "SA3_1"))
+
+
+p <- long %>%
+  mutate(Subclade = recode(Subclade, "II-WPC2"= "Others", "UC-A"= "Others", "CRD1"= "Others", "EnvB"= "Others"))  %>%
+  ggplot(aes(x=n_reads, y=fct_rev(sample_name), color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0))+
+        facet_grid(cycle_station~., scales = "free_y", space = "free") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+        xlab("Percent of reads")+
+        ylab("Sample name")
+p
+pdf("phyloseq/figures_petb compare/read distribution_sorted syn.pdf", height=5, width=7) ; plot(p) ; dev.off()
+  
+```
+
+## some stats (ASVs etc)
+```{r}
+#No. of asv per sample
+sorted_asv <- long %>%
+  select(asv_code, sample_name) %>%
+  distinct() %>%
+  group_by(sample_name) %>%
+  tally() %>%
+  drop_na()
+
+# Transform no. of reads to percent
+long_sorted_pct <- long %>%
+    select(water_mass, cycle_station, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_station, sample_name, Subclade) %>% 
+    summarise(n_reads = sum(n_reads)) %>%
+    #filter(!is.na(sample_name)) %>%
+    mutate(percent = n_reads / sum(n_reads) * 100)
+
+wide <- long_sorted_pct %>%
+  select(-n_reads) %>%
+  pivot_wider(names_from = Subclade, values_from = percent)
+#writexl::write_xlsx(join_check_wide, "subclade_percent_wide.xlsx")
+
+summary <- long_sorted_pct %>%
+  group_by(Subclade) %>%
+  summarise (mean = mean(percent),
+            max = max(percent),
+            min = min(percent),
+            SD = sd(percent))
+
+summary_2<-  long_sorted_pct %>%
+  mutate(Subclade = recode(Subclade, "II-WPC2"= "Others", "UC-A"= "Others", "CRD1"= "Others", "EnvB"= "Others")) %>%
+  mutate(Subclade = recode(Subclade,"Ia"= "major", "Ib"= "major", "IVa"= "major", "IVb"= "major" )) %>%
+  select(-n_reads) %>%
+  group_by(water_mass, cycle_station, sample_name, Subclade) %>%
+  mutate(percent = sum(percent)) %>%
+  distinct() %>%
+  group_by(Subclade)%>%
+  summarise(mean = mean(percent))
+  
+  
+p <- long_sorted_pct %>%
+   # filter((Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+    ggplot(aes(x=percent, y = Subclade)) +
+    geom_boxplot(position=position_dodge(0.7), width=0.6) +
+    geom_point(position=position_jitter(0.15), alpha = 3/10)+
+    #geom_jitter( height = 0.1, size = 1) +
+   # scale_colour_paletteer_d("ggthemes::Color_Blind")+
+    ylab(NULL) +
+    xlab(NULL) 
+p
+
+#No. of ASV per subclade
+sorted_asv_subclade<- long %>% 
+  select(Clade, Subclade, asv_code) %>%
+  distinct() %>%
+  group_by(Clade, Subclade)%>%
+  tally(sort = TRUE) %>%
+  dplyr::rename("ASV"= n)
+
+join <- full_join(sorted_asv_subclade, summary)
+writexl::write_xlsx(join, "sortedsyn_subclade_stats.xlsx")
+library(xtable)
+print(xtable(join),
+      comment = FALSE)
+```
+
+
+# Barplot, filtered and sorted samples
+```{r}
+long <- long %>%
+  filter(vial == "i") %>%
+  dplyr::rename(depth = DEPTH,
+         ctd_cast = `CTD.`)
+long$depth <- as.character(long$depth)
+long$station <- as.character(long$station)
+
+join_all_ps <- full_join(join_ps, long) %>%
+  replace_na(list(type = "Sorted sample")) %>%
+  mutate(ctd_depth = paste(ctd_cast, depth, sep = '_'))
+
+join_all_ps$cycle_station <- factor(join_all_ps$cycle_station, levels = c("ST1_1", "ST1_2", "ST1_3", "ST1_4", "ST2_1", "ST2_2","ST2_3", "SA1_1", "SA1_2", "SA1_3", "SA1_4", "SA1_5", "SA2_1", "SA2_2", "SA2_3", "SA2_4", "SA3_1", "SA3_2"))
+
+p <- join_all_ps %>%
+  mutate(Subclade = recode(Subclade, "VIc"= "Others", "II-WPC2"= "Others", "V"= "Others", "VIb"= "Others", "Ic"= "Others", "UC-A"= "Others", "IIe"= "Others", "IIh"= "Others", "WPC1" = "Others")) %>%
+   ggplot(aes(x=n_reads, y=ctd_depth, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(text=element_text(size=10),
+              panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0))+
+        facet_grid(cycle_station~type, scales = "free_y", space = "free") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+        xlab("Percent of reads")+
+        ylab("CTD_depth")
+
+p
+
+pdf("phyloseq/figures_petb compare/tax_composition_all.pdf", height=9, width=7) ; plot(p) ; dev.off()
+
+```
+

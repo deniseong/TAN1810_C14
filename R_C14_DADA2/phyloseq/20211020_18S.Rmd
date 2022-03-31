@@ -8,11 +8,11 @@ Basic plots for 18SV4 sorted Pico and Nano.
 
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
-
-source("phyloseq/init.R") #for libraries
-source("phyloseq/init_markdown.R") #for markdown libraries
-source("phyloseq/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
-source("phyloseq/colours_18sv4.R")
+library(here)
+source(here("phyloseq", "init_files", "init.R")) #for libraries
+source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source(here("phyloseq", "init_files", "colours_18sv4.R"))
 ```
 
 ### Function to extract abundant taxa (> fraction)
@@ -27,7 +27,7 @@ ps_abund <- function(ps, fraction=0.10) {
 # Sorted pico
 ## Read data
 ```{r}
-source("phyloseq/read_pico.R")
+source(here("phyloseq", "init_files", "read_pico.R"))
 # Do normalizations and transformation
 ps_pico <- phyloseq_normalize_median(ps_pico)
 long_pico <- phyloseq_transform_to_long(ps_pico)
@@ -108,7 +108,7 @@ p1 <- long_pico_2 %>%
               axis.text.x=element_blank(),
               axis.ticks.x=element_blank(),
               panel.border = element_blank(), 
-              legend.position = "none",
+              #legend.position = "none",
               panel.spacing.x = unit(0,"lines"),
               panel.spacing.y = unit(0,"lines"),
               axis.line.y.left = element_line())+
@@ -242,7 +242,7 @@ pdf("phyloseq/figures_ACOP/sorted pico mam.pdf", height=5, width=5) ; plot(p1) ;
 # Sorted nano
 ## Read data
 ```{r}
-source("phyloseq/read_nano.R")
+source(here("phyloseq", "init_files", "read_nano.R"))
 
 # Do normalizations and transformation
 ps_nano <- phyloseq_normalize_median(ps_nano)
@@ -422,41 +422,41 @@ pdf(str_c("phyloseq/figures_ACOP/sorted nano top 10_", i, ".pdf"), height=3, wid
 ##Read data
 ```{r}
 # Load the phyloseq files
-ps_ctd_nested<- read_rds("output_18SV4/TAN1810_18SV4phyloseq_CTD_18SV4.RDS") 
+ps_18s_filt<- read_rds("output_18SV4/TAN1810_18SV4phyloseq_CTD_18SV4.RDS") 
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
-sample_data(ps_ctd_nested)$water_mass <- sample_data(ps_ctd_nested)$cycle
-sample_data(ps_ctd_nested)$water_mass = str_replace(sample_data(ps_ctd_nested)$water_mass, "1|2|5", "SA") 
-sample_data(ps_ctd_nested)$water_mass = str_replace(sample_data(ps_ctd_nested)$water_mass, "3|4", "ST")
+sample_data(ps_18s_filt)$water_mass <- sample_data(ps_18s_filt)$cycle
+sample_data(ps_18s_filt)$water_mass = str_replace(sample_data(ps_18s_filt)$water_mass, "1|2|5", "SA") 
+sample_data(ps_18s_filt)$water_mass = str_replace(sample_data(ps_18s_filt)$water_mass, "3|4", "ST")
 
 #copy the column of interest, creating new column and replace for cycle names. Not using this column for now. 
-sample_data(ps_ctd_nested)$cycle_location <- sample_data(ps_ctd_nested)$cycle
-sample_data(ps_ctd_nested)$cycle_location = str_replace(sample_data(ps_ctd_nested)$cycle_location, "1", "C")
-sample_data(ps_ctd_nested)$cycle_location = str_replace(sample_data(ps_ctd_nested)$cycle_location, "2", "D") 
-sample_data(ps_ctd_nested)$cycle_location = str_replace(sample_data(ps_ctd_nested)$cycle_location, "5", "E") 
-sample_data(ps_ctd_nested)$cycle_location = str_replace(sample_data(ps_ctd_nested)$cycle_location, "3", "A")
-sample_data(ps_ctd_nested)$cycle_location = str_replace(sample_data(ps_ctd_nested)$cycle_location, "4", "B")
+sample_data(ps_18s_filt)$cycle_location <- sample_data(ps_18s_filt)$cycle
+sample_data(ps_18s_filt)$cycle_location = str_replace(sample_data(ps_18s_filt)$cycle_location, "1", "C")
+sample_data(ps_18s_filt)$cycle_location = str_replace(sample_data(ps_18s_filt)$cycle_location, "2", "D") 
+sample_data(ps_18s_filt)$cycle_location = str_replace(sample_data(ps_18s_filt)$cycle_location, "5", "E") 
+sample_data(ps_18s_filt)$cycle_location = str_replace(sample_data(ps_18s_filt)$cycle_location, "3", "A")
+sample_data(ps_18s_filt)$cycle_location = str_replace(sample_data(ps_18s_filt)$cycle_location, "4", "B")
 
-sample_data(ps_ctd_nested)$cycle_name <- sample_data(ps_ctd_nested)$cycle
-sample_data(ps_ctd_nested)$cycle_name = str_replace(sample_data(ps_ctd_nested)$cycle_name, "1", "SA-Cycle_1")
-sample_data(ps_ctd_nested)$cycle_name = str_replace(sample_data(ps_ctd_nested)$cycle_name, "2", "SA-Cycle_2") 
-sample_data(ps_ctd_nested)$cycle_name = str_replace(sample_data(ps_ctd_nested)$cycle_name, "5", "SA-Cycle_5") 
-sample_data(ps_ctd_nested)$cycle_name = str_replace(sample_data(ps_ctd_nested)$cycle_name, "3", "ST-Cycle_3")
-sample_data(ps_ctd_nested)$cycle_name = str_replace(sample_data(ps_ctd_nested)$cycle_name, "4", "ST-Cycle_4")
+sample_data(ps_18s_filt)$cycle_name <- sample_data(ps_18s_filt)$cycle
+sample_data(ps_18s_filt)$cycle_name = str_replace(sample_data(ps_18s_filt)$cycle_name, "1", "SA-Cycle_1")
+sample_data(ps_18s_filt)$cycle_name = str_replace(sample_data(ps_18s_filt)$cycle_name, "2", "SA-Cycle_2") 
+sample_data(ps_18s_filt)$cycle_name = str_replace(sample_data(ps_18s_filt)$cycle_name, "5", "SA-Cycle_5") 
+sample_data(ps_18s_filt)$cycle_name = str_replace(sample_data(ps_18s_filt)$cycle_name, "3", "ST-Cycle_3")
+sample_data(ps_18s_filt)$cycle_name = str_replace(sample_data(ps_18s_filt)$cycle_name, "4", "ST-Cycle_4")
 
-sample_data(ps_ctd_nested)$cycle_location_name <- str_c(sample_data(ps_ctd_nested)$cycle_location, sample_data(ps_ctd_nested)$cycle_name, sep ="_")
+sample_data(ps_18s_filt)$cycle_location_name <- str_c(sample_data(ps_18s_filt)$cycle_location, sample_data(ps_18s_filt)$cycle_name, sep ="_")
 
 # Remove ASVs that are not present in the dataset
-ps_ctd_nested <- ps_ctd_nested %>% 
+ps_18s_filt <- ps_18s_filt %>% 
     phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
 ## Filtration based on taxonomy - remove metazoa and fungi
-ps_ctd_nested<- ps_ctd_nested %>% 
+ps_18s_filt<- ps_18s_filt %>% 
       subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
       subset_taxa(!(class == "Embryophyceae")) # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
 
 # Do normalizations and transformation
-ps_ctd_nested <- phyloseq_normalize_median(ps_ctd_nested)
-long_ctd_nested <- phyloseq_transform_to_long(ps_ctd_nested)
+ps_18s_filt <- phyloseq_normalize_median(ps_18s_filt)
+long_18s_filt <- phyloseq_transform_to_long(ps_18s_filt)
 ```
 
 ```{r}
