@@ -1,0 +1,261 @@
+---
+title: "20220412_sorted euks NMDS"
+author: "Denise Ong"
+date: "4/12/2022"
+output: html_document
+---
+
+Do a NMDS to reflect overall community. 
+By rarefifying the data, compare with normalising.
+Removing Syndiniales and other samples that are excluded.
+use sequence hash to merge? 
+remove 
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+library(vegan)
+source(here("phyloseq", "init_files", "init.R")) #for libraries
+source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+
+#Colours for cycle
+colours_cycle <- readxl::read_excel(here("phyloseq", "init_files", "colours_cycle copy.xlsx"))
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+```
+
+```{r}
+# convert the sample_data() within a phyloseq object to a vegan compatible data object
+pssd2veg <- function(physeq) {
+  sd <- sample_data(physeq)
+  return(as(sd,"data.frame"))
+}
+
+# convert the otu_table() within a phyloseq object to a vegan compatible data object
+psotu2veg <- function(physeq) {
+  OTU <- otu_table(physeq)
+  if (taxa_are_rows(OTU)) {
+    OTU <- t(OTU)
+  }
+  return(as(OTU, "matrix"))
+}
+```
+
+
+# Read phyloseq for pico and nano
+```{r}
+source(here("phyloseq", "init_files", "read_pico.R"))
+source(here("phyloseq", "init_files", "read_nano.R"))
+
+#merge sorted pico and nano ps, because they have the same ASV code
+ps_merge<- merge_phyloseq(ps_pico, ps_nano)
+
+long_merge <- phyloseq_transform_to_long(ps_merge) 
+
+sample <- data.frame(ps_merge@sam_data) %>%
+    select(sorting_population, sample_name, water_mass, cycle_name_2, cycle_exp, vial_type, SAMPLE) %>%
+    rename(depth = SAMPLE)
+otu <- psotu2veg(ps_merge)
+
+```
+
+#checks before plotting - ok, ignore for now.
+```{r}
+#to check for every sample number of reads and if all asvs have reads -  ok, ignore code now.
+
+otu_long <- otu %>%
+  as.data.frame() 
+otu_long$file_code <-rownames(otu_long)
+otu_long <- otu_long%>%
+    pivot_longer(cols = !file_code, names_to = "otu", values_to = "reads") %>%
+    group_by(file_code)  %>%
+    summarise(sum = sum(reads)) %>%
+    group_by(otu) %>%
+    summarise(sum = sum(reads))
+
+```
+
+
+#plot overall
+```{r}
+#rarify
+set.seed(1)
+dist <- avgdist(otu, sample = 9000, dmethod = "bray") #rarify to control for uneven number of reads per sample.
+nmds<- metaMDS(dist)
+
+nmds_sample <- scores(nmds) %>%
+    as.tibble(rownames="sample_name") %>%
+    inner_join(., sample, by = "sample_name")
+
+#plot overall - 
+p <- nmds_sample %>%
+    mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = cycle_name, shape = depth)) +
+    geom_point() +
+    scale_colour_manual(values = colours_cycle)+
+  ggtitle("NMDS rarify reads")
+p
+
+
+#pdf(here("phyloseq", "paper_c14", "20220417", "sorted_euks_nmds_rarify.pdf"), height=6, width=8) ; plot(p) ; dev.off()
+
+#normalise
+ps_merge_norm <- phyloseq_normalize_median(ps_merge)
+otu_norm <- psotu2veg(ps_merge_norm)
+
+dist_norm <- vegdist(otu_norm, method = "bray")
+nmds_norm <- metaMDS(dist_norm)
+
+nmds_sample_norm <- scores(nmds_norm) %>%
+    as.tibble(rownames="sample_name") %>%
+    inner_join(., sample, by = "sample_name")
+
+p <- nmds_sample_norm %>%
+    mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = cycle_name, shape = depth)) +
+    geom_point() +
+    scale_colour_manual(values = colours_cycle) +
+  ggtitle("NMDS normalise reads")
+p
+
+#pdf(here("phyloseq", "paper_c14", "20220417", "sorted_euks_nmds_norm.pdf"), height=6, width=8) ; plot(p) ; dev.off()
+
+```
+
+
+# subset removed groups and samples from the plot
+##remove heterotrophs (added 20220417)
+```{r}
+source(here("phyloseq", "trophic_mode", "trophic_function.R"))  
+ps_merge_1 <- phyloseq_assign_trophic(ps_merge)
+long_merge_1 <- phyloseq_transform_to_long(ps_merge_1) 
+#list of ASVs for heterotrophs
+het_list <- long_merge_1  %>%
+  filter(trophic_mode  == "heterotrophic") %>%
+  select(asv_code) %>%
+  distinct()
+
+otu_long <- otu %>%
+  as.data.frame() 
+otu_long$file_code <-rownames(otu_long)
+otu_sub <- otu_long %>%
+    pivot_longer(cols = !file_code, names_to = "otu", values_to = "reads") %>%
+    anti_join(het_list, by = c("otu" = "asv_code")) %>%
+    pivot_wider(names_from = otu, values_from = reads) %>%
+  as.matrix()
+
+```
+
+
+##  Remove sample nano-12, pico-15 and pico-1-30
+```{r}
+otu_sub <- otu %>%
+  as.data.frame() 
+otu_sub$file_code <-rownames(otu_sub)
+
+otu_sub <- otu_sub %>% 
+  filter(!(file_code %in% c("nano-12", "pico-15", "pico-01-30"))) %>%
+  select(-file_code) %>%
+  as.matrix()
+```
+
+```{r}
+set.seed(1)
+dist <- avgdist(otu_sub, sample = 9000, dmethod = "bray") #rarify to control for uneven number of reads per sample.
+nmds_sub<- metaMDS(dist)
+
+nmds_sample_sub <- scores(nmds_sub) %>%
+    as.tibble(rownames="sample_name") %>%
+    inner_join(., sample, by = "sample_name")
+
+goodness(nmds_sub)
+stressplot(nmds_sub)
+
+nmds_sub$stress
+
+#plot overall
+p <- nmds_sample_sub %>%
+    mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = cycle_name, shape = depth)) +
+    geom_point() +
+    scale_colour_manual(values = colours_cycle) 
+p
+pdf(here("phyloseq", "paper_c14", "20220417", "sorted_euks_nmds.pdf"), height=6, width=9) ; plot(p) ; dev.off()
+
+#plot by depth and vial - to check influence of depth.
+p <- nmds_sample_sub %>%
+    mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = depth, shape = vial_type)) +
+    geom_point() +
+  facet_grid(cycle_exp~sorting_population, scales = "free_x")+
+  ggtitle("NMDS sorted euks by depth and vial") 
+p
+
+pdf(here("phyloseq", "paper_c14", "20220411", "sorted_euks_nmds_depth and vial.pdf"), height=6, width=9) ; plot(p) ; dev.off()
+
+
+```
+
+
+# compare against normalising the data - looks the same (ignore this)
+```{r}
+#normalise ASVs
+asv_norm <- t(otu_sub)
+taxa <- data.frame(tax_table(ps_merge))
+samples <- data.frame(sample_data(ps_merge))
+
+taxa <- as.matrix(taxa)
+
+otus= otu_table(asv_norm, taxa_are_rows = TRUE)
+taxa = tax_table(taxa)
+samples = sample_data(samples)
+ps <- merge_phyloseq(otus, taxa, samples)
+
+ps_norm <- phyloseq_normalize_median(ps)
+otu_norm <- psotu2veg(ps_norm)
+
+set.seed(4)
+dist_norm <- vegdist(otu_norm, method = "bray")
+nmds_norm <- metaMDS(dist_norm)
+
+
+nmds_sample_sub_norm <- scores(nmds_norm) %>%
+    as.tibble(rownames="sample_name") %>%
+    inner_join(., sample, by = "sample_name")
+
+p <- nmds_sample_sub_norm %>%
+    mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = cycle_name, shape = depth)) +
+    geom_point() +
+    scale_colour_manual(values = colours_cycle) +
+  ggtitle("NMDS normalise reads")
+p
+```
+
+#include CTD data.
+```{r}
+source(here("phyloseq", "init_files", "read_18s_filt.R"))
+
+ps_filt_1 <- phyloseq_assign_trophic(ps_18s_filt)
+# Do normalizations and transformation
+ps_filt_1 <- phyloseq_normalize_median(ps_filt_1)
+long_filt_1 <- phyloseq_transform_to_long(ps_filt_1)
+
+# create a new column for trophic mode, separate dinophyceae
+long_filt_1$trophic_mode_2 <- long_filt_1$trophic_mode
+long_filt_1$trophic_mode_2<-ifelse(long_filt_1$class=="Dinophyceae","dinophyceae",long_filt_1$trophic_mode_2)
+
+long_filt_1$trophic_mode <- factor(long_filt_1$trophic_mode, levels = c("photosynthetic", "mixotrophic","heterotrophic", "syndiniales"))
+long_filt_1$trophic_mode_2 <- factor(long_filt_1$trophic_mode_2, levels = c("photosynthetic", "mixotrophic","heterotrophic", "dinophyceae", "syndiniales"))
+
+#long_filt_1$cycle_exp <- factor(long_filt_1$cycle_exp, levels = c("ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11"))
+
+long_filt_1$cycle_name_2 <- factor(long_filt_1$cycle_name_2, levels = c("ST1", "ST2", "SA1","SA2","SA3"))
+
+ps_nano_2 <- ps_nano %>% 
+    subset_taxa(!(class %in% c("Syndiniales")) )
+ps_nano_2 <- phyloseq_normalize_median(ps_nano_2)
+long_nano_2 <- phyloseq_transform_to_long(ps_nano_2)
+
+```
+

@@ -378,11 +378,6 @@ exp_boxplot <- ggplot(pp_cal_1_join, aes(x = exp, y=pp, fill=population)) +
                  geom_boxplot() + 
                  scale_y_continuous(trans='log10') +
                  ylab("Primary Production (fgC/h/cell)") 
-
-
-david mah code from green edge    
-
-counter plot for nutrients
 ```
 
 # Analysis based on Surface vs DCM

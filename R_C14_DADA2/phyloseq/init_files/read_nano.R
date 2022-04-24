@@ -1,7 +1,7 @@
 #Read C14 sorted nano phyloseq
 
 # Load the phyloseq files
-ps_nano <- read_rds("output_18SV4/TAN1810_18SV4phyloseq_sorted_nano.RDS")
+ps_nano <- read_rds(here("output_18SV4","TAN1810_18SV4phyloseq_sorted_nano.RDS"))
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_nano)$water_mass <- sample_data(ps_nano)$Cycle#
@@ -34,6 +34,8 @@ sample_data(ps_nano)$cycle_name_2 = str_replace(sample_data(ps_nano)$cycle_name_
 sample_data(ps_nano)$cycle_name_2 = str_replace(sample_data(ps_nano)$cycle_name_2, "ST-Cycle_3", "ST1") 
 sample_data(ps_nano)$cycle_name_2 = str_replace(sample_data(ps_nano)$cycle_name_2, "ST-Cycle_4", "ST2")
 
+sample_data(ps_nano)$cycle_exp <- str_c(sample_data(ps_nano)$cycle_name_2, sample_data(ps_nano)$"EXP#", sep ="_")
+
 #vial type
 sample_data(ps_nano)$vial_type <- sample_data(ps_nano)$vial
 sample_data(ps_nano)$vial_type = str_replace(sample_data(ps_nano)$vial_type, "i", "initial") 
@@ -49,4 +51,9 @@ ps_nano <- ps_nano %>%
 ## Filtration based on taxonomy - remove metazoa and fungi
 ps_nano <- ps_nano %>% 
     subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
-    subset_taxa(!(class == "Embryophyceae")) # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
+    subset_taxa(!(class == "Embryophyceae")) %>%
+    subset_taxa(!(genus == "Padina")) %>% # to remove the plants. Likely from contamination. Checked with Adriana and Daniel, ok to remove.
+    subset_taxa(!(supergroup %in% c("Opisthokonta")))%>%
+    subset_taxa(!(division %in% c("Pseudofungi")))%>%
+    subset_taxa(!(class %in% c("Syndiniales")))
+

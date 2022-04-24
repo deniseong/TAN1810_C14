@@ -4,17 +4,22 @@ library(RColorBrewer)
 #combine all palettes from Rcolourbrewer
 getPalette = colorRampPalette(c(brewer.pal(12, "Paired"), brewer.pal(8, "Set1"), brewer.pal(8, "Pastel2"), brewer.pal(8, "Accent"))) 
 
-divisionList = rbind(unique(tax_table(ps[["all"]])[,"division"]), "Others")
+divisionList = rbind(unique(tax_table(ps_filt)[,"division"]), "Others")
 divisionPalette = getPalette(length(divisionList))
 names(divisionPalette) = divisionList
 divisionPalette["Others"] <-"grey"
 
-classList = rbind(unique(tax_table(ps[["all"]])[,"class"]), "Others")
+classList = rbind(unique(tax_table(ps_pico)[,"class"]), "Others")
 classPalette = getPalette(length(classList))
 names(classPalette) = classList
 classPalette["Others"] <-"grey"
 
-orderList = rbind(unique(tax_table(ps[["all"]])[,"order"]), "Others")
+classList = rbind(unique(tax_table(ps_filt)[,"class"]), "Others")
+classPalette = getPalette(length(classList))
+names(classPalette) = classList
+classPalette["Others"] <-"grey"
+
+orderList = rbind(unique(tax_table(ps_nano)[,"order"]), "Others")
 orderPalette = getPalette(length(orderList))
 names(orderPalette) = orderList
 orderPalette["Others"] <- "grey"
@@ -24,16 +29,16 @@ familyPalette = getPalette(length(familyList))
 names(familyPalette) = familyList
 familyPalette["Others"] <-"grey"
 
-genusList = rbind(unique(tax_table(ps[["all"]])[,"genus"]), "Others")
+genusList = rbind(unique(tax_table(ps_pico)[,"genus"]), "Others")
 genusPalette = getPalette(length(genusList))
 names(genusPalette) = genusList
 genusPalette["Others"] <-"grey"
 
-speciesList = rbind(unique(tax_table(ps[["all"]])[,"species"]), "Others")
+speciesList = rbind(unique(tax_table(ps_filt)[,"species"]), "Others")
 speciesPalette = getPalette(length(speciesList))
 names(speciesPalette) = speciesList
 speciesPalette["Others"] <-"grey"
 
-trophicList<-c("dinophyceae", "syndiniales", "mixoplankton","phytoplankton","protozooplankton", "plant", "dinoflagellata")
-trophicPalette=as.vector(c("#E69F00", "#56B4E9", "#F0E442", "#009E73", "#0072B2", "#999999", "#D55E00"))
+trophicList<-c("photosynthetic", "mixotrophic","heterotrophic", "dinophyceae", "syndiniales", "plant", "dinoflagellata")
+trophicPalette=as.vector(c( "#009E73", "#56B4E9", "#D55E00", "#F0E442", "#0072B2", "#999999", "#D55E00"))
 names(trophicPalette)=trophicList

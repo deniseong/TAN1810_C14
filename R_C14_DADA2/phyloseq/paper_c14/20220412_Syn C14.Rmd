@@ -1,0 +1,92 @@
+---
+title: "20220412_Syn C14"
+author: "Denise Ong"
+date: "4/12/2022"
+output: html_document
+---
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("phyloseq", "init_files", "init.R")) #for libraries
+source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source(here("phyloseq", "init_files", "colours_petb.R")) #colours
+
+```
+
+# Read data
+```{r}
+source(here("phyloseq", "init_files", "read_petb.R"))
+```
+
+
+```{r}
+p1 <- long %>%
+   # mutate(Subclade = fct_infreq(Subclade))%>%
+    filter(sample_name != "syn-negr1-2") %>%
+    filter(sample_name != "syn-11") %>%
+    filter(sample_name != "syn-12") %>%
+  ggplot(aes(x=vial_type, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+  theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+    #    facet_grid(.~water_mass, scales = "free_x") +
+        facet_grid(fct_rev(SAMPLE)~cycle_location_name, scales = "free_x") +
+        ggtitle("C14 sorted syn Denise primer- merged (by cycle)") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) 
+p1
+
+#pdf("phyloseq/figures_20211027/C14 syn_merged_depth_vial.pdf", height=5, width=8) ; plot(p1) ; dev.off()
+```
+
+## Duplicates
+```{r}
+p7 <- long %>%
+   # mutate(Subclade = fct_infreq(Subclade))%>%
+    filter(sample_name %in% c("syn-01-10", "syn-01-20", "syn-02-10", "syn-02-5", "syn-03-10", "syn-03-2", "syn-03-4"))%>%
+  ggplot(aes(x=file_code, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+  theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+    #    facet_grid(.~water_mass, scales = "free_x") +
+        facet_grid(.~sorting_number, scales = "free_x") +
+        ggtitle("C14 sorted syn Denise primer- duplicates") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) 
+p7
+
+pdf("phyloseq/figures_20211027/C14 syn_merged_duplicates.pdf", height=5, width=8) ; plot(p7) ; dev.off()
+
+```
+
+## Average of light vials only, by cycle and depth
+```{r}
+p1 <- long %>%
+  filter(vial_type == "light") %>%
+#  mutate(class = fct_infreq(class))%>%
+#  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+#  mutate(class = factor(class, levels = c("Mamiellophyceae", "Pyramimonadophyceae","Bacillariophyta","Dictyochophyceae","MOCH-2","Pelagophyceae",    "Syndiniales", "Dinophyceae", "Prymnesiophyceae","Cryptophyceae", "Others"))) %>%
+    filter(sample_name != "syn-negr1-2") %>%
+    filter(sample_name != "syn-11") %>%
+    filter(sample_name != "syn-12") %>%
+  ggplot(aes(x=cycle_name_2, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(text=element_text(size=10),
+              axis.title.x=element_blank(),
+              axis.text.x=element_blank(),
+              axis.ticks.x=element_blank(),
+              panel.border = element_blank(), 
+              panel.spacing.x = unit(0,"lines"),
+              panel.spacing.y = unit(0,"lines"),
+              axis.line.y.left = element_line())+
+        #facet_grid(fct_rev(SAMPLE)~vial_type, scales = "free_x")
+        facet_grid(fct_rev(SAMPLE)~factor(cycle_name_2, levels = c("ST1", "ST2", "SA1", "SA2", "SA3")), scales = "free_x") +
+        ggtitle("Synechococcus") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  ylab("Percent of reads")
+p1
+
+pdf("phyloseq/figures_ACOP/sorted syn class_light.pdf", height=5, width=5) ; plot(p1) ; dev.off()
+```
