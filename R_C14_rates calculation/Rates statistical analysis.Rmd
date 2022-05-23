@@ -4,8 +4,25 @@ author: "Denise Ong"
 date: "4/20/2022"
 output: html_document
 ---
+Data used from method 2 - computing lm for ABC separately. Each vial is one reading.
+Few vials excluded from this analysis:
+-Nano: cycle 4, exp 9, DCM, vial b
+- Pico: cycle 1, exp 2, SUR, vial a.
+Using mixed linear model for analysis. 
 
-Code for Experimental Design module project. Data used from method 2 - computing lm for ABC separately.
+additional check with dataframe pp_data_2 - removed another vial because it might be affecting the stats - IGNORE NO DIFFERENCE
+- nano: cycle 4, exp 9, SUR, vial a
+
+unbalanced - only 6 out of 11 experiments have DCM values.
+exp 3,4, 11, 7, 10, 9?
+
+both have difference in population, depth, water mass*population
+with subset - depth becomes more significant factor, and water mass*population only significant for syn, rather than all the data that is signficant for both pico and syn.
+
+For separated data:
+-  Syn -only effect of water mass is significant. but LSD is less than ST VS SA
+
+
 ```{r setup, include=FALSE}
   knitr::opts_chunk$set(message=FALSE,
                         warning=FALSE,
@@ -14,6 +31,7 @@ Code for Experimental Design module project. Data used from method 2 - computing
 ```
 
 ```{r}
+library(here)
 library(dplyr)
 library(tidyverse)
 library(ggplot2)
@@ -23,15 +41,46 @@ theme_set(theme_bw())
 
 # Load data
 ```{r}
-pp_data <- readxl::read_excel("C14_Denise.xlsx") %>%
-  dplyr::select(cycle, exp, sample, vial, population, pp) %>%
+pp_data <- readxl::read_excel(here("C14_rates per group_method2.xlsx"))%>%
+  mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(water_mass = recode(cycle, "1" = "SA",
+                                    "2" = "SA",
+                                    "3" = "ST",
+                                    "4" = "ST",
+                                    "5" = "SA")) %>%
+  mutate(depth_cat = recode(sample, "SUR" = "Surface",
+                                "DCM" = "DCM")) %>%
+  mutate(population_name= recode(population, "Syn" = "Synechococcus",
+                                             "Pico" = "Picoeukaryotes",
+                                             "Nano" = "Nanoeukaryotes"))  %>%
   rename(depth = sample) %>%
-  arrange(cycle, exp, depth, population, vial, pp) 
+  arrange(cycle, exp, depth, population, vial, pp)  %>%
+  filter(!(cycle == "4"& exp == "9"& depth == "DCM"& population == "Nano"& vial == "B")) %>%
+  filter(!(cycle == "1"& exp == "2"& depth == "SUR"& population == "Pico"& vial == "A"))  %>%
+  mutate(cycle_exp = str_c(cycle_name, exp, sep = "_"))
   
 pp_data$cycle <- as.character(pp_data$cycle)
 pp_data$exp <- as.character(pp_data$exp)
 pp_data
+
+pp_data$population <-factor(pp_data$population)
+pp_data$depth<-factor(pp_data$depth)
+pp_data$water_mass <- factor(pp_data$water_mass)
+syn <- pp_data %>%
+  filter(population == "Syn")
+pico <- pp_data %>%
+  filter(population == "Pico")
+nano <- pp_data %>%
+  filter(population == "Nano")
+
+pp_data_2 <-  pp_data %>%
+  filter(exp %in% c("3", "4" ,"7", "9", "10", "11"))
 ```
+
 
 I first plot the raw data to visualise.
 
@@ -50,16 +99,18 @@ The boxplot suggest that the primary productivity of Pico is higher than Syn. Ho
 
 Now I consider the influence of experiments.
 ```{r}
-ggplot(pp_data, aes(x=population, y=pp, color = exp)) + geom_boxplot() +facet_wrap(~depth)+ylab("Primary productivity (fgC/h/cell)")+xlab("Plankton group")
+ggplot(pp_data, aes(x=population, y=pp, color = exp)) + geom_boxplot() +facet_grid(depth~cycle)+ylab("Primary productivity (fgC/h/cell)")+xlab("Plankton group")
 ```
 As the sampling was designed as experiment nested in cycle, the random effect would be included in the model. There seems to be a difference between experiments, confirms the need to include (1|cycle/experiment) in the model. 
 
+# Model 1: pp ~ population * water_mass + depth 
+note: tested  (1|water_mass/cycle/exp) against (1|cycle/exp) - very similar (2 units AIC, p value is 1). Will choose the simpler model.
 I fit the full model to look at the variation explained by the random effects, and the diagnostic plots.
 ```{r}
-m1 <- lmer(pp ~ depth * population + (1|cycle/exp), data = pp_data)
+m1 <- lmer(pp ~ depth * population *water_mass + (1|cycle/exp), data = pp_data)
 summary(m1)
 ```
-In this full model, the random effect explains 3.119+1.894/3.119+1.894+12.419=28.7% of the variation. There are 86 observations, with 11 experiments nested within 5 cycles. This shows that the data has been read correctly.
+In this full model, the random effect explains 98.13/98.13+214.19=31% of the variation. There are 124 observations, with 11 experiments nested within 5 cycles. This shows that the data has been read correctly.
 
 ```{r}
 plot(m1)
@@ -71,7 +122,208 @@ Hence, I log-transform the data.
 ```{r}
 # Replace a zero value in pp with NA for log transformation. The O value is not a true measurement, but missing replicate that became a data point when I merged with another table during my calculations for pp. So, it is actually an NA!
 pp_data <- naniar::replace_with_na(pp_data, replace = list(pp = 0))
-m1_log <- lmer(log10(pp) ~ depth * population + (1|cycle/exp), data = pp_data)
+m1_log <- lmer(log10(pp) ~ depth * population *water_mass + (1|cycle/exp), data = pp_data)
+summary(m1_log)
+plot(m1_log)
+qqnorm(resid(m1_log))
+```
+
+After log transformation, the random effects account for 0.11875/0.11875+0.0376= 76% of the variation, an increase compared to the data before transformation. The qqplot shows the data to be normally distributed and have similar variances. From now I will log-transform the primary productivity values to meet the assumptions of normality and homeoskedasticity.
+
+Now I test the fixed effects using REML = FALSE.
+interaction of water mass and population is significant.
+
+```{r}
+# interaction of water mass and population
+m2_log <- lmer(log10(pp) ~ water_mass * population + (1|cycle/exp), data = pp_data, REML = FALSE)
+m3_log <- lmer(log10(pp) ~ water_mass + population + (1|cycle/exp), data = pp_data, REML = FALSE)
+anova(m2_log, m3_log) #interaction of water mass and population is significant
+
+# interaction of population and depth
+m4_log <- lmer(log10(pp) ~ depth * population + (1|cycle/exp), data = pp_data, REML = FALSE)
+m5_log <- lmer(log10(pp) ~ depth + population + (1|cycle/exp), data = pp_data, REML = FALSE)
+anova(m4_log, m5_log) #not significant
+
+# interaction of depth and water mass
+m6_log <- lmer(log10(pp) ~ depth * water_mass + (1|cycle/exp), data = pp_data, REML = FALSE)
+m7_log <- lmer(log10(pp) ~ depth + water_mass + (1|cycle/exp), data = pp_data, REML = FALSE)
+anova(m6_log, m7_log) #interaction of water mass and population is significant
+
+
+m8_log <- lmer(log10(pp) ~ water_mass * population * depth + (1|cycle/exp), data = pp_data, REML = FALSE)
+m9_log <- lmer(log10(pp) ~ water_mass * population + depth + (1|cycle/exp), data = pp_data, REML = FALSE)
+anova(m8_log, m9_log) #interaction of depth with water mass and population not significant.
+```
+
+```{r}
+m10_log <- lmer(log10(pp) ~ depth + (1|cycle/exp), data = pp_data, REML = FALSE)
+```
+The interactions of fixed effects are not significant. Test each fixed effect against model without interaction.
+```{r}
+anova(m9_log, m10_log) #depth vs water_mass * population + depth (difference)
+anova(m9_log, m2_log) #water_mass * population vs water_mass * population + depth
+```
+Both are significantly different. Hence, both fixed effects are significant and should be included in the model.
+final model : log10(pp) ~ water_mass * population + depth + (1|cycle/exp) - model 5
+
+Fit the final model with REML = TRUE, and check the diagnostic plots. 
+```{r}
+m9_log_REML <- lmer(log10(pp) ~ water_mass * population + depth + (1|water_mass/cycle/exp), data = pp_data, REML = TRUE)
+plot(m9_log_REML)
+qqnorm(resid(m9_log_REML))
+summary(m9_log_REML)
+```
+From the diagnostic plots, both assumptions of assumptions of normality and homeoskedasticity are met.
+In this chosen model, random effects (1|cycle/exp) explain 67.4% of the variance.
+
+```{r}
+library(nlme)
+lme_m9 <- lme(log10(pp) ~ water_mass * population + depth, random = ~1|cycle/exp, data = pp_data, na.action=na.exclude)
+anova(lme_m9)
+```
+
+The following graph was used to visualise the confidence interval for each fixed effect.
+```{r}
+library(multcomp)
+tmp <- as.data.frame(confint(glht(m9_log_REML))$confint)
+tmp$Comparison <- rownames(tmp)
+ggplot(tmp, aes(x = Comparison, y = Estimate, ymin = lwr, ymax = upr)) +
+  geom_errorbar() + geom_point()
+```
+
+The following outputs were used to obtain the Least Significant Difference (LSD) coefficients for each fixed effect.
+```{r}
+library(predictmeans)
+predictmeans(m9_log_REML, "depth")
+predictmeans(m9_log_REML, "population")
+```
+
+```{r}
+predictmeans(m9_log_REML, "water_mass:population")
+```
+nano difference: 0.303 < LSD
+pico difference: 0.472-0.067 = 0.405
+syn difference: 0.2693-(-0.489) = 0.758
+LSD: 0.32
+
+# Check with pp_data_2 -only include experiments with both surface and DCM
+
+I fit the full model to look at the variation explained by the random effects, and the diagnostic plots.
+```{r}
+m1 <- lmer(pp ~ depth * population *water_mass + (1|cycle/exp), data = pp_data_2)
+summary(m1)
+```
+
+```{r}
+plot(m1)
+qqnorm(resid(m1))
+```
+
+However, from the diagnostic plots, the data appears to be non-normal, skewed by very large values as suggested from the box plots and histogram above.
+
+Hence, I log-transform the data.
+```{r}
+# Replace a zero value in pp with NA for log transformation. The O value is not a true measurement, but missing replicate that became a data point when I merged with another table during my calculations for pp. So, it is actually an NA!
+pp_data_2 <- naniar::replace_with_na(pp_data_2, replace = list(pp = 0))
+m1_log <- lmer(log10(pp) ~ depth * population *water_mass + (1|cycle/exp), data = pp_data_2)
+summary(m1_log)
+plot(m1_log)
+qqnorm(resid(m1_log))
+```
+
+After log transformation, the random effects account for 0.11875/0.11875+0.0376= 76% of the variation, an increase compared to the data before transformation. The qqplot shows the data to be normally distributed and have similar variances. From now I will log-transform the primary productivity values to meet the assumptions of normality and homeoskedasticity.
+
+Now I test the fixed effects using REML = FALSE.
+interaction of water mass and population is significant.
+
+```{r}
+# interaction of water mass and population
+m2_log <- lmer(log10(pp) ~ water_mass * population + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+m3_log <- lmer(log10(pp) ~ water_mass + population + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+anova(m2_log, m3_log) #interaction of water mass and population is significant
+
+# interaction of population and depth
+m4_log <- lmer(log10(pp) ~ depth * population + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+m5_log <- lmer(log10(pp) ~ depth + population + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+anova(m4_log, m5_log) #not significant
+
+# interaction of depth and water mass
+m6_log <- lmer(log10(pp) ~ depth * water_mass + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+m7_log <- lmer(log10(pp) ~ depth + water_mass + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+anova(m6_log, m7_log) #interaction of water mass and population is significant
+
+
+m8_log <- lmer(log10(pp) ~ water_mass * population * depth + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+m9_log <- lmer(log10(pp) ~ water_mass * population + depth + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+anova(m8_log, m9_log) #interaction of depth with water mass and population not significant.
+```
+
+
+```{r}
+m10_log <- lmer(log10(pp) ~ depth + (1|cycle/exp), data = pp_data_2, REML = FALSE)
+```
+The interactions of fixed effects are not significant. Test each fixed effect against model without interaction.
+```{r}
+anova(m9_log, m10_log) #depth vs water_mass * population + depth (difference)
+anova(m9_log, m2_log) #water_mass * population vs water_mass * population + depth
+```
+
+```{r}
+m9_log_REML <- lmer(log10(pp) ~ water_mass * population + depth + (1|cycle/exp), data = pp_data_2, REML = TRUE)
+plot(m9_log_REML)
+qqnorm(resid(m9_log_REML))
+summary(m9_log_REML)
+```
+
+From the diagnostic plots, both assumptions of assumptions of normality and homeoskedasticity are met.
+In this chosen model, random effects (1|cycle/exp) explain 67.4% of the variance.
+
+```{r}
+library(nlme)
+lme_m9 <- lme(log10(pp) ~ water_mass * population + depth, random = ~1|cycle/exp, data = pp_data_2, na.action=na.exclude)
+anova(lme_m9)
+```
+
+The following graph was used to visualise the confidence interval for each fixed effect.
+```{r}
+library(multcomp)
+tmp <- as.data.frame(confint(glht(m9_log_REML))$confint)
+tmp$Comparison <- rownames(tmp)
+ggplot(tmp, aes(x = Comparison, y = Estimate, ymin = lwr, ymax = upr)) +
+  geom_errorbar() + geom_point()
+```
+
+The following outputs were used to obtain the Least Significant Difference (LSD) coefficients for each fixed effect.
+```{r}
+library(predictmeans)
+predictmeans(m9_log_REML, "depth")
+predictmeans(m9_log_REML, "population")
+predictmeans(m9_log_REML, "water_mass")
+```
+
+```{r}
+predictmeans(m9_log_REML, "water_mass:population")
+```
+nano: 0.48
+pico: 0.45
+syn : 0.89
+LSD: 0.81
+
+#checking each of the populations separately - ignore
+##Syn data
+
+```{r}
+m1 <- lmer(pp ~ depth * water_mass + (1|cycle/exp), data = syn)
+summary(m1)
+plot(m1)
+qqnorm(resid(m1))
+```
+
+Hence, I log-transform the data.
+```{r}
+# Replace a zero value in pp with NA for log transformation. The O value is not a true measurement, but missing replicate that became a data point when I merged with another table during my calculations for pp. So, it is actually an NA!
+syn <- naniar::replace_with_na(syn, replace = list(pp = 0))
+m1_log <- lmer(log10(pp) ~ depth * water_mass + (1|cycle/exp), data = syn)
 summary(m1_log)
 plot(m1_log)
 qqnorm(resid(m1_log))
@@ -81,10 +333,10 @@ After log transformation, the random effects account for 71% of the variation, a
 
 Now I test the fixed effects using REML = FALSE.
 ```{r}
-m2_log <- lmer(log10(pp) ~ depth * population + (1|cycle/exp), data = pp_data, REML = FALSE)
-m3_log <- lmer(log10(pp) ~ depth + population + (1|cycle/exp), data = pp_data, REML = FALSE)
-m4_log <- lmer(log10(pp) ~ depth + (1|cycle/exp), data = pp_data, REML = FALSE)
-m5_log <- lmer(log10(pp) ~ population + (1|cycle/exp), data = pp_data, REML = FALSE)
+m2_log <- lmer(log10(pp) ~ depth * water_mass + (1|cycle/exp), data = syn, REML = FALSE)
+m3_log <- lmer(log10(pp) ~ depth + water_mass + (1|cycle/exp), data =syn, REML = FALSE)
+m4_log <- lmer(log10(pp) ~ depth + (1|cycle/exp), data = syn, REML = FALSE)
+m5_log <- lmer(log10(pp) ~ water_mass + (1|cycle/exp), data = syn, REML = FALSE)
 anova(m2_log, m3_log)
 ```
 The interactions of fixed effects are not significant. Test each fixed effect against model without interaction.
@@ -92,11 +344,11 @@ The interactions of fixed effects are not significant. Test each fixed effect ag
 anova(m3_log, m4_log)
 anova(m3_log, m5_log)
 ```
-Both are significantly different. Hence, both fixed effects are significant and should be included in the model.
+only water mass is significant and should be included in the model.
 
 Fit the final model with REML = TRUE, and check the diagnostic plots. 
 ```{r}
-m3_log_REML <- lmer(log10(pp) ~ depth + population + (1|cycle/exp), data = pp_data, REML = TRUE)
+m3_log_REML <- lmer(log10(pp) ~ water_mass + (1|cycle/exp), data = syn, REML = TRUE)
 plot(m3_log_REML)
 qqnorm(resid(m3_log_REML))
 summary(m3_log_REML)
@@ -106,7 +358,108 @@ In this chosen model, random effects (1|cycle/exp) explain 67.4% of the variance
 
 ```{r}
 library(nlme)
-lme_m3 <- lme(log10(pp) ~ depth + population, random = ~1|cycle/exp, data = pp_data, na.action=na.exclude)
+lme_m3 <- lme(log10(pp) ~ water_mass, random = ~1|cycle/exp, data = syn, na.action=na.exclude)
+anova(lme_m3)
+```
+
+The following graph was used to visualise the confidence interval for each fixed effect.
+```{r}
+library(multcomp)
+tmp <- as.data.frame(confint(glht(m3_log_REML))$confint)
+tmp$Comparison <- rownames(tmp)
+ggplot(tmp, aes(x = Comparison, y = Estimate, ymin = lwr, ymax = upr)) +
+  geom_errorbar() + geom_point()
+```
+
+The following outputs were used to obtain the Least Significant Difference (LSD) coefficients for each fixed effect.
+```{r}
+library(predictmeans)
+predictmeans(m3_log_REML, "water_mass")
+```
+## pico
+
+```{r}
+m1 <- lmer(pp ~ depth * water_mass + (1|cycle/exp), data = pico)
+summary(m1)
+plot(m1)
+qqnorm(resid(m1))
+```
+Hence, I log-transform the data.
+```{r}
+# Replace a zero value in pp with NA for log transformation. The O value is not a true measurement, but missing replicate that became a data point when I merged with another table during my calculations for pp. So, it is actually an NA!
+pico <- naniar::replace_with_na(pico, replace = list(pp = 0))
+m1_log <- lmer(log10(pp) ~ depth * water_mass + (1|cycle/exp), data = pico)
+summary(m1_log)
+plot(m1_log)
+qqnorm(resid(m1_log))
+```
+Now I test the fixed effects using REML = FALSE.
+```{r}
+m2_log <- lmer(log10(pp) ~ depth * water_mass + (1|cycle/exp), data = pico, REML = FALSE)
+m3_log <- lmer(log10(pp) ~ depth + water_mass + (1|cycle/exp), data =pico, REML = FALSE)
+m4_log <- lmer(log10(pp) ~ depth + (1|cycle/exp), data = pico, REML = FALSE)
+m5_log <- lmer(log10(pp) ~ water_mass + (1|cycle/exp), data = pico, REML = FALSE)
+anova(m2_log, m3_log)
+```
+The interactions of fixed effects are not significant. Test each fixed effect against model without interaction.
+```{r}
+anova(m3_log, m4_log)
+anova(m3_log, m5_log)
+```
+None are signficant.
+
+
+##nano
+
+First, I visualise the data without considering the random effects.
+```{r}
+p<- ggplot(nano, aes(x=cycle_exp, y=pp, color=depth)) + geom_boxplot() + geom_point()+ ylab("Primary productivity (fgC/h/cell)")
+p
+p<- ggplot(pico, aes(x=cycle_exp, y=pp, color=depth)) + geom_boxplot() + geom_point()+ ylab("Primary productivity (fgC/h/cell)") +scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
+p
+p<- ggplot(syn, aes(x=cycle_exp, y=pp, color=depth)) + geom_boxplot() + geom_point()+ ylab("Primary productivity (fgC/h/cell)") +scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
+p
+#pdf("figures/GRC/rates_syn_exp.pdf", height=4, width=6) ; plot(p) ; dev.off()
+
+```
+unbalanced - only 6 out of 11 experiments have DCM values.
+exp 3,4, 11, 7, 10, 9?
+```{r}
+m1 <- lmer(pp ~ depth * water_mass + (1|cycle/exp), data = nano)
+summary(m1)
+plot(m1)
+qqnorm(resid(m1))
+```
+Nano data is normally distributed.
+
+Now I test the fixed effects using REML = FALSE.
+```{r}
+m2_log <- lmer(pp ~ depth * water_mass + (1|cycle/exp), data = nano, REML = FALSE)
+m3_log <- lmer(pp ~ depth + water_mass + (1|cycle/exp), data =nano, REML = FALSE)
+m4_log <- lmer(pp ~ depth + (1|cycle/exp), data = nano, REML = FALSE)
+m5_log <- lmer(pp ~ water_mass + (1|cycle/exp), data = nano, REML = FALSE)
+anova(m2_log, m3_log)
+```
+The interactions of fixed effects are not significant. Test each fixed effect against model without interaction.
+```{r}
+anova(m3_log, m4_log)
+anova(m3_log, m5_log)
+```
+only effect of depth is significant.
+
+Fit the final model with REML = TRUE, and check the diagnostic plots. 
+```{r}
+m3_log_REML <- lmer(pp ~ depth + (1|cycle/exp), data = nano, REML = TRUE)
+plot(m3_log_REML)
+qqnorm(resid(m3_log_REML))
+summary(m3_log_REML)
+```
+From the diagnostic plots, both assumptions of assumptions of normality and homeoskedasticity are met.
+In this chosen model, random effects (1|cycle/exp) explain 67.4% of the variance.
+
+```{r}
+library(nlme)
+lme_m3 <- lme(pp ~ depth, random = ~1|cycle/exp, data = nano, na.action=na.exclude)
 anova(lme_m3)
 ```
 
@@ -123,9 +476,5 @@ The following outputs were used to obtain the Least Significant Difference (LSD)
 ```{r}
 library(predictmeans)
 predictmeans(m3_log_REML, "depth")
-```
-
-```{r}
-predictmeans(m3_log_REML, "population")
 ```
 

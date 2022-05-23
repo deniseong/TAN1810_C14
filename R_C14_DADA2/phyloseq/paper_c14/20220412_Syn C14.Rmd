@@ -19,9 +19,119 @@ source(here("phyloseq", "init_files", "colours_petb.R")) #colours
 source(here("phyloseq", "init_files", "read_petb.R"))
 ```
 
-
+#sorted
 ```{r}
-p1 <- long %>%
+long <- long_sorted %>%
+  dplyr::rename(station = STN) %>%
+  mutate(cycle_name = recode(Cycle., "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(cycle_station = str_c (cycle_name, station, sep = "_")) %>%
+  filter(sample_name != "syn-02-5") %>%
+  filter(sample_name != "syn-01-20") %>%
+  mutate(cycle_station = recode (cycle_station, "ST1_207" = "ST1_3",
+                                                "ST1_223" = "ST1_4",
+                                                "ST2_266" = "ST2_1",
+                                                "ST2_283" = "ST2_3",
+                                                "SA1_24" = "SA1_3",
+                                                "SA1_15" = "SA1_5",
+                                                "SA2_150" = "SA2_3",
+                                                "SA2_188" = "SA2_2",
+                                                "SA2_176" = "SA2_4",
+                                                "SA3_324" = "SA3_1"))  %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1","SA2","SA3")) %>%
+  mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark"))
+
+long$cycle_station <- factor(long$cycle_station, levels = c("ST1_3", "ST1_4", "ST2_1", "ST2_3", "SA1_3", "SA1_5", "SA2_2", "SA2_3", "SA2_4", "SA3_1"))
+
+
+p <- long %>%
+  filter(SAMPLE == "SUR") %>%
+  filter(vial_type != "dark") %>%
+  mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others", "CRD1"= "Others", "EnvA"= "Others", "EnvB"= "Others"))  %>%
+  ggplot(aes(x=n_reads, y=vial_type, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+  theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0))+
+#  theme(text=element_text(size=10),
+#              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(cycle_name~., scales = "free_x") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  xlab("Proportion of reads")
+p
+
+p <- long %>%
+  filter(SAMPLE == "SUR") %>%
+  filter(vial_type != "dark") %>%
+  mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others", "CRD1"= "Others", "EnvA"= "Others", "EnvB"= "Others"))  %>%
+  ggplot(aes(x=vial_type, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+  theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0))+
+#  theme(text=element_text(size=10),
+#              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(~cycle_name, scales = "free_x") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  ylab("Proportion of reads")
+p
+
+
+p <-long %>%
+  ggplot(aes(x=n_reads, y=fct_rev(sample_name), color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+        theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0))+
+        facet_grid(cycle_station~., scales = "free_y", space = "free") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+        xlab("Percent of reads")+
+        ylab("Sample name")
+
+p
+#pdf(here("phyloseq", "paper_c14", "20220417", "sorted_syn.pdf"), height=5, width=7) ; plot(p) ; dev.off()
+
+
+p <- long %>%
+  filter(SAMPLE == "SUR") %>%
+  filter(vial_type == "light") %>%
+  mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others", "CRD1"= "Others", "EnvA"= "Others", "EnvB"= "Others"))  %>%
+  ggplot(aes(x=vial_type, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+  theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0))+
+#  theme(text=element_text(size=10),
+#              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(~cycle_name, scales = "free_x") +
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  ylab("Proportion of reads")
+p
+
+
+
+```
+
+p1 <- long_sorted %>%
    # mutate(Subclade = fct_infreq(Subclade))%>%
     filter(sample_name != "syn-negr1-2") %>%
     filter(sample_name != "syn-11") %>%
@@ -38,7 +148,7 @@ p1 <- long %>%
 p1
 
 #pdf("phyloseq/figures_20211027/C14 syn_merged_depth_vial.pdf", height=5, width=8) ; plot(p1) ; dev.off()
-```
+
 
 ## Duplicates
 ```{r}
@@ -62,7 +172,7 @@ pdf("phyloseq/figures_20211027/C14 syn_merged_duplicates.pdf", height=5, width=8
 
 ## Average of light vials only, by cycle and depth
 ```{r}
-p1 <- long %>%
+p1 <- long_sorted %>%
   filter(vial_type == "light") %>%
 #  mutate(class = fct_infreq(class))%>%
 #  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%

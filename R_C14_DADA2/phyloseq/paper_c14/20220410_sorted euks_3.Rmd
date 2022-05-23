@@ -306,3 +306,121 @@ for (i in c("Pyramimonadales","Cryptomonadales", "Dinophyceae_X", "Suessiales", 
 
 ```
 
+# Filtered 18S
+## Read data
+```{r}
+source(here("phyloseq", "init_files", "read_18s_filt.R"))
+
+ps_filt <- phyloseq_assign_trophic(ps_18s_filt) %>%
+      subset_taxa(trophic_mode_2 != "heterotrophic")
+# Do normalizations and transformation
+ps_filt <- phyloseq_normalize_median(ps_filt)
+long_filt <- phyloseq_transform_to_long(ps_filt)
+
+
+#order levels
+long_filt <- long_filt %>%
+  mutate(trophic_mode = fct_relevel(trophic_mode, "photosynthetic", "mixotrophic","heterotrophic", "syndiniales")) %>%
+  mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic", "dinophyceae")) %>%
+  mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3"))
+```
+
+##check depths that are overlapping with sorted samples
+Because not every sorted sample has an overlapping depth with the filtered sample, I am taking depth category 2 and 5 to represent surface and DCM samples. Note that depth cat 2 is always overlapping for surface sample (at 12m) but not all depth category 5 represents DCM depth (some are 5 to 10 m off).
+```{r}
+#to check for overlapping depth - ignore
+pico_sample <- data.frame(ps_pico@sam_data)
+nano_sample <- data.frame(ps_nano@sam_data) %>%
+  select(Cycle. , STN, DEPTH) %>%
+  distinct()
+filt_sample <- data.frame(ps_18s_filt@sam_data) %>%
+  select(cycle, station, depth, depth_category) %>%
+  distinct()
+#only select depth_cateogry 2 and 5
+```
+
+
+```{r}
+long_filt_1 <- long_filt %>%
+  filter(trophic_mode_2 %in% c("photosynthetic", "mixotrophic", "dinophyceae")) %>%
+  filter(depth_category %in% c("2", "5")) %>%
+  mutate(depth_category_2 = recode(depth_category, "2" = "SUR",
+                                   "5" = "DCM")) %>%
+  mutate(depth_category_2 = fct_relevel(depth_category_2, "SUR", "DCM"))
+
+p <- long_filt_1 %>%
+  #filter(division != "Dinoflagellata") %>%
+  mutate(division = fct_infreq(division))%>%
+  ggplot(aes(x=cycle_name_2, y=n_reads, fill=division, color = division)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(#axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+              axis.text.x=element_blank(), #remove x axis labels
+              axis.ticks.x=element_blank() ) + #remove x axis ticks
+        facet_grid(depth_category_2~cycle_name_2, scales = "free_x") +
+        ggtitle("Filtered CTD") +
+        scale_color_manual(values=divisionPalette, limits = force) + 
+        scale_fill_manual(values=divisionPalette, limits = force) +
+  xlab(NULL)
+p
+
+pdf(here("phyloseq", "paper_c14", "20220417", "filt", "filt_division all.pdf"), height=5, width=8) ; plot(p) ; dev.off()
+
+# for each division, read class
+for (i in c( "Ochrophyta", "Haptophyta", "Chlorophyta", "Cryptophyta")) {
+  p <- long_filt_1 %>%
+    filter(division == i) %>%
+    ggplot(aes(x=cycle_name_2, y=n_reads, fill=class, colour=class)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        facet_grid(depth_category_2~cycle_name_2, scales = "free_x", space = "free") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+        ggtitle(str_c("Filtered CTD -", i)) +
+        #scale_fill_manual(values=latin_palette('karolg', 15)) +
+        scale_fill_manual(values=classPalette, limits = force) +
+        scale_colour_manual(values=classPalette, limits = force)
+        ylab("Proportion of reads")
+        print(p)
+        pdf(here("phyloseq", "paper_c14", "20220417", "filt", "division", str_c("filt class_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
+}
+
+# for each class, show order
+for (i in c("Dinophyceae", "Pelagophyceae", "Prymnesiophyceae", "Cryptophyceae")) {
+  p <- long_filt_1 %>%
+    filter(class == i) %>%
+    ggplot(aes(x=cycle_name_2, y=n_reads, fill=order, colour=order)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        facet_grid(depth_category_2~cycle_name_2, scales = "free_x", space = "free") +
+        theme(axis.text.x=element_blank(), #remove x axis labels
+              axis.ticks.x=element_blank() ) + #remove x axis ticks
+    #axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+        ggtitle(str_c("Filtered CTD -", i)) +
+        #scale_fill_manual(values=latin_palette('karolg', 15)) +
+        scale_fill_manual(values=orderPalette, limits = force) +
+      scale_colour_manual(values=orderPalette, limits = force)
+        ylab("Proportion of reads") 
+        print(p)
+        pdf(here("phyloseq", "paper_c14", "20220417", "filt", "class", str_c("filt order_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
+}
+
+library(paletteer)
+#for class , show species
+for (i in c("Mamiellophyceae", "Prymnesiophyceae", "Pelagophyceae", "Cryptophyceae")) {
+  p <- long_filt_1 %>%
+    filter(class == i) %>%
+    mutate(species = fct_infreq(species))%>%
+    ggplot(aes(x=cycle_name_2, y=n_reads, fill=species, colour=species)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        facet_grid(depth_category_2~cycle_name_2, scales = "free_x", space = "free") +
+        theme(axis.text.x=element_blank(), #remove x axis labels
+              axis.ticks.x=element_blank() ) + #remove x axis ticks
+    #axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+        ggtitle(str_c("Filtered CTD -", i)) +
+        scale_fill_paletteer_d("ggsci::springfield_simpsons") +
+        scale_colour_paletteer_d("ggsci::springfield_simpsons") +
+        #scale_fill_manual(values=speciesPalette, limits = force) +
+      #scale_colour_manual(values=speciesPalette, limits = force)
+        ylab("Proportion of reads")
+        print(p)
+        pdf(here("phyloseq", "paper_c14", "20220417", "filt", "class", str_c("filt species_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
+}
+```
+

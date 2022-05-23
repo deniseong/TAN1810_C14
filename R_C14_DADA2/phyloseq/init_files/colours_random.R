@@ -19,7 +19,7 @@ classPalette = getPalette(length(classList))
 names(classPalette) = classList
 classPalette["Others"] <-"grey"
 
-orderList = rbind(unique(tax_table(ps_nano)[,"order"]), "Others")
+orderList = rbind(unique(tax_table(ps_filt)[,"order"]), "Others")
 orderPalette = getPalette(length(orderList))
 names(orderPalette) = orderList
 orderPalette["Others"] <- "grey"

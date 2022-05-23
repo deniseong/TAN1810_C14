@@ -1,0 +1,216 @@
+---
+title: "Figures_GRC"
+author: "Denise Ong"
+date: "5/1/2022"
+output: html_document
+---
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("phyloseq", "init_files", "init.R")) #for libraries
+source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source(here("phyloseq", "init_files", "colours_18sv4.R")) # predetermined colours
+#source(here("phyloseq", "init_files", "colours_random.R")) #random colours
+source(here("phyloseq", "trophic_mode", "trophic_function.R"))  # Function to assign trophic function for phyloseq objects. 2 
+source(here("phyloseq", "init_files", "top_taxa_func.R")) #Function to select top taxa
+```
+
+# Sorted pico
+## Read data
+remove heterotrophs and 2 samples 
+also removing 
+```{r}
+source(here("phyloseq", "init_files", "read_pico.R"))
+
+#Assign trophic mode and remove heterotrophics that are not dinophyceae
+ps_pico <- phyloseq_assign_trophic(ps_pico) %>%
+    subset_taxa(trophic_mode_2 != "heterotrophic")
+
+# Do normalizations and transformation
+ps_pico <- phyloseq_normalize_median(ps_pico)
+long_pico <- phyloseq_transform_to_long(ps_pico) %>%
+    filter(!(file_code %in% c("pico-01-30", "pico-15"))) %>% #filter problem samples
+    filter(!(cycle_exp =="SA1_2" & SAMPLE == "DCM")) %>% #only intials in these experiments
+    filter(!(cycle_exp == "SA1_1" & SAMPLE == "DCM")) 
+
+#create levels for factors
+long_pico <- long_pico %>%
+    mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+    mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic", "dinophyceae")) %>%
+    mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+    mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark")) %>%
+    mutate(depth_cat = fct_relevel(SAMPLE, "SUR", "DCM"))
+
+```
+
+```{r}
+#subset top 10 ASVs per sample, only surface samples
+long_pico_1 <- long_pico %>%
+    ps_top_asv(10)
+
+#average of each cycle
+p2 <-  long_pico_1 %>%
+    filter(SAMPLE=="SUR") %>%
+    filter(!(cycle_exp =="SA1_2")) %>% 
+    complete(cycle_exp, vial_type, SAMPLE) %>%
+    drop_na(cycle_name_2) %>%
+    filter(vial_type == "light") %>%
+    mutate(class = fct_lump_n(class, 7, other_level = "Others")) %>%
+    mutate(class = fct_relevel(class, c("Chloropicophyceae", "Mamiellophyceae", "Bolidophyceae", "Chrysophyceae", "Pelagophyceae", "Prymnesiophyceae", "Dinophyceae" , "Others"))) %>%
+    ggplot(aes(x=cycle_name_2, y=n_reads, fill=class, colour=class)) + 
+            geom_bar(position="fill", stat="identity") + 
+            theme_minimal()+
+            theme(axis.text.x=element_blank(), #remove x axis labels
+                axis.ticks.x=element_blank(),#remove x axis ticks
+                panel.grid.major.x = element_blank() , # remove the vertical grid lines
+                panel.grid.major.y = element_line( size=.1, color="black" ))+ # explicitly set the horizontal lines (or they will disappear too)
+            scale_fill_manual(values=colours_18s_class, limits = force) +
+            scale_colour_manual(values=colours_18s_class, limits = force)+
+            ylab("Proportion of reads") +
+            xlab(NULL)
+p2
+```
+
+
+# Sorted nano
+## Read data
+```{r}
+source(here("phyloseq", "init_files", "read_nano.R"))
+
+#assign trophic mode and remove heterotrophics that are not dinophyceae
+ps_nano <- phyloseq_assign_trophic(ps_nano)%>%
+    subset_taxa(trophic_mode_2 != "heterotrophic")
+
+# Do normalizations and long form, remove few samples.
+ps_nano <- phyloseq_normalize_median(ps_nano)
+long_nano <- phyloseq_transform_to_long(ps_nano) %>%
+    filter(!(file_code %in% c("nano-12"))) 
+
+#order all the factors
+long_nano <- long_nano %>%
+  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+  mutate(trophic_mode = fct_relevel(trophic_mode, "photosynthetic", "mixotrophic"))  %>%
+  mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic",  "dinophyceae"))  %>%
+  mutate(cycle_name_2 =  fct_relevel(cycle_name_2,"ST1", "ST2", "SA1", "SA2", "SA3"))  %>%
+  mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark"))
+```
+
+```{r}
+#subset top 15 ASVs per sample, only surface samples
+long_nano_1 <- long_nano %>%
+    ps_top_asv(15)
+
+# plot average of each cycle
+p3 <-  long_nano_1 %>%
+    filter(SAMPLE=="SUR") %>%
+    complete(cycle_exp, vial_type, SAMPLE) %>%
+    filter(!(cycle_exp =="SA1_2")) %>%
+    filter(vial_type== "light") %>%
+    drop_na(cycle_name_2) %>%
+    mutate(order = fct_infreq(order)) %>%
+    mutate(order = fct_lump_n(order, 13, other_level = "Others")) %>%
+    mutate(order = factor(order, levels = c("Cryptomonadales", "Chlorellales",  "Bacillariophyta_X",  "Isochrysidales", "Prymnesiales", "Phaeocystales","Syracosphaerales" ,  "Haptophyta_Clade_HAP3_X", "Dinophyceae_X","Suessiales", "Gymnodiniales","Peridiniales", "Prorocentrales", "Calcihaptophycidae", "Others"))) %>%
+  ggplot(aes(x=cycle_name_2, y=n_reads, fill=order, colour=order)) + 
+        geom_bar(position="fill", stat="identity") + 
+    theme_minimal()+
+  theme(axis.text.x=element_blank(), #remove x axis labels
+        axis.ticks.x=element_blank(),#remove x axis ticks
+           panel.grid.major.x = element_blank() , # remove the vertical grid lines
+           panel.grid.major.y = element_line( size=.1, color="black" ))+ # explicitly set the horizontal lines (or they will disappear too)
+        scale_fill_manual(values=colours_18s_order, limits = force) +
+    scale_colour_manual(values=colours_18s_order, limits = force) +
+  ylab("Proportion of reads") +
+    xlab(NULL)
+p3
+```
+
+```{r}
+source(here("phyloseq", "init_files", "colours_petb.R")) #colours
+# Read data
+
+source(here("phyloseq", "init_files", "read_petb.R"))
+
+#sorted
+long <- long_sorted %>%
+  dplyr::rename(station = STN) %>%
+  mutate(cycle_name = recode(Cycle., "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(cycle_station = str_c (cycle_name, station, sep = "_")) %>%
+  filter(sample_name != "syn-02-5") %>%
+  filter(sample_name != "syn-01-20") %>%
+  mutate(cycle_station = recode (cycle_station, "ST1_207" = "ST1_3",
+                                                "ST1_223" = "ST1_4",
+                                                "ST2_266" = "ST2_1",
+                                                "ST2_283" = "ST2_3",
+                                                "SA1_24" = "SA1_3",
+                                                "SA1_15" = "SA1_5",
+                                                "SA2_150" = "SA2_3",
+                                                "SA2_188" = "SA2_2",
+                                                "SA2_176" = "SA2_4",
+                                                "SA3_324" = "SA3_1"))  %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1","SA2","SA3")) %>%
+  mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark"))
+
+long$cycle_station <- factor(long$cycle_station, levels = c("ST1_3", "ST1_4", "ST2_1", "ST2_3", "SA1_3", "SA1_5", "SA2_2", "SA2_3", "SA2_4", "SA3_1"))
+
+
+p1 <- long %>%
+  filter(SAMPLE == "SUR") %>%
+  filter(vial_type == "light") %>%
+  mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others", "CRD1"= "Others", "EnvA"= "Others", "EnvB"= "Others"))  %>%
+  ggplot(aes(x=cycle_name, y=n_reads, color=Subclade, fill=Subclade)) + 
+        geom_bar(position="fill", stat="identity") + 
+    theme_minimal()+
+  theme(axis.text.x=element_blank(), #remove x axis labels
+        axis.ticks.x=element_blank(),#remove x axis ticks
+           panel.grid.major.x = element_blank() , # remove the vertical grid lines
+           panel.grid.major.y = element_line( size=.1, color="black" ))+ # explicitly set the horizontal lines (or they will disappear too)
+        scale_color_manual(values=colours_petb_subclade, limits = force) + 
+        scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  ylab("Proportion of reads")+
+    xlab(NULL)
+p1
+```
+
+```{r}
+library(cowplot)
+legend_2 <- get_legend(
+  p2 + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+legend_3 <- get_legend(
+  p3 + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+legend_1 <- get_legend(
+  p1 + 
+    guides(color = guide_legend(nrow = 1)) +
+    theme(legend.position = "bottom")
+)
+
+prow <- plot_grid(
+  p2  + ylab(NULL) + theme(legend.position="none"),
+  legend_2,
+  p3 + theme(legend.position="none"),
+  legend_3,
+  p1 + theme(legend.position="none") + ylab(NULL),
+  legend_1,
+  align = 'v',
+  axis = "l",
+  hjust = -1,
+  nrow = 6,
+  rel_heights = c(1, 0.2, 1, 0.3, 1, 0.1)
+)
+
+prow
+pdf(here("phyloseq", "figures_GRC", "barplot_com.pdf"), height=17, width=7) ; plot(prow) ; dev.off()
+
+```
+
