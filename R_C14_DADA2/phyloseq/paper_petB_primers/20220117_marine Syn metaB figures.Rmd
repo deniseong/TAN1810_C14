@@ -4,10 +4,11 @@ author: "Denise Ong"
 date: "1/17/2022"
 output: html_document
 ---
+for public github
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("phyloseq", "init.R")) #for libraries
+source(here("phyloseq", "init_files", "init.R")) #for libraries
 source(here("phyloseq", "init_markdown.R")) #for markdown libraries
 source(here("phyloseq", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
 source(here("phyloseq", "colours_petb.R")) #colours

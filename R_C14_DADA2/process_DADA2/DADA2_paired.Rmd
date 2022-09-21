@@ -516,6 +516,8 @@ seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>%
   distinct()
     
 write_tsv(seqtab.nochim_trans, output_path("_dada2.tsv"), na="")
+#seqtab.nochim_trans <- read.csv("output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_dada2.tsv", sep = "\t") %>%
+#    rename_all(funs(stringr::str_replace_all(., '\\.', '-')))
 ```
 
 ## Create tables for import to database
@@ -568,22 +570,29 @@ taxa <- taxa %>%
 otus <- as.matrix(otus)
 taxa <- as.matrix(taxa)
 
-# Some samples were excluded so need to use semi_join to only include samples in the list.
-#sample <- readxl::read_excel("sample_list/sampleList_CTD_18SV4.xlsx")# %>%
-#  arrange(sorting_number)
+# Some samples were excluded to place into different rds files so need to use semi_join to only include samples in the list.
+sample <- readxl::read_excel("sample_list/sampleList_CTD_petB_normal_2.0.xlsx") #%>%
+ # arrange(sorting_number)
 sample_join <- semi_join(sample, sample_names_check, by = c("sample_name" = "sample.names"))
 row.names(sample_join) <- sample_join$sample_name
+#row.names(sample) <- sample$sample_name
 
 otus= otu_table(otus, taxa_are_rows = TRUE)
 taxa = tax_table(taxa)
 sample_join = sample_data(sample_join, errorIfNULL = T)
 row.names(sample_join) <- sample_join$sample_name
 
+#sample = sample_data(sample, errorIfNULL = T)
+#row.names(sample) <- sample$sample_name
+
+
 ps <- merge_phyloseq(otus, taxa, sample_join)
+#ps <- merge_phyloseq(otus, taxa, sample)
 
 ps
+junk <- data.frame(ps@sam_data)
 
-saveRDS(ps, output_path("_phyloseq_CTD.RDS"))
+saveRDS(ps, output_path("petB Mazard primer_phyloseq_CTD_2.0.RDS"))
 
 ```
 

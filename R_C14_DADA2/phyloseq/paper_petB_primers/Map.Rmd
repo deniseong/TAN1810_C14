@@ -15,7 +15,7 @@ lat <- c(-46, -40)
 lon <- c(172,-176)
 plotmap(lon=lon, lat=lat)
 
-sampling_location <-  readxl::read_excel(here("phyloseq", "paper_petB_primers", "figures_petb compare", "supp_sample_list_v1.xlsx"), sheet="original_cycle") %>%
+sampling_location <-  readxl::read_excel(here("phyloseq", "paper_petB_primers", "figures_petb compare_1.0", "supp_sample_list_v1.xlsx"), sheet="original_cycle") %>%
     dplyr::select(lat, long) %>%
     distinct()
 ```

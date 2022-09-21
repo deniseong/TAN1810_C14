@@ -17,7 +17,6 @@ Remove Richellia
 
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
-
 source("phyloseq/init_files/init.R") #for libraries
 source("phyloseq/init_files/init_markdown.R") #for markdown libraries
 source("phyloseq/init_files/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
@@ -371,7 +370,11 @@ library(xtable)
 print(xtable(stats_join),
       comment = FALSE)
 
-table<-  readxl::read_excel("phyloseq/figures_petb compare/supp_sample_list_v1.xlsx", sheet="corrected_cycle_v3")
+
+table<-  readxl::read_excel(here("subclade_stats_2.0.xlsx")) %>%
+  mutate_if(is.numeric,round,digits=2)
+
+table <- read.csv("supp_sample_list_2.0.txt", sep = "\t")
 print(xtable(table),
       comment = FALSE,
       include.rownames=FALSE)
@@ -884,5 +887,67 @@ p
 
 pdf("phyloseq/figures_petb compare/tax_composition_all.pdf", height=9, width=7) ; plot(p) ; dev.off()
 
+```
+
+# Create separate fasta for each subclade
+```{r}
+phyloseq_otu_taxo <- function(ps) {
+otu_df <- as.data.frame(ps@otu_table@.Data, stringsAsFactors = FALSE) %>%
+    rowwise()%>%
+    summarise(n_reads_sum = sum(c_across(where(is.numeric)))) %>%
+    rownames_to_column(var = "asv_number") %>%
+    ungroup()
+
+taxo_df <- as.data.frame(ps@tax_table@.Data, stringsAsFactors = FALSE) %>%
+    rownames_to_column(var = "asv_code") %>%
+    rownames_to_column(var = "asv_number")
+otu_taxo <- full_join(taxo_df, otu_df)
+
+return(otu_taxo)
+}
+
+nested_otu_taxo <- phyloseq_otu_taxo(ps_ctd_nested)
+normal_otu_taxo <- phyloseq_otu_taxo(ps_ctd_normal) 
+
+#for Ong_2022 overlapping samples
+long_ctd_nested_sub <- semi_join(long_ctd_nested, long_ctd_normal, by = "sample_number") %>%
+  select(asv_code:Subclade) %>%
+  distinct()
+
+nested_seq <- read.table(file = "output_petb_2x300/output_petb_Denise/merged_v2/petB_Denise primer_Farrant_asv.txt", header = TRUE) %>%
+    #full_join(nested_otu_taxo) %>%
+    semi_join(long_ctd_nested_sub) %>%
+    #select(-asv_number) %>%
+    drop_na()
+
+normal_seq <- read.table(file = "output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_Farrant_asv.txt", header = TRUE) %>%
+    full_join(normal_otu_taxo) %>%
+    select(-asv_number) %>%
+    drop_na()
+
+for (i in c("VIc", "II-WPC2", "V", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1", "Ia", "IVa", "IVb", "Ib")) {
+    nested_seq_sub <- nested_seq %>%
+        filter(Subclade == i) %>%
+      select(asv_code:Subclade_boot, sequence_hash)
+       # select(asv_code:Subclade_boot, n_reads_sum) %>%
+      #  arrange(-n_reads_sum)
+    writexl::write_xlsx(nested_seq_sub,str_c("phyloseq/output_checking alignment/Denise_CTD_subset/merged Denise CTD subset_", i, ".xlsx"))
+    seq_out <- Biostrings::DNAStringSet(nested_seq_sub$sequence)
+    names(seq_out) <- str_c(nested_seq_sub$asv_code,nested_seq_sub$Subclade, sep="|") #need to change.
+    Biostrings::writeXStringSet(seq_out, str_c("phyloseq/output_checking alignment/Denise_CTD_subset/merged Denise CTD subset_", i, ".fasta"),
+                                compress=FALSE, width = 20000)
+}
+
+for (i in c("Rich")) {
+    nested_seq_sub <- nested_seq %>%
+        filter(Subclade == i) %>%
+        select(asv_code:Subclade_boot, n_reads_sum) %>%
+        arrange(-n_reads_sum)
+    writexl::write_xlsx(nested_seq_sub,str_c("phyloseq/output_checking alignment/Denise_CTD/merged Denise CTD_", i, ".xlsx"))
+    seq_out <- Biostrings::DNAStringSet(nested_seq_sub$sequence)
+    names(seq_out) <- str_c(nested_seq_sub$asv_code,nested_seq_sub$Subclade, sep="|") #need to change.
+    Biostrings::writeXStringSet(seq_out, str_c("phyloseq/output_checking alignment/Denise_CTD/merged Denise CTD_", i, ".fasta"),
+                                compress=FALSE, width = 20000)
+}
 ```
 

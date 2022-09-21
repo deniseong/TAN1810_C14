@@ -7,15 +7,15 @@ output: html_document
 
 Basic plots for final petB merged data.
 Using degenerate base join R1 and R2, removing chimeras.
-
+20220914: change file read to be Mazard primer CTD_2.0 for ALL samples.
 
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 
-source("phyloseq/init.R") #for libraries
-source("phyloseq/init_markdown.R") #for markdown libraries
-source("phyloseq/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
-source("phyloseq/colours_petb.R") #colours
+source("phyloseq/init_files/init.R") #for libraries
+source("phyloseq/init_files/init_markdown.R") #for markdown libraries
+source("phyloseq/init_files/define_functions.R") #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source("phyloseq/init_files/colours_petb.R") #colours
 ```
 
 # Sorted syn -petB Denise primer
@@ -204,7 +204,7 @@ pdf("phyloseq/figures_20211027/CTD Denise__exp.pdf", height=5, width=8) ; plot(p
 ##Read data
 ```{r}
 # Load the phyloseq files
-ps_ctd_normal <- read_rds("output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_phyloseq_CTD.RDS")  # adding new component, this case the phyloseq object to the "tag" all
+ps_ctd_normal <- read_rds("output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_phyloseq_CTD_2.0.RDS")  # adding new component, this case the phyloseq object to the "tag" all
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_ctd_normal)$water_mass <- sample_data(ps_ctd_normal)$cycle
@@ -243,7 +243,7 @@ long_ctd_normal <- phyloseq_transform_to_long(ps_ctd_normal)
 ```{r}
 p5 <- long_ctd_normal %>%
    # mutate(Subclade = fct_infreq(Subclade))%>%
-    filter(sample_name != "CTD-petB-neg2") %>%
+   # filter(sample_name != "CTD-petB-neg2") %>%
   ggplot(aes(x=file_code, y=n_reads, color=Subclade, fill=Subclade)) + 
         geom_bar(position="fill", stat="identity") + 
         theme(text=element_text(size=10),
@@ -254,14 +254,14 @@ p5 <- long_ctd_normal %>%
         scale_fill_manual(values=colours_petb_subclade, limits = force) 
 p5
 
-pdf("phyloseq/figures_20211027/CTD Mazard_all.pdf", height=5, width=8) ; plot(p5) ; dev.off()
+#pdf("phyloseq/figures_20211027/CTD Mazard_all.pdf", height=5, width=8) ; plot(p5) ; dev.off()
 ```
 
 # CTD- petB Mazard primer - remove Richellia
 ##Read data
 ```{r}
 # Load the phyloseq files
-ps_ctd_normal_R2 <- read_rds("output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_phyloseq_CTD.RDS")  # adding new component, this case the phyloseq object to the "tag" all
+ps_ctd_normal_R2 <- read_rds("output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_phyloseq_CTD_2.0.RDS")  # adding new component, this case the phyloseq object to the "tag" all
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_ctd_normal_R2)$water_mass <- sample_data(ps_ctd_normal_R2)$cycle
@@ -303,8 +303,8 @@ long_ctd_normal_R2 <- phyloseq_transform_to_long(ps_ctd_normal_R2)
 ```{r}
 p6 <- long_ctd_normal_R2 %>%
    # mutate(Subclade = fct_infreq(Subclade))%>%
-    filter(sample_name != "CTD-petB-neg2") %>%
-    ggplot(aes(x=cycle_station_location_name, y=n_reads, color=Subclade, fill=Subclade)) + 
+    #filter(sample_name != "CTD-petB-neg2") %>%
+    ggplot(aes(x=file_code, y=n_reads, color=Subclade, fill=Subclade)) + 
         geom_bar(position="fill", stat="identity") + 
         theme(text=element_text(size=10),
               axis.text.x = element_text(angle = 45, hjust = 1))+ 
@@ -315,7 +315,7 @@ p6 <- long_ctd_normal_R2 %>%
   
 p6
 
-pdf("phyloseq/figures_20211027/CTD Mazard_remove rich_exp.pdf", height=5, width=8) ; plot(p6) ; dev.off()
+#pdf("phyloseq/figures_20211027/CTD Mazard_remove rich_exp.pdf", height=5, width=8) ; plot(p6) ; dev.off()
 ```
 
 ## Normal CTD negative

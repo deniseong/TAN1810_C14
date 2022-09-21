@@ -1,0 +1,18 @@
+Clade	Subclade	No. of ref seq	Ref. database	Mazard_2012	Ong_2022
+I	Ib	55	94.8	92.3	91.9
+IV	IVb	20	97.6	94.9	91.9
+IV	IVa	21	95.9	93.9	91.9
+I	Ia	19	95.6	93.2	91.6
+CRD1		23	90.8	94.1	91.6
+EnvA		10	90.9	95.7	94.7
+EnvB		13	91.3	96.9	92.7
+ WPC1 		11	92.8		89.7
+II	IIh	10	92.9		90.8
+II	IIe	4	98.1		93.2
+UC-A		1		30.5	87.7
+I	Ic	18	94.7	95	92.3
+VI	VIb	20	97.6		92.5
+II	II-WPC2	1		25.9	85.9
+V		2	99.7	92.7	87.4
+VI	VIc	4	97.1	99.8	
+II	IIb	13	93.3	N/A	
