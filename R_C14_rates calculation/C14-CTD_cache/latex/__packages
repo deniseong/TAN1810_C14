@@ -1,9 +1,0 @@
-base
-knitr
-rmdformats
-ggplot2
-dplyr
-readxl
-lubridate
-cowplot
-plyr

@@ -94,7 +94,7 @@ p <- join_filt %>%
 p
 
 #export as PDF
-pdf("tax_composition_filtered_2.0.pdf", height=8, width=7) ; plot(p) ; dev.off()
+#pdf("tax_composition_filtered_2.0.pdf", height=8, width=7) ; plot(p) ; dev.off()
 #pdf(here("5_Phyloseq output and figures", "output", "tax_composition_filtered.pdf"), height=8, width=7) ; plot(p) ; dev.off()
 
 ```
@@ -103,8 +103,8 @@ pdf("tax_composition_filtered_2.0.pdf", height=8, width=7) ; plot(p) ; dev.off()
 ```{r}
 # Ong_2022
 long_ong_pct <- long_filt_ong %>%
-    select(water_mass, cycle_name, sample_number, sample_name, Clade, Subclade, n_reads) %>%
-    group_by(water_mass, cycle_name, sample_number, Clade, Subclade) %>%
+    select(water_mass, cycle, sample_number, sample_name, Clade, Subclade, n_reads) %>%
+    group_by(water_mass, cycle, sample_number, Clade, Subclade) %>%
     summarise(n_reads = sum(n_reads)) %>%
     filter(!is.na(sample_number)) %>%
     group_by(sample_number) %>% 
@@ -113,8 +113,8 @@ long_ong_pct <- long_filt_ong %>%
 
 # Mazard_2012
 long_mazard_pct <- long_filt_mazard %>%
-    select(water_mass, cycle_name, sample_number, sample_name, Clade, Subclade, n_reads) %>%
-    group_by(water_mass, cycle_name, sample_number, Clade, Subclade) %>%
+    select(water_mass, cycle, sample_number, sample_name, Clade, Subclade, n_reads) %>%
+    group_by(water_mass, cycle, sample_number, Clade, Subclade) %>%
     summarise(n_reads = sum(n_reads)) %>%
     filter(!is.na(sample_number)) %>%
     group_by(sample_number) %>% 
@@ -123,7 +123,12 @@ long_mazard_pct <- long_filt_mazard %>%
 
 # join Mazard_2012 and Ong_2022 to one dataframe
 join_filt_pct <- full_join(long_ong_pct, long_mazard_pct)  %>%
- replace_na(list(percent_ong = 0, percent_mazard = 0))
+ replace_na(list(percent_ong = 0, percent_mazard = 0)) %>%
+  mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3"))
 
 #long form - for figures and tables
 join_filt_pct_long <- join_filt_pct %>%
@@ -136,9 +141,17 @@ join_filt_pct_long <- join_filt_pct %>%
 
 # wide form - for checking taxonomic composition per sample
 join_filt_pct_wide <- join_filt_pct %>%
+  select(-Clade) %>%
   pivot_wider(names_from = Subclade, values_from = c(percent_ong, percent_mazard))
-writexl::write_xlsx(join_filt_pct_wide, here("5_Phyloseq output and figures", "output", "filt_subclade_percent_wide.xlsx"))
+#writexl::write_xlsx(join_filt_pct_wide, here("5_Phyloseq output and figures", "output", "filt_subclade_percent_wide.xlsx"))
 #writexl::write_xlsx(join_filt_pct_wide, "filt_subclade_percent_wide_2.0.xlsx")
+
+join_filt_pct_wide_summary <- join_filt_pct_wide %>%
+  replace(is.na(.), 0) %>%
+  select(-water_mass, -cycle, -sample_number) %>%
+  group_by(cycle_name) %>%
+  summarise(across(everything(), list(mean)))
+#writexl::write_xlsx(join_filt_pct_wide_summary, "filt_subclade_percent_wide_summary_2.0.xlsx")
 ```
 
 # Table S2. For each subclade, percentage of reads, wilcoxon test and number of ASVs for filtered samples 
@@ -173,8 +186,8 @@ for (i in c("Ia", "Ib", "IVa", "IVb", "CRD1", "EnvA", "EnvB", "UC-A", "Ic", "II-
 }
 
 #data not normal, use paired samples wilcoxon test
-for (i in c("Ia", "Ib", "IVa", "IVb", "CRD1", "EnvA", "EnvB", "UC-A", "Ic", "II-WPC2")) {
-  sub_data <- join_filt_pct_long %>%
+for (i in c("Ia", "Ib", "IVa", "IVb", "CRD1", "EnvA", "EnvB", "UC-A", "Ic", "II-WPC2", "V")) {
+  sub_data <- join_filt_pct %>%
     filter(Subclade == i)
   res <- wilcox.test(percent ~ type, data = sub_data, paired = TRUE)
   print(res)
@@ -218,8 +231,10 @@ asv_count_long <- asv_count %>%
 ## Compute mean, min, max for percentage of reads
 ```{r}
 stats <- join_filt_pct %>%
+ group_by(water_mass, cycle_name, cycle, Clade) %>%
+
   replace_na(list(percent_mazard = 0, percent_ong = 0))%>%
-  group_by(Clade, Subclade) %>%
+  group_by(Subclade) %>%
   summarise(mean_ong = mean(percent_ong),
             max_ong = max(percent_ong),
             min_ong = min(percent_ong),
@@ -233,7 +248,7 @@ stats
 stats_join <- full_join(asv_count, stats)
 
 #writexl::write_xlsx(stats_join, here("5_Phyloseq output and figures", "output", "subclade_summary_filt.xlsx"))
-writexl::write_xlsx(stats_join, "subclade_summary_filt_2.0.xlsx")
+#writexl::write_xlsx(stats_join, "subclade_summary_filt_2.0.xlsx")
 ```
 
 
@@ -253,7 +268,7 @@ p1
   
 p2 <- join_filt_pct_long %>%
     filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
-  filter(percent !=0) %>%
+  #filter(percent !=0) %>%
   ggplot(aes(x=percent, y = fct_relevel(Subclade, "IIb", "VIc", "V", "II-WPC2", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1"), colour=type)) +
   geom_boxplot(position=position_dodge(0.7), width=0.6) +
   geom_point(position=position_jitterdodge(0.15), alpha = 3/10)+
@@ -300,7 +315,7 @@ g<- plot_grid( legend_b,prow, ncol = 1, rel_heights = c(.04, 1))
 g
 
 #pdf(here("5_Phyloseq output and figures", "output", "pct_reads_asv.pdf"), height=10, width=7) ; plot(g) ; dev.off()
-pdf("pct_reads_asv_2.0.pdf", height=10, width=7) ; plot(g) ; dev.off()
+#pdf("pct_reads_asv_2.0.pdf", height=10, width=7) ; plot(g) ; dev.off()
 
 ```
 
@@ -507,8 +522,8 @@ sorted_asv <- long_sorted %>%
 
 # Transform no. of reads to percent
 long_sorted_pct <- long_sorted %>%
-    select(water_mass, cycle_station, sample_name, Subclade, n_reads) %>%
-    group_by(water_mass, cycle_station, sample_name, Subclade) %>% 
+    select(water_mass, cycle_name, cycle_station, sample_name, Subclade, n_reads) %>%
+    group_by(water_mass, cycle_name, cycle_station, sample_name, Subclade) %>% 
     summarise(n_reads = sum(n_reads)) %>%
     mutate(percent = n_reads / sum(n_reads) * 100)
 
@@ -516,7 +531,7 @@ long_sorted_pct <- long_sorted %>%
 wide <- long_sorted_pct %>%
   select(-n_reads) %>%
   pivot_wider(names_from = Subclade, values_from = percent)
-writexl::write_xlsx(wide, "subclade_percent_wide.xlsx")
+#writexl::write_xlsx(wide, "subclade_percent_wide.xlsx")
 
 # For each subclade, compute mean, min, max, standard deviation
 summary <- long_sorted_pct %>%
@@ -534,7 +549,7 @@ sorted_asv_subclade<- long_sorted %>%
   tally(sort = TRUE) %>%
   dplyr::rename("ASV"= n)
 
-join <- full_join(sorted_asv_subclade, summary)
+#join <- full_join(sorted_asv_subclade, summary)
 #writexl::write_xlsx(join, here("5_Phyloseq output and figures", "output", "subclade_summary_sorted.xlsx"))
 
 #average no. of ASVs per sample
@@ -586,3 +601,113 @@ pdf("tax_composition_all_2.0.pdf", height=9, width=7) ; plot(p) ; dev.off()
 #pdf(here("5_Phyloseq output and figures", "output", "tax_composition_all.pdf"), height=9, width=7) ; plot(p) ; dev.off()
 
 ```
+
+## Filt and sorted- mean proportion of reads per lineage per cycle
+```{r}
+filt_average <- join_filt_pct %>%
+  select(cycle_name,Subclade,percent_ong,percent_mazard)%>%
+  group_by(cycle_name,Subclade) %>%
+  summarise(ong =mean(percent_ong),
+         mazard = mean(percent_mazard)) #%>%
+ # pivot_wider(names_from = Subclade, values_from = c(average_ong, average_mazard))
+filt_average
+
+sorted_average <- long_sorted_pct %>%
+  select(cycle_name, Subclade, percent) %>%
+  group_by(cycle_name, Subclade) %>%
+  summarise(sorted = mean(percent))
+sorted_average
+
+average_cycle_join <- full_join(filt_average, sorted_average) %>%
+  pivot_longer(ong:sorted, names_to = "type", values_to= "percent") %>%
+  pivot_wider(names_from = Subclade, values_from = percent) %>%
+  ungroup() %>%
+  replace(is.na(.), 0)
+```
+
+```{r}
+#make community matrix - extract columns with abundance information
+com <-  average_cycle_join[,3:ncol(average_cycle_join)]
+#turn abundance data frame into a matrix
+m_com = as.matrix(com)
+
+set.seed(1)
+nmds = metaMDS(m_com, distance = "bray")
+nmds
+plot(nmds)
+
+data.scores = as.data.frame(scores(nmds))
+#add columns to data frame 
+data.scores$cycle_name = average_cycle_join$cycle_name
+data.scores$type = average_cycle_join$type
+ 
+p <- data.scores %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = type, shape =cycle_name)) +
+    geom_point()
+p
+```
+
+```{r}
+check <- average_cycle_join %>%
+  mutate(name = paste(cycle_name, type, sep = "_")) %>%
+  select(-cycle_name, -type)
+
+check <- check %>%
+  column_to_rownames(var = "name")
+
+dist <- vegan::vegdist(check, "bray")
+hc <- hclust(dist, method = "complete")
+plot(hc, hang = -1)
+```
+
+```{r}
+df <- scale(USArrests)
+d <- dist(df)
+
+# Hierarchical clustering
+hc <- hclust(d)
+
+# Dendrogram
+plot(hc)
+```
+
+```{r}
+filt_clust <- join_filt_pct %>%
+  select(sample_number, Subclade:cycle_name)  %>%
+  pivot_longer(percent_ong:percent_mazard, names_to = "type", values_to= "percent") %>%
+  pivot_wider(names_from = Subclade, values_from = percent) %>%
+  mutate(type = recode(type, "percent_ong" = "Ong", "percent_mazard"= "Mazard")) %>%
+  mutate(name = paste(cycle_name, sample_number, type, sep = "_")) %>%
+  column_to_rownames(var = "name") %>%
+  select(!(cycle_name:type)) %>%
+  select(-sample_number) %>%
+  replace(is.na(.), 0)
+
+dist_filt <- vegan::vegdist(filt_clust, "bray")
+hc_filt <- hclust(dist_filt, method = "complete")
+plot(hc_filt, hang = -1)
+
+#nmds
+library(vegan)
+set.seed(1)
+nmds = vegan::metaMDS(filt_clust, distance = "bray")
+nmds$stress
+
+
+filt_clust2 <- join_filt_pct %>%
+  select(sample_number, Subclade:cycle_name)  %>%
+  pivot_longer(percent_ong:percent_mazard, names_to = "type", values_to= "percent") %>%
+  pivot_wider(names_from = Subclade, values_from = percent) %>%
+  mutate(type = recode(type, "percent_ong" = "Ong", "percent_mazard"= "Mazard"))
+
+data.scores = as.data.frame(scores(nmds))
+#add columns to data frame 
+data.scores$cycle_name = filt_clust2$cycle_name
+data.scores$type = filt_clust2$type
+ 
+p <- data.scores %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = type, shape = cycle_name)) +
+    geom_point()
+p
+```
+

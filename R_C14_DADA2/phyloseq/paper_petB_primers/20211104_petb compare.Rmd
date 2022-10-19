@@ -374,10 +374,12 @@ print(xtable(stats_join),
 table<-  readxl::read_excel(here("subclade_stats_2.0.xlsx")) %>%
   mutate_if(is.numeric,round,digits=2)
 
-table <- read.csv("supp_sample_list_2.0.txt", sep = "\t")
+table <- read.csv("filt_subclade_percent_wide_summary_2.0.txt", sep = "\t")
+library(xtable)
 print(xtable(table),
       comment = FALSE,
-      include.rownames=FALSE)
+      include.rownames=FALSE,
+      digits=-3)
 
 ```
 
@@ -951,3 +953,78 @@ for (i in c("Rich")) {
 }
 ```
 
+```{r}
+#make community matrix - extract columns with abundance information
+com <-  average_cycle_join[,3:ncol(average_cycle_join)]
+#turn abundance data frame into a matrix
+m_com = as.matrix(com)
+
+set.seed(1)
+nmds = metaMDS(m_com, distance = "bray")
+nmds
+plot(nmds)
+
+data.scores = as.data.frame(scores(nmds))
+#add columns to data frame 
+data.scores$cycle_name = average_cycle_join$cycle_name
+data.scores$type = average_cycle_join$type
+ 
+p <- data.scores %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = type, shape =cycle_name)) +
+    geom_point()
+p
+```
+
+```{r}
+check <- average_cycle_join %>%
+  mutate(name = paste(cycle_name, type, sep = "_")) %>%
+  select(-cycle_name, -type)
+
+check <- check %>%
+  column_to_rownames(var = "name")
+
+dist <- vegan::vegdist(check, "bray")
+hc <- hclust(dist, method = "complete")
+plot(hc, hang = -1)
+```
+
+
+```{r}
+filt_clust <- join_filt_pct %>%
+  select(sample_number, Subclade:cycle_name)  %>%
+  pivot_longer(percent_ong:percent_mazard, names_to = "type", values_to= "percent") %>%
+  pivot_wider(names_from = Subclade, values_from = percent) %>%
+  mutate(type = recode(type, "percent_ong" = "Ong", "percent_mazard"= "Mazard")) %>%
+  mutate(name = paste(cycle_name, sample_number, type, sep = "_")) %>%
+  column_to_rownames(var = "name") %>%
+  select(!(cycle_name:type)) %>%
+  select(-sample_number) %>%
+  replace(is.na(.), 0)
+
+dist_filt <- vegan::vegdist(filt_clust, "bray")
+hc_filt <- hclust(dist_filt, method = "complete")
+plot(hc_filt, hang = -1)
+
+#nmds
+library(vegan)
+set.seed(1)
+nmds = vegan::metaMDS(filt_clust, distance = "bray")
+nmds$stress
+
+
+filt_clust2 <- join_filt_pct %>%
+  select(sample_number, Subclade:cycle_name)  %>%
+  pivot_longer(percent_ong:percent_mazard, names_to = "type", values_to= "percent") %>%
+  pivot_wider(names_from = Subclade, values_from = percent) %>%
+  mutate(type = recode(type, "percent_ong" = "Ong", "percent_mazard"= "Mazard"))
+
+data.scores = as.data.frame(scores(nmds))
+#add columns to data frame 
+data.scores$cycle_name = filt_clust2$cycle_name
+data.scores$type = filt_clust2$type
+ 
+p <- data.scores %>%
+    ggplot(aes(x=NMDS1, y= NMDS2, colour = type, shape = cycle_name)) +
+    geom_point()
+p
+```

@@ -41,7 +41,7 @@ theme_set(theme_bw())
 
 # Load data
 ```{r}
-pp_data <- readxl::read_excel(here("C14_rates per group_method2.xlsx"))%>%
+pp_data <- readxl::read_excel(here("data_used", "C14_rates per group_method2.xlsx"))%>%
   mutate(cycle_name = recode(cycle, "1" = "SA1",
                                     "2" = "SA2",
                                     "3" = "ST1",

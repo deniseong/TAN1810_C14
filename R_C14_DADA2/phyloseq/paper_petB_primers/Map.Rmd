@@ -13,7 +13,7 @@ library(here)
 
 lat <- c(-46, -40)
 lon <- c(172,-176)
-plotmap(lon=lon, lat=lat)
+#plotmap(lon=lon, lat=lat)
 
 sampling_location <-  readxl::read_excel(here("phyloseq", "paper_petB_primers", "figures_petb compare_1.0", "supp_sample_list_v1.xlsx"), sheet="original_cycle") %>%
     dplyr::select(lat, long) %>%
@@ -32,9 +32,9 @@ library(ggspatial)
 # load data
 world <- ne_countries(scale = "medium", returnclass = "sf")
 
-sampling_location <-  readxl::read_excel("phyloseq/figures_petb compare/supp_sample_list_v1.xlsx", sheet="original_cycle") %>%
-    select(lat, long,cycle_name) %>%
-    distinct()
+#sampling_location <-  readxl::read_excel("phyloseq/figures_petb compare/supp_sample_list_v1.xlsx", sheet="original_cycle") %>%
+#    select(lat, long,cycle_name) %>%
+#    distinct()
 
 #deal with dateline using st_shift_longitude
 world_2 = st_shift_longitude(world)
@@ -55,19 +55,137 @@ p<-ggplot() +
 
 p
 
-pdf("phyloseq/map.pdf", height=4, width=6) ; plot(p) ; dev.off()
+#pdf("phyloseq/map.pdf", height=4, width=6) ; plot(p) ; dev.off()
 ```
 
 
 #trying ggoceanmaps package
 ```{r}
 library(ggOceanMaps)
-basemap(data= expand.grid(lon = c(-179, 172), lat = c(-46, -42)), rotate = TRUE) +
+basemap(data= expand.grid(lon = c(-179, 172), lat = c(-46, -41)), rotate = TRUE) +
     geom_spatial_point(data = sampling_location, aes(x = long, y = lat)) +
   scale_y_continuous(breaks = seq(-179, 172, by = 1)) +
   scale_x_continuous(breaks = seq(-46, -42, by = 1)) 
-basemap(limits = c(172, -176, -46, -40)) + # a synonym: basemap(dt)
+basemap(limits = c(172, -179, -46, -41), bathymetry = TRUE,  bathy.style = "contour_blues") + # a synonym: basemap(dt)
   geom_spatial_point(data = sampling_location, aes(x = long, y = lat))
-  geom_spatial_point(data = dt, aes(x = lon, y = lat), color = "red")
+  #geom_spatial_point(data = dt, aes(x = lon, y = lat), color = "red")
 ```
 
+#USE THIS CODE FOR MAPS
+```{r}
+#THIS WORKS!
+p <- basemap(limits = c(172, -179, -46, -41.5), rotate = TRUE, bathymetry = TRUE,  bathy.style = "poly_greys", lon.interval = 2, lat.interval = 1,grid.size = 0.5) + 
+  geom_spatial_point(data = sampling_location, aes(x = long, y = lat))
+
++
+  geom_raster(data = temp_nz_df , aes(x = x, y = y, fill = layer))
+
+#+
+ # scale_fill_gradientn(colours=rev(brewer.pal(20,"RdBu")), breaks = c(9, 10, 11, 12, 13, 14, 15)) 
+
+p
+
+pdf("map_3.pdf", height=5, width=7) ; plot(p) ; dev.off()
+```
+
+```{r}
+etopoPath <- "" # Replace by the path to the folder where the ETOPO1 grd file is located.
+sf::st_shift_longitude()
+  filter(between(Latitude, -46, -41)) %>%
+  filter(between(Longitude, 172, 180))
+lims_1 <- c(170, 180, -40, -47)
+projection <- "EPSG:32636"
+basemap(limits = lims)
+
+rb <- raster_bathymetry(bathy = "ETOPO1_Ice_g_gmt4.grd",
+                        depths = c(500, 1000, 2000, 3000, 4000, 6000, 10000), 
+                        proj.out = projection, 
+                        boundary = 
+)
+
+class(rb)
+names(rb)
+raster::plot(rb$raster)
+
+bs_bathy <- vector_bathymetry(rb, smooth = TRUE)
+sp::plot(bs_bathy)
+
+save(bs_bathy, file = paste(outPath, "bs_shapes.rda", sep = "/"), compress = "xz")
+
+basemap(limits = c(10, 53, 70, 80), shapefiles = list(land = bs_land, glacier = bs_glacier, bathy = bs_bathy), bathymetry = TRUE, glaciers = TRUE)
+```
+
+
+```{r}
+library(here)
+library(ncdf4) # package for netcdf manipulation
+library(raster) # package for raster manipulation
+library(rgdal) # package for geospatial analysis
+library(ggplot2) # package for plotting
+library(lattice)
+library(RColorBrewer)
+```
+
+#Plot SST
+```{r}
+dname <- "sst"
+nc_SST <- ncdf4::nc_open( 'phyloseq/AQUA_MODIS.20181101_20181130.L3m.MO.NSST.sst.4km.nc')
+```
+
+```{r}
+# get longitude and latitude
+lon <- ncvar_get(nc_SST,"lon")
+nlon <- dim(lon)
+head(lon)
+
+lat <- ncvar_get(nc_SST,"lat")
+nlat <- dim(lat)
+head(lat)
+#lat <- rev(lat) #previous error - increasing X and Y values expected. Reverse the values to make increasing lat values.
+```
+
+```{r}
+# Get temperature variable
+tmp_array <- ncvar_get(nc_SST,dname)
+dlname <- ncatt_get(nc_SST,dname,"long_name")
+dunits <- ncatt_get(nc_SST,dname,"units")
+fillvalue <- ncatt_get(nc_SST,dname,"_FillValue")
+dim(tmp_array) #verify the size of the array - same as before
+```
+
+```{r}
+#subset data for NZ area (coordinates lat -46 to -41, lon 172 to -176)
+lon_sub <- which( nc_SST$dim$lon$vals > 171 | nc_SST$dim$lon$vals < -178)
+lat_sub <- which( nc_SST$dim$lat$vals > -46.5 & nc_SST $dim$lat$vals < -41.5)
+lon_sub <- c(which(nc_SST$dim$lon$vals > 171) , which(nc_SST$dim$lon$vals < -178) )
+# replace netCDF fill values with NA's
+tmp_array[tmp_array==fillvalue$value] <- NA
+temp_nz <- tmp_array [lon_sub, lat_sub]
+nc_close(nc_SST)
+```
+
+```{r}
+#Plot NZ
+raster_temp_nz <- raster(temp_nz)
+raster_temp_nz <-  t(raster_temp_nz)
+
+
+```
+
+#temperature colour plot -red and blue
+```{r}
+temp_nz_df <- as.data.frame(raster_temp_nz, xy = TRUE)
+str(temp_nz_df)
+library(paletteer)
+
+#error here. The axis values are not coordinates (lat -46 to -41, lon 172 to -176). I think the way would be to create a new create a column with the coordinates, but because of the way the data is formed I'm not sure how to do.
+
+plot_temp<- ggplot() +
+  geom_raster(data = temp_nz_df , aes(x = x, y = y, fill = layer))+
+  #scale_colour_paletteer_c("ggthemes::Red-Blue Diverging", limits=c(9, 15))
+  scale_fill_gradientn(colours=rev(brewer.pal(20,"RdBu")), breaks = c(9, 10, 11, 12, 13, 14, 15)) 
+  
+plot_temp
+pdf("map_temp.pdf", height=5, width=7) ; plot(plot_temp) ; dev.off()
+
+```
