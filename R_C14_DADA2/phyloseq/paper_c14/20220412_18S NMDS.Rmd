@@ -20,7 +20,7 @@ source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown librarie
 source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
 
 #Colours for cycle
-colours_cycle <- readxl::read_excel(here("phyloseq", "init_files", "colours_cycle copy.xlsx"))
+colours_cycle <- readxl::read_excel(here("phyloseq", "init_files", "colours_cycle.xlsx"))
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 ```
 
@@ -184,7 +184,7 @@ p <- nmds_sample_sub %>%
    theme(legend.position="bottom")
 
 p
- pdf(here("phyloseq", "figures_GRC", "sorted_euks_nmds.pdf"), height=7, width=6) ; plot(p) ; dev.off()
+ # pdf(here("phyloseq", "figures_GRC", "sorted_euks_nmds.pdf"), height=7, width=6) ; plot(p) ; dev.off()
 ```
 
 ```{r}
@@ -305,13 +305,13 @@ nmds_sub$stress
 #plot overall
 p <- nmds_sample_sub %>%
     mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
-    mutate(sample = fct_relevel(sample, "SUR", "DCM") ) %>%
+    # mutate(sample = fct_relevel(sample, "SUR", "DCM") ) %>%
     ggplot(aes(x=NMDS1, y= NMDS2, colour = cycle_name, shape = sample)) +
     geom_point() +
     scale_colour_manual(values = colours_cycle) 
 p
 
-pdf(here("phyloseq", "paper_c14", "20220417", "nmds_sorted_filt_2.pdf"), height=6, width=9) ; plot(p) ; dev.off()
+# pdf(here("phyloseq", "paper_c14", "20220417", "nmds_sorted_filt_2.pdf"), height=6, width=9) ; plot(p) ; dev.off()
 
 
 ```

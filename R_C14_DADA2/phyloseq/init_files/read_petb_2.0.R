@@ -1,7 +1,7 @@
 # Filtered samples -petB Ong_2022 primer
 
 # Load the phyloseq files
-ps_filt_ong <- read_rds(here("output_petb_2x300","output_petb_Denise", "merged_v2", "petB_Denise primer_phyloseq_CTD.RDS"))
+ps_filt_ong <- read_rds(here("DADA2", "output_petb_2x300","output_petb_Denise", "merged_v2", "petB_Denise primer_phyloseq_CTD.RDS"))
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_filt_ong)$water_mass <- sample_data(ps_filt_ong)$cycle
@@ -17,11 +17,11 @@ sample_data(ps_filt_ong)$cycle_location = str_replace(sample_data(ps_filt_ong)$c
 sample_data(ps_filt_ong)$cycle_location = str_replace(sample_data(ps_filt_ong)$cycle_location, "4", "B")
 
 sample_data(ps_filt_ong)$cycle_name <- sample_data(ps_filt_ong)$cycle
-sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "1", "SA-Cycle_1")
-sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "2", "SA-Cycle_2") 
-sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "5", "SA-Cycle_5") 
-sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "3", "ST-Cycle_3")
-sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "4", "ST-Cycle_4")
+sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "1", "SA1")
+sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "2", "SA2") 
+sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "5", "SA3") 
+sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "3", "ST1")
+sample_data(ps_filt_ong)$cycle_name = str_replace(sample_data(ps_filt_ong)$cycle_name, "4", "ST2")
 
 sample_data(ps_filt_ong)$cycle_location_name <- str_c(sample_data(ps_filt_ong)$cycle_location, sample_data(ps_filt_ong)$cycle_name, sep ="_")
 sample_data(ps_filt_ong)$cycle_station_location_name <- str_c(sample_data(ps_filt_ong)$cycle_location, sample_data(ps_filt_ong)$cycle_name, sample_data(ps_filt_ong)$station, sep ="_")
@@ -45,7 +45,7 @@ long_filt_ong <- phyloseq_transform_to_long(ps_filt_ong)
 # Filtered samples - petB Mazard_2012 primer
 
 # Load the phyloseq files
-ps_filt_mazard <- read_rds(here("output_petb_2x300", "output_petb_Mazard", "merged_v2", "petB Mazard primer_phyloseq_CTD_2.0.RDS"))
+ps_filt_mazard <- read_rds(here("DADA2", "output_petb_2x300", "output_petb_Mazard", "merged_v2", "petB Mazard primer_phyloseq_CTD_2.0.RDS"))
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_filt_mazard)$water_mass <- sample_data(ps_filt_mazard)$cycle
@@ -61,11 +61,11 @@ sample_data(ps_filt_mazard)$cycle_location = str_replace(sample_data(ps_filt_maz
 sample_data(ps_filt_mazard)$cycle_location = str_replace(sample_data(ps_filt_mazard)$cycle_location, "4", "B")
 
 sample_data(ps_filt_mazard)$cycle_name <- sample_data(ps_filt_mazard)$cycle
-sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "1", "SA-Cycle_1")
-sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "2", "SA-Cycle_2") 
-sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "5", "SA-Cycle_5") 
-sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "3", "ST-Cycle_3")
-sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "4", "ST-Cycle_4")
+sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "1", "SA1")
+sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "2", "SA2") 
+sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "5", "SA3") 
+sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "3", "ST1")
+sample_data(ps_filt_mazard)$cycle_name = str_replace(sample_data(ps_filt_mazard)$cycle_name, "4", "ST2")
 
 sample_data(ps_filt_mazard)$cycle_location_name <- str_c(sample_data(ps_filt_mazard)$cycle_location, sample_data(ps_filt_mazard)$cycle_name, sep ="_")
 sample_data(ps_filt_mazard)$cycle_station_location_name <- str_c(sample_data(ps_filt_mazard)$cycle_location, sample_data(ps_filt_mazard)$cycle_name, sample_data(ps_filt_mazard)$station, sep ="_")
@@ -88,7 +88,7 @@ long_filt_mazard <- phyloseq_transform_to_long(ps_filt_mazard)
 
 # Sorted syn initials
 # Load the phyloseq files
-ps_sorted <- read_rds(here("output_petb_2x300", "output_petb_Denise", "merged_v2", "petB_Denise primer_phyloseq_sortedsyn.RDS"))
+ps_sorted <- read_rds(here("DADA2", "output_petb_2x300", "output_petb_Denise", "merged_v2", "petB_Denise primer_phyloseq_sortedsyn.RDS"))
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_sorted)$water_mass <- sample_data(ps_sorted)$Cycle.
@@ -104,11 +104,13 @@ sample_data(ps_sorted)$cycle_location = str_replace(sample_data(ps_sorted)$cycle
 sample_data(ps_sorted)$cycle_location = str_replace(sample_data(ps_sorted)$cycle_location, "4", "B")
 
 sample_data(ps_sorted)$cycle_name <- sample_data(ps_sorted)$Cycle.
-sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "1", "SA-Cycle_1")
-sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "2", "SA-Cycle_2") 
-sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "5", "SA-Cycle_5") 
-sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "3", "ST-Cycle_3")
-sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "4", "ST-Cycle_4")
+sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "5", "SA3")
+sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "1", "SA1")
+sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "2", "SA2") 
+
+sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "3", "ST1")
+sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "4", "ST2")
+sample_data(ps_sorted)$cycle_name = str_replace(sample_data(ps_sorted)$cycle_name, "SAST1", "SA3")
 sample_data(ps_sorted)$cycle_location_name <- str_c(sample_data(ps_sorted)$cycle_location, sample_data(ps_sorted)$cycle_name, sep ="_")
 sample_data(ps_sorted)$cycle_exp_location_name <- str_c(sample_data(ps_sorted)$cycle_location, sample_data(ps_sorted)$cycle_name, sample_data(ps_sorted)$EXP., sep ="_")
 
@@ -125,7 +127,8 @@ ps_sorted <- ps_sorted %>%
 # Remove syn-01-20 and syn-02-5
 ps_sorted <- ps_sorted %>%
   subset_samples(sample_name != "syn-01-20") %>%
-  subset_samples(sample_name != "syn-02-5")
+  subset_samples(sample_name != "syn-02-5") %>%
+  subset_samples(sample_name != "syn-negr1-2") 
 
 # Remove Richellia
 ps_sorted <- ps_sorted %>% 

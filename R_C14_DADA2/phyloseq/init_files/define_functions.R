@@ -36,6 +36,17 @@ phyloseq_normalize_median <- function (ps) {
   return(ps)
 }
 
+# Define function - phyloseq_normalise_mean
+phyloseq_normalize_mean <- function (ps) {
+  ps_median = mean(sample_sums(ps))
+  normalize_median = function(x, t=ps_median) (if(sum(x) > 0){ round(t * (x / sum(x)))} else {x})
+  ps = transform_sample_counts(ps, normalize_median)
+  cat(str_c("\n========== \n") )
+  print(ps)
+  cat(sprintf("\n==========\nThe median number of reads used for normalization is  %.0f", ps_median))
+  return(ps)
+}
+
 # Define function - treemap
 phyloseq_long_treemap <- function(df, group1, group2, title) {
   

@@ -255,6 +255,18 @@ stats_join <- full_join(asv_count, stats)
 # Fig 2. 
 
 ```{r}
+
+# for log scale
+nseqs_per_sample <- join_filt_pct_long %>%
+  unite(col = "file_code", c("type", "sample_number")) %>%
+    group_by(file_code) %>%
+    summarise(N=sum(percent)) %>%
+    count(N) %>%
+    pull(N) 
+
+lod <- 0.01
+
+
 # Percentage of reads for each subclade in each filtered sample (boxplot)
 p1 <- join_filt_pct_long %>%
     filter((Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
@@ -268,6 +280,9 @@ p1
   
 p2 <- join_filt_pct_long %>%
     filter(!(Subclade %in% c("Ia", "Ib", "IVa", "IVb"))) %>%
+  mutate(percent = if_else(percent == 0,
+                               2/3 *lod,
+                               percent)) %>%
   #filter(percent !=0) %>%
   ggplot(aes(x=percent, y = fct_relevel(Subclade, "IIb", "VIc", "V", "II-WPC2", "VIb", "Ic", "UC-A", "IIe", "IIh", "WPC1", "EnvB", "EnvA", "CRD1"), colour=type)) +
   geom_boxplot(position=position_dodge(0.7), width=0.6) +

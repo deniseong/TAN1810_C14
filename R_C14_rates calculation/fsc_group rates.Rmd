@@ -1,0 +1,895 @@
+---
+title: "FSC_group rates"
+author: "Denise Ong"
+date: "11/17/2022"
+output: html_document
+---
+
+# Initialise
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("init_files", "init.R")) #for libraries
+source(here("init_files", "init_markdown.R")) #for markdown libraries
+
+colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+
+colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
+```
+
+# Read data - only including cell size data with corresponding pp rates.
+PP rates for exp 4 and 5 (except syn SV exp 5) do not have corresponding cell size data. Using the average biomass calculations for SA2.
+```{r}
+size_raw <-  readxl::read_excel("group_rates_output/fsc_cell size.xlsx") %>%
+  separate(population, c("population", "fsc_type")) %>%
+  mutate(population = dplyr::recode(population, "syn" = "Syn",
+                             "pico" = "Pico",
+                             "nano" = "Nano")) %>%
+  mutate(cycle = as.character(cycle)) %>%
+  mutate(exp = as.character(exp))
+
+rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx") %>%
+  select(-MD) %>%
+  rename(depth_cat = depth,
+         CTD = ctd)
+
+join <- full_join(size_raw, rates)
+join_sub <- join %>%
+  filter(!(is.na(fsc)))
+
+
+# assign average biomass values for pp rates for exp 4 and 5
+sub <- join %>%
+  filter(is.na(fsc)) %>%
+  select(!(fsc_type:biomass))
+
+sa2 <- join %>%
+  filter(cycle == 2) %>% 
+  filter(!(is.na(fsc))) %>%
+  select(depth_m:biomass) %>%
+  distinct() %>%
+  filter(!(is.na(depth_cat))) %>%
+  group_by(cycle, population, depth_cat, depth_m, fsc_type) %>%
+  summarise(fsc = mean(fsc),
+            diam = mean(diam),
+            vol = mean(vol),
+            biomass = mean(biomass))
+
+check <- left_join(sub, sa2) %>%
+  filter(!(exp == 4 & population == "Syn" & fsc_type == "SV"))
+
+# join back again
+join_rates <- full_join(check, join_sub) %>%
+  filter(!(is.na(pp))) %>%
+  unite(pop_fsc, c(population, fsc_type), sep = "_", remove = FALSE) %>%
+  mutate(water_mass = fct_relevel(water_mass, "ST", "SA")) %>%
+  mutate(depth_cat = fct_relevel(depth_cat, "SUR", "DCM")) %>%
+  mutate(population = fct_relevel(population, "Syn", "Pico", "Nano"))
+
+#check how many measured cell size not included in exp calculations.
+check <- join_rates %>%
+select(diam) %>%
+  distinct()
+
+```
+
+# calculate growth rates and normalise pp rates
+growth rate = day-1
+convert pp to fgC/cell/day
+convert biomass to fgC/cell
+pp_vol_norm = pp normalised by cell vol =pp/vol
+pp_vol_check = pp_vol norm change units to mgC/m3/day, so I can compare with the npp previously calculated by multiplying cell conc to group pp. But this calculation is assuming one giant cell at 1 m3 size.
+```{r}
+join_rates <- join_rates %>%
+  mutate(biomass_fg = 1000*biomass) %>%
+  mutate(growth_rate = (pp*24)/(1000*biomass)) %>% # multiply by 24 to change from per hour to per day
+  mutate(pp_vol_norm = pp/vol) %>%
+  mutate(biomass_buit = case_when(population == "Syn" ~ 255,
+                                  population == "Pico" ~ 2590,
+                                  TRUE ~ NA_real_)) %>%
+  mutate(growth_buit = (pp*24)/biomass_buit) %>%
+  mutate(division = 1/growth_rate) %>%
+  mutate(division_buit = 1/growth_buit)
+ # mutate(pp_vol_check = pp_vol_norm*10^(6)*1/24) # I think this is wrong.
+
+```
+
+## check subset data - diam.
+after subset, no difference between ST and SA. Before subset, ST>SA for pico and nano.
+for syn and pico, no difference in surface and DCM
+but NANO sur>DCM. 
+```{r}
+theme_set(theme_bw())
+
+summary <- join_sub %>%
+  filter(!(is.na(depth_cat))) %>%
+  filter(!(is.na(exp))) %>%
+  unite(pop_fsc, c(population, fsc_type), sep = "_", remove = FALSE) %>%
+  select(water_mass, cycle_name, pop_fsc, diam) %>%
+  distinct() %>%
+  group_by(pop_fsc) %>%
+  summarize(mean = round(mean(diam), 2),
+            sd = round(sd(diam),2), 
+            n = n(),
+            min = round(min(diam),2),
+            max = round(max(diam),2)) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") 
+summary
+
+# not including exp 4 and 5
+p <- join_sub %>%
+  filter(!(is.na(depth_cat))) %>%
+  filter(!(is.na(exp))) %>%
+  unite(pop_fsc, c(population, fsc_type), sep = "_", remove = FALSE) %>%
+  select(water_mass, cycle_name, pop_fsc, diam) %>%
+  distinct() %>%
+  mutate(water_mass = fct_relevel(water_mass, "ST", "SA")) %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=diam), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=diam))+
+  facet_grid(pop_fsc~water_mass, scales = "free") 
+p
+pdf("figures/3_fcm/diam_surdcm_group_exp.pdf", height=7, width=6) ; plot(p) ; dev.off()
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+  p <-  join_sub %>%
+    filter(!(is.na(depth_cat))) %>%
+    filter(!(is.na(exp))) %>%
+    unite(pop_fsc, c(population, fsc_type), sep = "_", remove = FALSE) %>%
+    select(water_mass, cycle_name, depth_cat, pop_fsc, diam) %>%
+  distinct() %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=diam), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=diam))+
+      facet_grid(water_mass~depth_cat, scales = "free") +
+      scale_colour_manual(values = colours_cycle) +
+    ggtitle(i)
+  print(p)
+pdf(here(str_c("figures/3_fcm/diam_sur dcm_exp", i, ".pdf")), height=4, width=6) ; plot(p) ; dev.off()
+
+}
+
+# including exp 4 and 5
+p <- join_rates %>%
+  select(water_mass, cycle_name, exp, depth_cat, pop_fsc, diam) %>%
+  distinct() %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=diam), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=diam))+
+  facet_grid(pop_fsc~water_mass, scales = "free") +
+  scale_colour_manual(values = colours_cycle) 
+p
+# pdf("figures/3_fcm/diam_surdcm_group.pdf", height=7, width=6) ; plot(p) ; dev.off()
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+  p <-  join_rates %>%
+    select(water_mass, cycle_name,exp,  pop_fsc,depth_cat, diam) %>%
+    distinct() %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=diam), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=diam))+
+      facet_grid(water_mass~depth_cat, scales = "free") +
+      scale_colour_manual(values = colours_cycle) +
+    ggtitle(i)
+  print(p)
+# pdf(here(str_c("figures/3_fcm/diam_sur dcm_", i, ".pdf")), height=4, width=6) ; plot(p) ; dev.off()
+
+}
+```
+
+## checksubset data - biomass
+```{r}
+# not including exp 4 and 5
+p <- join_sub %>%
+  filter(!(is.na(depth_cat))) %>%
+  filter(!(is.na(exp))) %>%
+  unite(pop_fsc, c(population, fsc_type), sep = "_", remove = FALSE) %>%
+  select(water_mass, cycle_name, pop_fsc, biomass) %>%
+  distinct() %>%
+  mutate(biomass_fg = biomass*1000) %>%
+  mutate(water_mass = fct_relevel(water_mass, "ST", "SA")) %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=biomass_fg), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=biomass_fg))+
+  facet_grid(pop_fsc~water_mass, scales = "free") 
+p
+pdf("figures/3_fcm/biomass_surdcm_group_exp.pdf", height=7, width=6) ; plot(p) ; dev.off()
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+  p <-  join_sub %>%
+    filter(!(is.na(depth_cat))) %>%
+    filter(!(is.na(exp))) %>%
+    unite(pop_fsc, c(population, fsc_type), sep = "_", remove = FALSE) %>%
+    select(water_mass, cycle_name, depth_cat, pop_fsc, biomass) %>%
+  distinct() %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=biomass), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=biomass))+
+      facet_grid(water_mass~depth_cat, scales = "free") +
+      scale_colour_manual(values = colours_cycle) +
+    ggtitle(i)
+  print(p)
+# pdf(here(str_c("figures/3_fcm/diam_sur dcm_exp", i, ".pdf")), height=4, width=6) ; plot(p) ; dev.off()
+
+}
+
+```
+
+
+# Summary 
+```{r}
+summary <- join_rates %>%
+  group_by(pop_fsc, water_mass) %>%
+  summarise(biomass_fg_mean = mean(biomass_fg),
+            biomass_fg_sd = sd(biomass_fg),
+            growth_rate_mean = median(growth_rate),
+            growth_rate_sd = sd(growth_rate),
+            division_mean = mean(division),
+            division_sd = sd(division),
+            growth_buit_mean =  mean(growth_buit),
+            growth_buit_sd = sd(growth_buit),
+            division_buit_mean = mean(division_buit),
+            division_buit_sd = sd(division_buit),
+            pp_vol_norm_mean = mean (pp_vol_norm),
+            pp_vol_norm_sd = sd(pp_vol_norm))
+summary
+# writexl::write_xlsx(summary, path = "summary_growth rates.xlsx")
+
+summary <- join_rates %>%
+  group_by(pop_fsc) %>%
+  summarize(#median = round(median(npp), 2),
+            mean = round(mean(growth_rate), 2),
+            sd = round(sd(growth_rate),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") 
+summary
+
+```
+# Growth rate
+## plot all
+```{r}
+p <- join_rates %>%
+  ggplot()+
+  geom_boxplot(aes(x=pop_fsc, y=growth_rate))+
+  #geom_jitter(aes(x=pop_fsc, y=growth_rate), width = 0.2) +
+  # facet_grid(.~water_mass, scales = "free") +
+  theme_minimal() +
+  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
+p
+
+p <- join_rates %>%
+  filter(pop_fsc!="Syn_SV") %>%
+  ggplot(aes(x=population, y=growth_rate, fill = water_mass))+
+  # geom_violin(aes(x=population, y=growth_rate))+
+  geom_boxplot(outlier.shape = NA, alpha = 0.8)+
+  geom_point(colour = "black",  alpha = 0.5, position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2))+
+  # geom_dotplot(binaxis='y', stackdir='center',
+  #                position=position_dodge(1)) +
+  # geom_jitter(, width = 0.1, alpha =  0.3, position=position_dodge(1)) +
+  # facet_grid(.~water_mass, scales = "free") +
+  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
+  ylab("Growth rate (day-1)") +
+  xlab(NULL)+
+  theme(strip.background = element_blank(),
+        legend.position="top") +
+  scale_fill_manual(values = c("#C62828", "#1565C0"))
+
+p
+
+pdf("figures/3_fcm/growth rate_v2.pdf", height=4, width=4) ; plot(p) ; dev.off()
+
+
+p <- join_rates %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=growth_rate), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=growth_rate))+
+  facet_grid(pop_fsc~water_mass, scales = "free") +
+  theme_minimal() +
+  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
+p
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+  p <- join_rates %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=growth_rate), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=growth_rate))+
+      facet_grid(.~depth_cat, scales = "free") +
+    theme_minimal()+
+    ggtitle(i)
+  print(p)
+
+}
+
+summary <- join_rates %>%
+  filter(pop_fsc!="Syn_SV") %>%
+  group_by(population, water_mass) %>%
+  summarise(mean=mean(growth_rate, na.rm=TRUE),
+            sd=sd(growth_rate, na.rm = TRUE)) %>%
+  pivot_wider(names_from = water_mass, values_from = mean)
+summary
+writexl::write_xlsx(summary, "summary_growth rate.xlsx")
+
+```
+# Division rate
+## plot all
+```{r}
+p <- join_rates %>%
+  ggplot()+
+  geom_boxplot(aes(x=pop_fsc, y=division))+
+  #geom_jitter(aes(x=pop_fsc, y=division), width = 0.2) +
+  # facet_grid(.~water_mass, scales = "free") +
+  theme_minimal()
+p
+
+p <- join_rates %>%
+  ggplot()+
+  geom_boxplot(aes(x=pop_fsc, y=division))+
+  #geom_jitter(aes(x=pop_fsc, y=division), width = 0.2) +
+  facet_grid(.~water_mass, scales = "free") +
+  theme_minimal()
+p
+
+p <- join_rates %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=division), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=division))+
+  facet_grid(pop_fsc~water_mass, scales = "free") +
+  theme_minimal()
+p
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+  p <- join_rates %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=division), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=division))+
+      facet_grid(.~depth_cat, scales = "free") +
+    theme_minimal()+
+    ggtitle(i)
+  print(p)
+
+}
+```
+# Growth rate buitenhuis 2012
+```{r}
+p <- join_rates %>%
+    filter(pop_fsc != "Nano_NA") %>%
+  filter(pop_fsc != "Syn_SV") %>%
+  ggplot()+
+  geom_boxplot(aes(x=pop_fsc, y=growth_buit))+
+  #geom_jitter(aes(x=pop_fsc, y=growth_buit), width = 0.2) +
+  facet_grid(.~water_mass, scales = "free") +
+  theme_minimal()
+p
+pdf("figures/3_fcm/growth rate_buit.pdf", height=4, width=6) ; plot(p) ; dev.off()
+
+summary <- join_rates %>%
+  filter(pop_fsc!="Syn_SV") %>%
+  filter(pop_fsc != "Nano_NA") %>%
+  group_by(population, water_mass) %>%
+  summarise(mean=mean(growth_buit, na.rm=TRUE),
+            sd=sd(growth_buit, na.rm = TRUE)) %>%
+  pivot_wider(names_from = water_mass, values_from = mean)
+summary
+writexl::write_xlsx(summary, "summary_growth rate buit.xlsx")
+
+p <- join_rates %>%
+  filter(pop_fsc != "Nano_NA") %>%
+  filter(pop_fsc != "Syn_SV") %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=growth_buit), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=growth_buit))+
+  facet_grid(pop_fsc~water_mass, scales = "free") +
+  theme_minimal()
+p
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA")){
+  p <- join_rates %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=growth_buit), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=growth_buit))+
+      facet_grid(.~depth_cat, scales = "free") +
+    theme_minimal()+
+    ggtitle(i)
+  print(p)
+
+}
+```
+
+
+# PP norm vol
+```{r}
+p <- join_rates %>%
+  filter(pop_fsc  != "Syn_SV") %>%
+  ggplot(aes(x=population, y=pp_vol_norm))+
+  geom_boxplot()+
+  geom_jitter(width = 0.2, alpha =0.3)+
+   facet_grid(.~water_mass, scales = "free") +
+  scale_colour_manual(values = colours_cycle) +
+  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")+
+  ylab("Carbon fixation rate (fgC/um3/hr)")
+p
+pdf("figures/3_fcm/pp norm.pdf", height=4, width=6) ; plot(p) ; dev.off()
+
+
+p <- join_rates %>%
+  ggplot()+
+  geom_jitter(aes(x=cycle_name, y=pp_vol_norm), width = 0.2) +
+  geom_boxplot(aes(x=water_mass, y=pp_vol_norm))+
+  facet_grid(pop_fsc~water_mass, scales = "free") +
+  scale_colour_manual(values = colours_cycle) 
+p
+
+# surface vs DCM
+for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+  p <- join_rates %>%
+    filter(pop_fsc ==i) %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=pp_vol_norm), width = 0.2) +
+      geom_boxplot(aes(x=water_mass, y=pp_vol_norm))+
+      facet_grid(.~depth_cat, scales = "free") +
+      scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
+    theme_minimal()+
+    ggtitle(i)
+  print(p)
+
+}
+```
+
+
+```{r}
+p <- join_rates %>%
+  filter(pop_fsc !="syn_SV") %>%
+  # filter(population != "Nano") %>%
+  mutate(cell_type = case_when(population == "Syn"  ~  "Cyano",
+                               population == "Pico" ~ "Euks",
+                               population  == "Nano" ~ "Euks")) %>%
+  ggplot(aes(x=pp, y=pp_vol_norm,  shape = population)) +
+  geom_point() +geom_smooth() +
+  scale_x_continuous(trans='log10') + scale_y_continuous(trans='log10') + annotation_logticks(sides = "bl") +
+  facet_grid (.~cell_type) +
+  ylab("Carbon fixation rate (fgC/um3/hr)") +
+  xlab("Carbon fixation rate (fgC/cell/hr)")
+  
+
+p
+
+p <- join_rates %>%
+  filter(pop_fsc !="syn_SV") %>%
+  # filter(population != "Nano") %>%
+  mutate(cell_type = case_when(population == "Syn"  ~  "Cyano",
+                               population == "Pico" ~ "Euks",
+                               population  == "Nano" ~ "Euks")) %>%
+  ggplot(aes(x=vol, y=pp_vol_norm, shape = population, colour = water_mass)) +
+  geom_point() +geom_smooth() +
+  scale_x_continuous(trans='log10') + scale_y_continuous(trans='log10') + annotation_logticks(sides = "bl") +
+  facet_grid (.~cell_type,  scales ="free")
+
+p
+```
+
+#Statistical tests
+
+ignore SV syn population
+## fsc raw
+### Kruskal wallis test (for comparing syn, pico, nano)
+```{r}
+stats_rates <- join_rates %>%
+  filter(pop_fsc !="syn_SV") 
+hist(stats_rates$fsc)
+qqnorm(stats_rates$fsc) 
+shapiro.test(stats_rates$fsc)
+
+hist(log10(stats_rates$fsc))
+qqnorm(log10(stats_rates$fsc))
+shapiro.test(log10(stats_rates$fsc))
+# all not normal. Use kruskal wallis test.
+
+kruskal.test(fsc~population, data = stats_rates) #significant. followed by pairwise  test
+pairwise.wilcox.test(stats_rates$fsc, stats_rates$population,
+                     p.adjust.method = "BH")
+
+for (i in c("ST", "SA")) {
+  df <- stats_rates %>%
+    filter(water_mass == "SA")
+  hist(df$fsc)
+  qqnorm(df$fsc) 
+  shapiro.test(df$fsc)
+  kruskal.test(fsc~population, data = df) 
+  pairwise.wilcox.test(df$fsc, df$population,
+                      p.adjust.method = "BH")
+}
+```
+### t test to check if surface is different from DCM
+surface is not different from DCM for syn and pico. for nano sur > dcm
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(population == i) %>%
+  select(depth_cat, fsc)
+
+summary <- t_test_df %>%
+  group_by(depth_cat) %>%
+  summarise(count = n(),
+    mean = mean(fsc, na.rm = TRUE),
+    sd = sd(fsc, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth_cat, y=fsc)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(fsc[depth_cat == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(fsc[depth_cat == "DCM"]))
+print(p)
+res <- wilcox.test(fsc ~ depth_cat, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+### t test - ST vs SA
+ST is different from SA for syn and pico.
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(population == i) %>%
+  select(water_mass,exp, depth_cat, fsc) %>%
+  distinct()
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(fsc, na.rm = TRUE),
+    sd = sd(fsc, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=fsc)) + geom_boxplot() +geom_point()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(fsc[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(fsc[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(fsc ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+## diameter
+### Kruskal wallis test (for comparing syn, pico, nano)
+```{r}
+stats_rates <- join_rates %>%
+  filter(pop_fsc !="syn_SV") 
+hist(stats_rates$diam)
+qqnorm(stats_rates$diam) 
+shapiro.test(stats_rates$diam)
+
+hist(log10(stats_rates$diam))
+qqnorm(log10(stats_rates$diam))
+shapiro.test(log10(stats_rates$diam))
+# all not normal. Use kruskal wallis test.
+
+kruskal.test(diam~population, data = stats_rates) #significant. followed by dunn pairwise test
+pairwise.wilcox.test(stats_rates$diam, stats_rates$population,
+                     p.adjust.method = "BH")
+
+
+```
+### t test to check if surface is different from DCM
+surface is not different from DCM for syn and pico. for nano sur > dcm
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(population == i) %>%
+  select(water_mass,exp, depth_cat, diam) %>%
+  distinct()
+
+summary <- t_test_df %>%
+  group_by(depth_cat) %>%
+  summarise(count = n(),
+    mean = mean(diam, na.rm = TRUE),
+    sd = sd(diam, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth_cat, y=diam)) + 
+   geom_point() +
+   geom_boxplot()  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(diam[depth_cat == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(diam[depth_cat == "DCM"]))
+print(p)
+res <- wilcox.test(diam ~ depth_cat, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+### t test - ST vs SA
+ST is different from SA for syn and pico.
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(population == i) %>%
+  select(water_mass, exp, depth_cat, diam)
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(diam, na.rm = TRUE),
+    sd = sd(diam, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=diam)) + geom_point() +geom_boxplot()  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(diam[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(diam[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(diam ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+## growth rate
+### Kruskal wallis test (for comparing syn, pico, nano)
+```{r}
+stats_rates <- join_rates %>%
+  filter(pop_fsc !="syn_SV") 
+hist(stats_rates$growth_rate)
+qqnorm(stats_rates$growth_rate) 
+shapiro.test(stats_rates$growth_rate)
+
+hist(log10(stats_rates$growth_rate))
+qqnorm(log10(stats_rates$growth_rate))
+shapiro.test(log10(stats_rates$growth_rate))
+
+
+# library(lme4)
+# library(nlme)
+library(car)
+lm <- lm(log10(growth_rate) ~ population, data=stats_rates)
+Anova(lm, type = "3")
+pairwise.t.test(log10(stats_rates$growth_rate), stats_rates$population, p.adj='bonferroni')
+
+library(multcomp)
+tmp <- as.data.frame(confint(glht(lm))$confint)
+tmp$Comparison <- rownames(tmp)
+ggplot(tmp, aes(x = Comparison, y = Estimate, ymin = lwr, ymax = upr)) +
+  geom_errorbar() + geom_point()
+
+library(lsmeans)
+library(multcompView)
+
+leastsquare = lsmeans(lm,
+                      pairwise ~ population,
+                      adjust = "tukey")
+
+ 
+
+for (i in c("SA")) {
+  df <- stats_rates %>%
+    filter(water_mass == i)
+  hist(log10(df$growth_rate))
+  qqnorm(log10(df$growth_rate))
+  print(shapiro.test(log10(df$growth_rate)))
+  
+  lm <- lm(log10(growth_rate) ~ population, data=df)
+  print(Anova(lm, type = "3"))
+  print(pairwise.t.test(log10(df$growth_rate), df$population, p.adj='bonferroni'))
+}
+
+#ST is not normally distributed. Use kruskal wallis test.
+for (i in c("ST")) {
+  df <- stats_rates %>%
+    filter(water_mass == i)
+  print(kruskal.test(growth_rate~population, data = df)) # not significant
+  
+}
+
+```
+### t test to check if surface is different from DCM
+surface is not different from DCM for syn and pico. for nano sur > dcm
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(water_mass == "ST") %>%
+  filter(population == i) %>%
+  select(depth_cat, growth_rate)
+
+summary <- t_test_df %>%
+  group_by(depth_cat) %>%
+  summarise(count = n(),
+    mean = mean(growth_rate, na.rm = TRUE),
+    sd = sd(growth_rate, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth_cat, y=growth_rate)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(growth_rate[depth_cat == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(growth_rate[depth_cat == "DCM"]))
+print(p)
+res <- wilcox.test(growth_rate ~ depth_cat, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+### t test - ST vs SA
+ST is different from SA for syn and pico.
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(population == i) %>%
+  select(water_mass, growth_rate)
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(growth_rate, na.rm = TRUE),
+    sd = sd(growth_rate, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=growth_rate)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(growth_rate[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(growth_rate[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(growth_rate ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+```{r}
+summary <- stats_rates %>%
+  group_by(population, water_mass) %>%
+  summarize(median = round(median(npp), 2),
+            mean = round(mean(growth_rate), 2),
+            sd = round(sd(growth_rate),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") 
+summary
+```
+
+## pp normalised by cell vol
+### Kruskal wallis test (for comparing syn, pico, nano)
+```{r}
+stats_rates <- join_rates %>%
+  filter(pop_fsc !="syn_SV") 
+hist(stats_rates$pp_vol_norm)
+qqnorm(stats_rates$pp_vol_norm) 
+shapiro.test(stats_rates$pp_vol_norm)
+
+hist(log10(stats_rates$pp_vol_norm))
+qqnorm(log10(stats_rates$pp_vol_norm))
+shapiro.test(log10(stats_rates$pp_vol_norm))
+# all not normal. Use kruskal wallis test.
+
+# library(lme4)
+# lm <- lm(log10(pp_vol_norm) ~ population, data=stats_rates)
+# Anova(lm, type = "3")
+# pairwise.t.test(log10(stats_rates$pp_vol_norm), stats_rates$population, p.adj='bonferroni')
+
+kruskal.test(pp_vol_norm~population, data = stats_rates) #not significant. 
+# pairwise.wilcox.test(log10(stats_rates$pp_vol_norm), stats_rates$population,
+#                      p.adjust.method = "BH")
+for (i in c("SA")) {
+  df <- stats_rates %>%
+    filter(water_mass == i)
+  hist(log10(df$pp_vol_norm))
+  qqnorm(log10(df$pp_vol_norm))
+  print(shapiro.test(log10(df$pp_vol_norm)))
+  
+  lm <- lm(log10(pp_vol_norm) ~ population, data=df)
+  print(Anova(lm, type = "3"))
+  print(pairwise.t.test(log10(df$pp_vol_norm), df$population, p.adj='bonferroni'))
+}
+
+#ST is not normally distributed. Use kruskal wallis test.
+for (i in c("ST")) {
+  df <- stats_rates %>%
+    filter(water_mass == i)
+  print(kruskal.test(pp_vol_norm~population, data = df)) # not significant
+}
+
+```
+### t test to check if surface is different from DCM
+SUR = dcm  FOR  ALL
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(water_mass == "ST") %>%
+  filter(population == i) %>%
+  select(depth_cat, pp_vol_norm)
+
+summary <- t_test_df %>%
+  group_by(depth_cat) %>%
+  summarise(count = n(),
+    mean = mean(pp_vol_norm, na.rm = TRUE),
+    sd = sd(pp_vol_norm, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth_cat, y=pp_vol_norm)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(pp_vol_norm[depth_cat == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(pp_vol_norm[depth_cat == "DCM"]))
+print(p)
+res <- wilcox.test(pp_vol_norm ~ depth_cat, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+### t test - ST vs SA
+ST is different from SA for syn and pico.
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- stats_rates %>%
+  filter(population == i) %>%
+  select(water_mass, pp_vol_norm)
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(pp_vol_norm, na.rm = TRUE),
+    sd = sd(pp_vol_norm, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=pp_vol_norm)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(pp_vol_norm[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(pp_vol_norm[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(pp_vol_norm ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```

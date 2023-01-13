@@ -1,7 +1,7 @@
 #Read C14 sorted nano phyloseq
 
 # Load the phyloseq files
-ps_nano <- read_rds(here("output_18SV4","TAN1810_18SV4phyloseq_sorted_nano.RDS"))
+ps_nano <- read_rds(here("DADA2", "output_18SV4","TAN1810_18SV4phyloseq_sorted_nano.RDS"))
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_nano)$water_mass <- sample_data(ps_nano)$Cycle#

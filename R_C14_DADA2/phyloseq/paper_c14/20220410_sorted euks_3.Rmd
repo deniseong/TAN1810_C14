@@ -279,6 +279,26 @@ p <-  long_nano_1 %>%
   ylab("Proportion of reads")
 p
 pdf(here("phyloseq", "paper_c14", "20220417", "nano", "nano_cycle_select.pdf"), height=5, width=8) ; plot(p) ; dev.off()
+
+# plot LIGHT VIALS
+p <-  long_nano_1 %>%
+    filter(vial_type == "light") %>%
+    filter(!(cycle_exp =="SA1_2")) %>%
+  mutate(SAMPLE=factor(SAMPLE, levels = c("SUR", "DCM"))) %>%
+    #complete(cycle_exp, vial_type, SAMPLE) %>%
+    #mutate(order = fct_infreq(order)) %>%
+    mutate(order = fct_lump_n(order, 15, other_level = "Others")) %>%
+    mutate(order = factor(order, levels = c("Dolichomastigales", "Pyramimonadales","Cryptomonadales", "Dinophyceae_X", "Suessiales", "Gymnodiniales","Peridiniales", "Prorocentrales", "Isochrysidales", "Prymnesiales", "Phaeocystales","Syracosphaerales" , "Bacillariophyta_X", "Dictyochophyceae_X", "MOCH-2_X", "Nephroselmidales", "Haptophyta_Clade_HAP5", "Others"))) %>%
+  ggplot(aes(x=vial, y=n_reads, fill=order)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        facet_grid(SAMPLE~cycle_exp, scales = "free_x") +
+        ggtitle("Sorted nano - class level") +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+        #scale_fill_manual(values=latin_palette('karolg', 15)) +
+        scale_fill_manual(values=colours_18s_order, limits = force) +
+  ylab("Proportion of reads")
+p
+pdf(here("phyloseq", "paper_c14", "20220417", "nano", "nano_order_light all.pdf"), height=5, width=8) ; plot(p) ; dev.off()
 ```
 
 ## species for each class 

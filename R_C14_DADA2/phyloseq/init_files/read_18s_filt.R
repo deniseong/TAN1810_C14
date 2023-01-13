@@ -1,6 +1,6 @@
 #read merged phyloseq - asv set 47 processed by DV and dataset D4 processed by DO.
 # contains all samples from TAN 1810 cruise from 2AM CTD filtered seawater samples, 18sv4 region.
-ps_18s_filt<- read_rds(here("merge_filt_phyloseq","phyloseq_merge_asv_set_47_Eukaryota_D4_filt_seqhash.RDS"))
+ps_18s_filt<- read_rds(here("DADA2", "merge_filt_phyloseq","phyloseq_merge_asv_set_47_Eukaryota_D4_filt_seqhash.RDS"))
 
 #copy the column of interest, creating new column and replace for cycle names. Not using this column for now. 
 #sample_data(ps_18s_filt)$cycle_location <- sample_data(ps_18s_filt)$cycle

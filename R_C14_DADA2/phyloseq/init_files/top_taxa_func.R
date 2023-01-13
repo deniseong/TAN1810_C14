@@ -18,6 +18,8 @@ ps_top_asv <- function(ps_long, top_n) {
         select(-sum_n_reads) %>%
         ungroup()
 }
+
+
 # Only take asvs that represent at least 10% of reads in any given sample
 ps_abund <- function(ps, fraction) {
     total = median(sample_sums(ps))

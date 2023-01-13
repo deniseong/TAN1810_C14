@@ -1,0 +1,512 @@
+---
+title: "Group rates figure"
+author: "Denise Ong"
+date: "3/11/2021"
+output: html_document
+---
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("init_files", "init.R")) #for libraries
+source(here("init_files", "init_markdown.R")) #for markdown libraries
+
+#Colours
+colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+
+colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
+```
+
+# Read data
+```{r}
+cold_standard <- readxl::read_excel("group_rates_output/NPP_cold_standard.xlsx") %>% 
+  rename(depth_m = `depth`,
+         depth = `sample`)
+cold_standard$exp <- as.character(cold_standard$exp)
+
+pp_rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx")
+
+#set factor levels
+pp_rates$water_mass <- factor(pp_rates$water_mass, levels = c("ST", "SA"))
+pp_rates$cycle_name <- factor(pp_rates$cycle_name, levels = c("ST1", "ST2", "SA1", "SA2", "SA3"))
+pp_rates$population <- factor(pp_rates$population, levels = c("Syn", "Pico", "Nano"))
+pp_rates$depth <- factor(pp_rates$depth, levels = c("SUR", "DCM"))
+```
+
+#PP group rates
+## check difference between surface and DCM
+might combine the two if not significantly different
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+    ungroup() %>%
+    complete(exp, depth) %>%
+  ggplot() +
+    geom_point(aes(x=depth, y=pp))+
+    facet_grid(.~exp, scales = "free_x", space = "free") +
+    #scale_colour_manual(values = colours_exp)+
+    #scale_fill_manual (values = colours_cycle)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("PP rate (fgC/cell/hr)") +
+    ggtitle(i)
+  print(p)
+  pdf(here(str_c("pp_depth_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
+}
+
+```
+
+### t test to check if surface is different from DCM
+surface is not different from DCM for all groups
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(depth, water_mass, pp)
+
+summary <- t_test_df %>%
+  group_by(depth) %>%
+  summarise(count = n(),
+    mean = mean(pp, na.rm = TRUE),
+    sd = sd(pp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=pp)) + geom_point() +geom_boxplot()+ facet_grid(water_mass~depth, scales = "free") + scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(pp[depth == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(pp[depth == "DCM"]))
+print(p)
+res <- wilcox.test(pp ~ depth, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+## plot - test
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+  ggplot() +
+    geom_point(aes(x=exp, y=pp, fill=exp), pch = 21, colour = "black", alpha = 0.5)+
+    scale_fill_manual (values = colours_exp)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=cycle_name, y= pp, fill=cycle_name))+
+    scale_fill_manual (values = colours_cycle)+
+        scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    facet_grid(.~cycle_name, scales = "free_x", space = "free") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA))+
+
+    ylab("PP rate (fgC/cell/hr)") +
+    ggtitle(i)
+  print(p)
+}
+
+```
+## t test to check if ST is different from SA
+ST is different from SA for syn and pico.
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(water_mass, pp)
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(pp, na.rm = TRUE),
+    sd = sd(pp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=pp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(pp[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(pp[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(pp ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+# Plots for paper
+##PP
+```{r}
+set.seed(1)
+theme_set(theme_classic())
+#this plot goes to the supplementary. Remove box plot
+  p <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=exp, y=pp, shape = depth), width = 0.2, alpha = 0.5) +
+   # geom_boxplot(aes(x=cycle_name, y= pp, fill=cycle_name), alpha = 0.9)+
+    scale_fill_manual (values = colours_cycle)+
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("Carbon fixation rate (fgC/cell/hr)")
+p
+pdf("figures/1_group rates/202231130_pp_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+# water mass by population
+p1 <- pp_rates %>%
+  #filter(cycle_name!= "SA1") %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=pp), width = 0.2, alpha = 0.4)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=water_mass, y= pp, fill=water_mass))+
+  #  scale_fill_manual (values = colours_cycle) +
+  scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(population~water_mass, scales = "free", space = "free_x") +
+        theme(strip.text.y.right = element_blank(),
+              legend.position = "none",
+              panel.spacing = unit(1, "lines"))+
+   # scale_x_discrete(expand=c(.08)) +
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l", outside = TRUE)+
+  coord_cartesian(clip = "off")+
+    ylab("Carbon fixation rate (fgC/cell/hr)") +
+  xlab("Cycle")
+p1
+
+# population by water mass
+p <- pp_rates %>%
+  filter(cycle_name!= "SA1") %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=pp), width = 0.1, alpha = 0.4)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=water_mass, y= pp, fill=water_mass))+
+  #  scale_fill_manual (values = colours_cycle) +
+  scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(water_mass~population, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "none")+
+   # scale_x_discrete(expand=c(.08)) +
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("PP rate (fgC/cell/hr)") +
+  xlab("Cycle")
+p
+
+```
+## NPP
+```{r}
+# cell conc supp
+  p <- pp_rates %>%
+  ggplot() +
+    # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    geom_jitter(aes(x=exp, y=conc_ml, shape = depth), width = 0.2, alpha = 0.5) +
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme_minimal()+
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("Cell concentration (ml)")
+p
+pdf("figures/1_group rates/202231130_cell conc_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+#supp
+  p <- pp_rates %>%
+  ggplot() +
+    # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    geom_jitter(aes(x=exp, y=npp, shape = depth), width = 0.2, alpha = 0.5) +
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme_minimal()+
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("NPP (mgC/m3/day)")
+p
+pdf("figures/1_group rates/202231130_npp_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+p2 <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=npp), width = 0.2, alpha = 0.4)+
+    geom_boxplot(aes(x=water_mass, y= npp, fill=water_mass))+
+    scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(population~water_mass, scales = "free", space = "free_x") +
+    theme(panel.spacing = unit(1,"lines"),
+          legend.position = "none",
+          strip.text.y.right = element_text(angle = 0))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l", outside = TRUE)+
+    coord_cartesian(clip = "off") +
+    ylab("NPP (mgC/m3/day)")+
+    xlab("Cycle")
+p2
+
+library(patchwork)
+plot <- p1 + p2 +  plot_annotation(tag_levels = 'A')
+plot
+pdf("figures/1_group rates/202231213_pp_npp.pdf", height=6, width=8) ; plot(plot) ; dev.off()
+
+```
+## ignore these plots
+```{r}
+p <- pp_rates %>%
+    ggplot(aes(x=population, y=pp)) +
+    geom_boxplot()+
+    geom_jitter(aes(shape =depth, colour=exp), width = 0.1) +
+    scale_colour_manual(values = colours_exp)+
+    facet_grid(.~cycle_name)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l") 
+p
+
+p <- pp_rates %>%
+    ggplot(aes(x=cycle_name, y=pp)) +
+    geom_boxplot()+
+    geom_jitter(aes(shape =depth, colour=exp), width = 0.1) +
+    scale_colour_manual(values = colours_exp)+
+    facet_grid(.~population)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")  +
+    ylab("PP rate (fgC/cell/hr)")
+p
+#pdf("figures/1_group rates/pp_group.pdf", height=4, width=6) ; plot(p) ; dev.off()
+```
+
+# NPP
+## check diff between surface and DCM
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+  ggplot() +
+    geom_point(aes(x=depth, y=npp, shape = depth, colour=exp))+
+    facet_grid(.~exp, scales = "free_x", space = "free") +
+    scale_colour_manual(values = colours_exp)+
+    scale_fill_manual (values = colours_cycle)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    #ylab("PP rate (fgC/cell/hr)") +
+    ggtitle(i)
+  print(p)
+}
+
+```
+### t test to check if surface is different from DCM
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(depth, npp)
+
+summary <- t_test_df %>%
+  group_by(depth) %>%
+  summarise(count = n(),
+    mean = mean(npp, na.rm = TRUE),
+    sd = sd(npp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(npp[depth == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(npp[depth == "DCM"]))
+print(p)
+res <- wilcox.test(npp ~ depth, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+## plot
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+  ggplot() +
+    geom_point(aes(x=exp, y=npp, fill=exp), pch = 21, colour = "black", alpha = 0.5)+
+    scale_fill_manual (values = colours_exp)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=cycle_name, y= npp, fill=cycle_name))+
+    scale_fill_manual (values = colours_cycle)+
+    facet_grid(.~cycle_name, scales = "free_x", space = "free") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("NPP") +
+    ggtitle(i)
+  print(p)
+}
+
+```
+```{r}
+  p <- pp_rates %>%
+  ggplot() +
+    geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=cycle_name, y= npp, fill=cycle_name), alpha = 0.90)+
+    scale_fill_manual (values = colours_cycle)+
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "none")+
+   # scale_x_discrete(expand=c(.08)) +
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("NPP (mgC/m3/day")
+p
+#pdf("NPP_group.pdf", height=8, width=6) ; plot(p) ; dev.off()
+
+p2 <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=npp), width = 0.1, alpha = 0.4)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=water_mass, y= npp, fill=water_mass))+
+  #  scale_fill_manual (values = colours_cycle) +
+  scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(population~water_mass, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "none")+
+   # scale_x_discrete(expand=c(.08)) +
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("NPP (mgC/m3/day)")+
+  xlab("Cycle")
+p2
+```
+```{r}
+library(patchwork)
+plot <- p+p2
+plot
+pdf("pp_npp_group_watermass.pdf", height=6, width=7) ; plot(plot) ; dev.off()
+```
+```{r}
+# population by water mass
+p <- pp_rates %>%
+ # filter(cycle_name!= "SA1") %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=npp), width = 0.1, alpha = 0.4)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=water_mass, y= npp, fill=water_mass))+
+  #  scale_fill_manual (values = colours_cycle) +
+  scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(water_mass~population, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "none")+
+   # scale_x_discrete(expand=c(.08)) +
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+   # ylab("PP rate (fgC/cell/hr)") +
+  xlab("Cycle")
+p
+```
+
+
+## ignore
+```{r}
+p <- pp_rates %>%
+    ggplot(aes(x=population, y=npp)) +
+    geom_boxplot()+
+    geom_jitter(aes(shape =depth, colour=exp), width = 0.1) +
+    scale_colour_manual(values = colours_exp)+
+    facet_grid(.~cycle_name)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l") 
+p
+
+p <- pp_rates %>%
+    ggplot(aes(x=cycle_name, y=npp)) +
+    geom_boxplot()+
+    geom_jitter(aes(shape =depth, colour=exp), width = 0.1) +
+    scale_colour_manual(values = colours_exp)+
+    facet_grid(.~population)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l") +
+    ylab("NPP rate (mgC/m3/day)")
+p
+#pdf("figures/1_group rates/npp_group.pdf", height=4, width=6) ; plot(p) ; dev.off()
+```
+
+
+```{r}
+p <- pp_rates %>%
+    ggplot(aes(x=population, y=conc_ml)) +
+    geom_boxplot()+
+    geom_jitter(aes(shape =depth, colour=exp), width = 0.1) +
+    scale_colour_manual(values = colours_exp)+
+    facet_grid(.~cycle_name)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l") 
+p
+
+p <- pp_rates %>%
+    ggplot(aes(x=cycle_name, y=conc_ml)) +
+    geom_boxplot()+
+    geom_jitter(aes(shape =depth, colour=exp), width = 0.1) +
+    scale_colour_manual(values = colours_exp)+
+    facet_grid(.~population)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l") +
+    ylab("Cell conc (ml)")
+p
+#pdf("figures/1_group rates/cell conc.pdf", height=4, width=6) ; plot(p) ; dev.off()
+
+```
