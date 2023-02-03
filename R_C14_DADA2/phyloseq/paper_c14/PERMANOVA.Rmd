@@ -108,7 +108,7 @@ stressplot(nmds_sub)
 nmds_sub$stress
 
 #plot overall
-p <- nmds_sample_sub %>%
+nmds_euks <- nmds_sample_sub %>%
     mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
   mutate(water_mass = recode(cycle_name, "ST1" = "ST",
                              "ST2" = "ST",
@@ -127,7 +127,7 @@ p <- nmds_sample_sub %>%
 # +
 #   theme(panel.background = element_rect(fill = NA, colour = "black", size = 0.5, linetype = "solid"))
 
-p
+nmds_euks
 
 # pdf("nmds_ellipse.pdf", height=6, width=6) ; plot(p) ; dev.off()
 
@@ -625,11 +625,11 @@ stressplot(nmds_sub)
 nmds_sub$stress
 
 #plot overall
-p <- nmds_sample_sub %>%
+nmds_syn <- nmds_sample_sub %>%
     mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
     #mutate(sample = fct_relevel(sample, "SUR", "DCM") ) %>%
     ggplot(aes(x=NMDS1, y= NMDS2)) +
-    geom_point(aes(colour = cycle_name)) +
+    geom_point(aes(colour = cycle_name), shape=15) +
   stat_ellipse(aes(colour = water_mass))+
   # ggalt::geom_encircle(aes(group = sample_type), expand = 0, s_shape=1,
   #                 alpha = 0.2, color = "black", size=2)+
@@ -639,11 +639,18 @@ p <- nmds_sample_sub %>%
 # +
 #   theme(panel.background = element_rect(fill = NA, colour = "black", size = 0.5, linetype = "solid"))
 
-p
+nmds_syn
 
 # pdf("nmds_ellipse.pdf", height=6, width=6) ; plot(p) ; dev.off()
 
 
+```
+
+```{r}
+library(patchwork)
+p<-nmds_syn+nmds_euks + plot_layout(guides = 'collect') +plot_annotation(tag_levels = 'A') &theme(legend.position = "top")
+p
+pdf("nmds_all.pdf", height=5.5, width=8) ; plot(p) ; dev.off()
 ```
 
 ## PERMANOVA

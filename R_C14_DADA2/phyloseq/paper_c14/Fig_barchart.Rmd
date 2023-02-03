@@ -165,9 +165,9 @@ taxon_rel_abund <- otu_rel_abund %>%
                  values_to = "rel_abund")
 ## summary for results
 summary <- taxon_rel_abund %>%
-  filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae")) %>%
-  filter(cycle_name_2 == "SA1") %>%
-  group_by(taxon) %>%
+  filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae", "Chloropicophyceae")) %>%
+  filter(cycle_name_2 != "SA1") %>%
+  group_by(taxon, water_mass) %>%
   summarise(median = median(rel_abund),
             mean = mean(rel_abund))
 summary
@@ -584,11 +584,14 @@ taxon_rel_abund <- otu_rel_abund %>%
 ## summary for results
 summary <- taxon_rel_abund %>%
   filter(taxon %in% c("Dinophyceae", "Prymnesiophyceae", "Bacillariophyta", "Cryptophyceae", "Haptophyta_Clade_HAP3")) %>%
+  # filter(cycle_name_2 %in% c("SA1")) %>%
   group_by(taxon, cycle_name_2) %>%
   summarise(median = median(rel_abund),
             mean = mean(rel_abund))
 summary
+```
 
+```{r}
 taxon_pool <- taxon_rel_abund %>%
     group_by(cycle_name_2, taxon) %>%
     summarise(median = median(rel_abund)) %>% #calculate median proportion of reads per sp per cycle
@@ -1123,10 +1126,10 @@ otu_rel_abund <- long_sorted_1 %>%
                  names_to = "level",
                  values_to = "taxon") 
 ```
-## subclade - select above 5%
+
 ```{r}
 taxon_rel_abund <- otu_rel_abund %>%
-    filter(level == "Subclade") %>% #choose level here 
+    filter(level == "Clade") %>% #choose level here 
     group_by(cycle_name, file_code, taxon) %>%
     summarise(rel_abund = 100*sum(rel_abund)) %>%
     pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
@@ -1134,6 +1137,38 @@ taxon_rel_abund <- otu_rel_abund %>%
     pivot_longer(cols= !cycle_name:file_code,
                  names_to = "taxon",
                  values_to = "rel_abund")
+
+## summary for results
+summary <- taxon_rel_abund %>%
+  # filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae")) %>%
+  # filter(cycle_name_2 == "SA1") %>%
+  group_by(taxon) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
+```
+
+
+## subclade - select above 5%
+```{r}
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "Subclade") %>% #choose level here 
+    group_by(water_mass, cycle_name, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+## summary for results
+summary <- taxon_rel_abund %>%
+  # filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae")) %>%
+  # filter(cycle_name_2 == "SA1") %>%
+  group_by(taxon, water_mass) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
 
 taxon_pool <- taxon_rel_abund %>%
     group_by(cycle_name, taxon) %>%

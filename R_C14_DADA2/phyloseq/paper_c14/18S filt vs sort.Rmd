@@ -149,14 +149,52 @@ long_pico_asvhash <- long_filt_sort %>%
     filter(sample_type == "Pico") %>%
     select(asv_code)
 
+
 long_pico <- long_filt_sort %>%
-    filter(sample_type == "Pico")
+    filter(sample_type == "Pico") 
+%>%
+    filter(class != "Dinophyceae")
 
 long_filt<- long_filt_sort %>%
-    filter(sample_type == "filt")
+    filter(sample_type == "filt") 
+# %>%
+#     filter(class != "Dinophyceae")
 
 long_filt_pico <- inner_join(long_filt, long_pico_asvhash) %>%
     distinct()
+
+
+
+# pivot longer dataframe
+otu_rel_abund <- long_filt_pico %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+## summary for results
+summary <- taxon_rel_abund %>%
+  filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae", "Chloropicophyceae")) %>%
+  # filter(cycle_name_2 == "SA1") %>%
+  group_by(taxon, water_mass) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
+```
+
+```{r}
 
 p1 <- long_pico %>%
   # mutate(class = fct_infreq(taxa))%>%
@@ -174,7 +212,7 @@ p1 <- long_pico %>%
   ylab("Proportion of reads")
 p1
 
-pdf("phyloseq/paper_c14/figures/pico_class.pdf", height=5, width=8) ; plot(p1) ; dev.off()
+# pdf("phyloseq/paper_c14/figures/pico_class.pdf", height=5, width=8) ; plot(p1) ; dev.off()
 
 p2 <- long_filt_pico %>%
     mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
@@ -191,7 +229,7 @@ p2 <- long_filt_pico %>%
   ylab("Proportion of reads")
 p2
 
-pdf("phyloseq/paper_c14/figures/filt_pico_class.pdf", height=5, width=8) ; plot(p2) ; dev.off()
+# pdf("phyloseq/paper_c14/figures/filt_pico_class.pdf", height=5, width=8) ; plot(p2) ; dev.off()
 ```
 
 #also need to check by depth
@@ -388,11 +426,45 @@ long_nano_asvhash <- long_filt_sort %>%
     select(asv_code)
 
 long_nano <- long_filt_sort %>%
-    filter(sample_type == "Nano")
+    filter(sample_type == "Nano") 
+# %>%
+#   filter(class != "Dinophyceae")
 
 long_filt_nano <- inner_join(long_filt, long_nano_asvhash) %>%
     distinct()
 
+# pivot longer dataframe
+otu_rel_abund <- long_filt_nano %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+## summary for results
+summary <- taxon_rel_abund %>%
+  filter(taxon %in% c("Bacillariophyta")) %>%
+  # filter(cycle_name_2 %in% c("SA1", "SA2")) %>%
+  group_by(taxon, cycle_name_2) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
+```
+
+
+```{r}
 p1 <- long_nano %>%
   # mutate(class = fct_infreq(taxa))%>%
   mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%

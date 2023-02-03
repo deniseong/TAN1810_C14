@@ -35,6 +35,42 @@ pp_rates$population <- factor(pp_rates$population, levels = c("Syn", "Pico", "Na
 pp_rates$depth <- factor(pp_rates$depth, levels = c("SUR", "DCM"))
 ```
 
+# summary for paper - pp, npp, cell conc
+```{r}
+summary <- pp_rates %>%
+  select(population, cycle_name, pp, npp, conc_ml) %>%
+  pivot_longer(pp:conc_ml, names_to = "data", values_to = "value") %>%
+  group_by(data, population, cycle_name) %>%
+  summarize(mean = round(mean(value), 2),
+            sd = round(sd(value),2), 
+             n = n()
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd") %>%
+  arrange(factor(data, levels = c('pp', 'npp', 'conc_ml')))
+summary
+
+writexl::write_xlsx(summary, path = "group_summary.xlsx")
+
+
+# sum of group sp NPP.
+summary <- pp_rates %>%
+  select(population, cycle_name, npp, exp, depth) %>%
+  group_by(population, cycle_name, exp, depth) %>%
+  summarize(mean = round(mean(npp), 2)) %>%
+  group_by(cycle_name, exp,depth) %>%
+  summarise(sum = sum(mean)) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(sum), 2),
+            # sd = round(sd(sum),2)
+            ) #%>%
+  
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+
+```
+
 #PP group rates
 
 ## Summary stats

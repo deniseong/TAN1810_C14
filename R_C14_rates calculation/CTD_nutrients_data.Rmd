@@ -29,7 +29,7 @@ opts_knit$set(width=75)
 Denise notes 20210315:
 - depth was selected until 100 m
 - depth interval selected every 5 m
-- cycle 1/subantarctic 1 - 25 Oct to 30 Oct
+- cycle 1/subantarctic 1 - 24 Oct to 30 Oct
 - cycle 2/subantarctic 2 - 2 Nov to 6 Nov
 - cycle 3/subtropical 1 - 8 to 10 Nov
 - cycle 4/ subtropical 2 - 12 to 14 Nov
@@ -113,7 +113,7 @@ CTD <- CTD %>% mutate(cycle_name = recode(cycle, "1" = "SA1",
                                   julian_day == "301" ~ "SA1-B",
                                   julian_day == "302" ~ "SA1-B",
                                   TRUE ~ as.character(cycle_name))) %>%
-  filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
+  # filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
   filter(!is.na(cycle)) %>% #remove rows without cycle number
   mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
 
@@ -271,6 +271,8 @@ f_plot <- CTD %>%
 f_plot
 
 ```
+
+
 ```{r}
 scale=500
 test <- CTD %>%
@@ -345,6 +347,34 @@ CTD_figure
 pdf("figures/4_ctd nutrients/ctd_ts.pdf", height=5, width=7) ; plot(CTD_figure) ; dev.off()
 
 
+```
+
+## summary 
+```{r}
+summary_sst <-  CTD %>%
+  filter(p <= 12) %>%
+  pivot_longer(cols = c("t_mean"), names_to = "ctd", values_to = "value") %>%
+  group_by(cycle_name, ctd) %>%
+  summarise(mean = round(mean(value), 2),
+            sd= round(sd(value),2)) %>%
+  unite("SST", mean:sd, sep = " ± ") %>%
+  # pivot_wider(names_from = ctd,  values_from = mean_sd) %>%
+  ungroup() %>%
+  select(cycle_name,  "SST")
+summary_sst
+# writexl::write_xlsx(summary, "summary_nutrients.xlsx")
+summary_s <-  CTD %>%
+  filter(p <= 150) %>%
+  pivot_longer(cols = c("s_mean"), names_to = "ctd", values_to = "value") %>%
+  group_by(cycle_name, ctd) %>%
+  summarise(mean = round(mean(value), 2),
+            sd= round(sd(value),2)) %>%
+  unite("Salinity", mean:sd, sep = " ± ") %>%
+  # pivot_wider(names_from = ctd,  values_from = mean_sd) %>%
+  ungroup() %>%
+  select(cycle_name,  "Salinity")
+summary_s
+summary_ctd <- full_join(summary_sst, summary_s)
 ```
 
 for checks between SA1-A and SA1-B. The only thing that is different is the fluorescence at DCM. SA1-A  is nearly twice fluorescence of SA1-B.
@@ -486,10 +516,19 @@ nutrients <- nutrients %>%
                                     "3" = "ST1",
                                     "4" = "ST2",
                                     "5" = "SA3"))  %>%
+  mutate(cycle_name_2 = case_when(julian_day == "296" ~ "SA1-A",
+                                  julian_day == "297" ~ "SA1-A",
+                                  julian_day == "298" ~ "SA1-A",
+                                  julian_day == "299" ~ "SA1-A",
+                                  julian_day == "300" ~ "SA1-B",
+                                  julian_day == "301" ~ "SA1-B",
+                                  julian_day == "302" ~ "SA1-B",
+                                  TRUE ~ as.character(cycle_name))) %>%
+  # filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
   mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
 
 check <- nutrients  %>% 
-  select(CTD, date, cycle) %>%
+  select(CTD, date, cycle_name_2) %>%
   distinct()
 check
 ```
@@ -501,14 +540,25 @@ summary <-   nutrients %>%
    mutate(si_nitrate=DRSi_uM/NO3_uM) %>%
   pivot_longer(cols = c("DRP_uM", "NH4_uM", "NO3_uM", "DRSi_uM", "nitrate_ammonia", "si_nitrate"), names_to = "nutrients", values_to = "conc") %>%
   group_by(cycle_name, nutrients) %>%
-  summarise(conc_mean = round(mean(conc), 3),
-            conc_sd= round(sd(conc),3)) %>%
-  unite("mean_sd", conc_mean:conc_sd, sep = "±") %>%
+  summarise(conc_mean = round(mean(conc), 2),
+            conc_sd= round(sd(conc),2)) %>%
+  unite("mean_sd", conc_mean:conc_sd, sep = " ± ") %>%
   pivot_wider(names_from = nutrients,  values_from = mean_sd) %>%
   ungroup() %>%
   select(cycle_name,  "NH4_uM", "NO3_uM","DRP_uM","DRSi_uM", "nitrate_ammonia", "si_nitrate")
 summary
-writexl::write_xlsx(summary, "summary_nutrients.xlsx")
+# writexl::write_xlsx(summary, "summary_nutrients.xlsx")
+
+summary_all <- full_join(summary_ctd, summary)
+summary_all
+writexl::write_xlsx(summary_all, "summary_ctdnut.xlsx")
+
+library(xtable)
+summary <- readxl::read_excel("data_used/C14_studies.xlsx", sheet = "Sheet3") %>%
+  unite("CO2 fixation rate", Lower:Upper, sep = " – ")
+print(xtable(summary),
+      comment = FALSE,
+      include.rownames=FALSE)
 ```
 
 

@@ -59,6 +59,22 @@ summary<- cold_group %>%
 writexl::write_xlsx(summary, "group_rates_output/NPP_cold_standard_group_summary.xlsx")
 ```
 
+#summary for cold rates
+```{r}
+summary<- cold_group %>%
+  select(cycle_name, exp, depth, cold_corrected) %>%
+  filter(!(is.na(cold_corrected))) %>%
+  group_by(cycle_name, exp, depth) %>%
+  summarise(value = mean(cold_corrected)) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(value), 2),
+            # sd = round(sd(value),2)
+             ) #%>%
+   # unite("mean_sd", mean:sd, sep = " ± ") %>%
+  # pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+```
+
 
 #plot all- check variation between replicates
 ```{r}
@@ -152,7 +168,49 @@ p <- cold_group %>%
   ylab("Proportion of npp (%)") +
   theme(legend.position="top") 
 p
+```
+
+```{r}
+group_npp <- group_rates %>%
+  select(cycle, exp, depth, vial, population, cycle_name, station, depth_m, ctd, npp)  %>%
+  group_by(cycle_name, exp, depth, population) %>%
+  summarise(npp = mean(npp))
+standard <- cold_standard %>%
+  select(-cold_corrected) %>%
+  rename(npp=standard_corrected) %>%
+  mutate(population = "standard")%>%
+  filter(!(is.na(npp))) %>%
+  filter(!(npp <= 0)) %>%
+  group_by(cycle_name, exp, depth, population) %>%
+  summarise(npp = mean(npp))
+
+cold_group <- full_join(standard, group_npp) %>%
+  # filter(!(cycle_name == "ST1" & depth == "SUR")) %>%
+  # unite(cycle_exp, c(cycle_name, exp), sep = "_", remove = FALSE) %>%
+  # group_by(cycle_name, population) %>%
+  # summarise(npp = mean(npp, na.rm=TRUE)) %>%
+  pivot_wider(names_from = population, values_from = npp) %>%
+  mutate(others = standard-Nano-Pico-Syn) %>%
+  mutate(sum = Nano + Pico + Syn) %>%
+  select(-standard) %>%
+  pivot_longer(!cycle_name, names_to = "population",
+               values_to = "npp") %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
+
+p <- cold_group %>%
+  filter(population !="others") %>%
+  # mutate(population = fct_relevel(population, "20", "2", "0.2"))
+  ggplot(aes(x=cycle_name, y=npp, fill = population)) +
+  # geom_bar(stat="identity", position = "fill") +
+  geom_bar(stat="identity") +
+  scale_fill_viridis_d() +
+  xlab(NULL) +
+  ylab("Proportion of npp (%)") +
+  theme(legend.position="top") 
+ # scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") 
+p
 
   
+
 ```
 

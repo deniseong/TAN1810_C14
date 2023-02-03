@@ -26,7 +26,7 @@ to check:
 - U9161: 70 m npp cold values are measured twice?
 
 Denise edits:
-- U9141: remove 25 m DCM dark vial reading. very high compared to other dark vial readings. 
+- U9141: remove 12 m DCM dark vial reading. very high compared to other dark vial readings. 
 - U9133: remove NPP_cold, replicate B. leak during processing
 - U9136: 40 m incubation remove NPP cold. very low readings, possibly not spiked.
 - U9167: 60 m vial B, remove NPP cold measurement. Lower than dark measurement. X in comments.\
@@ -103,7 +103,7 @@ C14_cold_edit <- C14_cold %>%
   pivot_longer(cols = NPP_cold:NPP_standard, 
                names_to = "type",
                values_to = "NPP") %>%
-  filter(!(CTD == "U9141"& depth == '25' & replicate == "D" & type == "NPP_cold")) %>%
+  filter(!(CTD == "U9141"& depth == '12' & replicate == "D" & type == "NPP_cold")) %>%
   filter(!(CTD == "U9133" & replicate == "B" & type == "NPP_cold")) %>%
   filter(!(CTD == "U9136" & depth == '40' & type == "NPP_cold")) %>%
   filter(!(CTD == "U9167" & depth == '60' & replicate == "B" & type == "NPP_cold")) %>%
@@ -131,7 +131,7 @@ mean(dark_NPP$NPP_standard_dark, na.rm = TRUE) #na.rm function to ignore NA valu
 # Corrected values = light - dark (same method as C14 hot calculations)
 
 ```{r}
-cold_corrected$exp <- as.double(cold_corrected$exp)
+
 cold_corrected <- full_join(C14_cold_edit,dark_NPP) %>% 
   filter (dark == "light") %>% 
   # DV - The next line replace dpm_dark to average dpm_dark if no value. Checked with histogram above.
@@ -153,6 +153,7 @@ cold_corrected <- full_join(C14_cold_edit,dark_NPP) %>%
   mutate(sample = fct_relevel(sample, "SUR", "DCM")) %>%
   mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
 cold_corrected$exp <- as.character(cold_corrected$exp)
+cold_corrected$exp <- as.double(cold_corrected$exp)
 cold_corrected
 writexl::write_xlsx(cold_corrected, "group_rates_output/NPP_cold_standard.xlsx")
 ```
@@ -196,18 +197,3 @@ p
 #pdf("group_rates_output/cold_standard_compare.pdf", height=4, width=6) ; plot(p) ; dev.off()
 ```
 
-
-#compare cold readings against the total sum npp
-```{r, eval=FALSE}
-summary_table <- cold_mean %>%
-  dplyr::group_by(cycle, exp, sample) %>%
-  dplyr::summarise(standard_mean = mean(standard), cold_mean = mean(cold) )
-            
-summary_table
-            
-group_npp <- readxl::read_excel("../data_used/C14_sum npp per group.xlsx")
-group_npp
-
-npp_compare <- full_join(group_npp, summary_table)
-npp_compare
-```
