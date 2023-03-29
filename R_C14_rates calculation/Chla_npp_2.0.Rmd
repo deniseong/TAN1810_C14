@@ -46,6 +46,14 @@ C14_hot$exp <- as.character(C14_hot$exp)
 npp <- full_join(npp_raw, C14_hot) %>%
   unite(station_exp, c(station, exp), sep = "_", remove = FALSE) %>%
   mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) 
+
+depth_check <- npp %>%
+  select(cycle_name, depth) %>%
+  distinct() %>%
+  group_by(cycle_name) %>%
+  arrange(cycle_name,depth) 
+
+depth_check
 ```
 
 for depth group incubations.
@@ -72,9 +80,9 @@ npp_sum <- full_join(npp, C14_hot_depth) %>%
                                TRUE ~ mean_NPP)) 
 summary <- npp_sum %>%
   group_by(cycle_name) %>%
-  summarize(mean = round(mean(mean_NPP), 2)#,
-            # sd = round(sd(mean_NPP),2)
-            ) #%>%
+  summarize(mean = round(mean(mean_NPP), 2),
+             sd = round(sd(mean_NPP),2)
+            ) %>%
   unite("mean_sd", mean:sd, sep = " ± ") %>%
   pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
 # %>%
@@ -119,12 +127,20 @@ chl$cycle <- as.character(chl$cycle)
 chl$CTD <- sub("^", "U", chl$CTD)
 chl$exp <- as.character(chl$exp)
 
+depth_check <- chl %>%
+  filter(time == "noon") %>%
+  select(cycle_name, depth) %>%
+  distinct() %>%
+  group_by(cycle_name) %>%
+  arrange(cycle_name,depth) 
+
+depth_check
 ```
 #summary table
 ```{r}
 chl_summary <- chl %>%
   filter(time == "noon") %>%
-  filter(cycle_name_2 != "SA1-b") %>%
+  # filter(cycle_name_2 != "SA1-b") %>%
   select(cycle_name, areal_chl) %>%
   distinct() %>%
   mutate(water_mass = recode(cycle_name, "SA1" = "SA",
@@ -133,10 +149,11 @@ chl_summary <- chl %>%
                              "ST1" = "ST",
                              "ST2" = "ST"
                              )) %>%
-  group_by(water_mass) %>%
+  group_by(cycle_name) %>%
   summarise(mean = mean(areal_chl),
             min = min(areal_chl),
-            max = max(areal_chl))
+            max = max(areal_chl),
+            sd = sd(areal_chl))
 chl_summary
 
 npp_summary <- npp %>%
@@ -148,11 +165,30 @@ npp_summary <- npp %>%
                              "ST1" = "ST",
                              "ST2" = "ST"
                              )) %>%
-  group_by(water_mass) %>%
+  group_by(cycle_name) %>%
   summarise(mean = mean(areal_PP,  na.rm=TRUE),
             min = min(areal_PP,  na.rm=TRUE),
-            max = max(areal_PP,  na.rm=TRUE))
+            max = max(areal_PP,  na.rm=TRUE),
+            sd = sd(areal_PP,  na.rm=TRUE))
 npp_summary
+
+chl_summary <- chl %>%
+  filter(time == "noon") %>%
+  filter(depth %in% c("10", "12")) %>%
+  # filter(cycle_name_2 != "SA1-b") %>%
+  select(cycle_name, SumSFChla) %>%
+  distinct() %>%
+  mutate(water_mass = recode(cycle_name, "SA1" = "SA",
+                             "SA2" = "SA",
+                             "SA3" = "SA",
+                             "ST1" = "ST",
+                             "ST2" = "ST"
+                             )) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(SumSFChla), 2),
+            sd = round(sd(SumSFChla),2)) %>%
+  unite("rate", mean:sd, sep=" ± ", remove = TRUE)
+chl_summary
 ```
 
 ## plot chla raw data- across depth for all individual ctd
@@ -268,7 +304,7 @@ sf_chl <- full_join(sf_pct, int_chl) %>%
   mutate(size = fct_relevel(size, "20", "2", "0.2")) 
 
 sf_summary <- sf_chl %>%
-  filter(size == "0.2") %>%
+  filter(size == "20") %>%
   select(sf_int, cycle_name, size) %>%
   distinct() %>%
   filter(cycle_name == "SA3") %>%
@@ -305,25 +341,25 @@ p2
 library(patchwork)
 plot <- p1/p2 +  plot_annotation(tag_levels = 'A')
 plot
-# pdf("figures/2_NPP chla/20221129_int chla npp combine.pdf", height=7, width=4) ; plot(plot) ; dev.off()
+pdf("figures/2_NPP chla/20221129_int chla npp combine.pdf", height=7, width=5) ; plot(plot) ; dev.off()
 
 
 # test - combine integrated chla and npp together on one graph
-scale =5
-p <- npp %>%
-  select(cycle_name, areal_PP) %>%
-  distinct() %>%
-  filter(!is.na(areal_PP)) %>%
-  ggplot(aes(x=cycle_name, y = areal_PP/scale)) +
-  stat_summary(fun.data=mean_cl_boot, geom = "pointrange", colour = "red") +
-  geom_bar(data = sf_chl, aes(x=cycle_name, y=sf_int, fill = size), stat="identity") +
-  #geom_errorbar(data = sf_chl, aes(ymin=mean_int-sd_int, ymax=mean_int+sd_int), width=.2)+
-  scale_fill_viridis_d() +
-  xlab(NULL) +
-  ylab("Integrated chla (mg/m2)") +
- scale_y_continuous(sec.axis = sec_axis(~.*scale, name="Integrated NPP (mgC/m2/day)"))+
-  theme(legend.position="bottom") 
-p
+# scale =5
+# p <- npp %>%
+#   select(cycle_name, areal_PP) %>%
+#   distinct() %>%
+#   filter(!is.na(areal_PP)) %>%
+#   ggplot(aes(x=cycle_name, y = areal_PP/scale)) +
+#   stat_summary(fun.data=mean_cl_boot, geom = "pointrange", colour = "red") +
+#   geom_bar(data = sf_chl, aes(x=cycle_name, y=sf_int, fill = size), stat="identity") +
+#   #geom_errorbar(data = sf_chl, aes(ymin=mean_int-sd_int, ymax=mean_int+sd_int), width=.2)+
+#   scale_fill_viridis_d() +
+#   xlab(NULL) +
+#   ylab("Integrated chla (mg/m2)") +
+#  scale_y_continuous(sec.axis = sec_axis(~.*scale, name="Integrated NPP (mgC/m2/day)"))+
+#   theme(legend.position="bottom") 
+# p
 # pdf("figures/2_NPP chla/20221129_int chla_npp.pdf", height=7, width=6) ; plot(p) ; dev.off()
 
 #proportion of sf
@@ -334,8 +370,9 @@ p <- sf_chl %>%
   xlab(NULL) +
   ylab("Proportion of chla (%)") +
   theme(legend.position="top") 
+
 p
-# pdf("figures/2_NPP chla/20221129_chla proportion.pdf", height=7, width=6) ; plot(p) ; dev.off()
+pdf("figures/2_NPP chla/20221129_chla proportion.pdf", height=7, width=6) ; plot(p) ; dev.off()
 ```
 
 # chla and npp by depth
@@ -345,7 +382,7 @@ p
 library(viridis)
 p <- chl %>%
   filter(time == "noon") %>%
-  filter(cycle_name_2 != "SA1-b") %>%
+  # filter(cycle_name_2 != "SA1-b") %>%
   pivot_longer(Chla_0.2:Chla_20, names_to = "size_fraction", values_to = "chla") %>%
   group_by(cycle_name, depth, size_fraction) %>%
   summarise(mean_chla = mean(chla)) %>%
@@ -380,7 +417,7 @@ pdf("figures/2_NPP chla/chla_sf_depth.pdf", height=7, width=6) ; plot(p) ; dev.o
 # plot all cycles together
 p1 <- chl %>%
   filter(time == "noon") %>%
-  filter(cycle_name_2 !="SA1-b") %>%
+  # filter(cycle_name_2 !="SA1-b") %>%
   group_by(cycle_name, CTD) %>%
   group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
   ggplot(aes(x=SumSFChla, y= depth, colour = cycle_name)) + 
@@ -435,25 +472,26 @@ pdf("figures/2_NPP chla/20221213_depth chla npp combine.pdf", height=6, width=6)
 
 
 # npp no smoothing - ignore
-p <- npp %>%
-  filter(station !="15") %>%
-      filter(!is.na(mean_NPP)) %>% #so that the lines can connect over NA values.
-  group_by(cycle, cycle_name, depth) %>%
-  #group_by(cycle_2, cycle_name_2, depth) %>%
-  summarise(mean=mean(mean_NPP)) %>%
-  ggplot(aes(x=mean, y= depth, colour=cycle_name)) + 
- #   geom_errorbar(aes(xmin=mean-sd, xmax=mean+sd), width=.1) +
-    geom_path() +
-  scale_y_reverse()+
-  ylim(100,0)+
-  #facet_grid(.~cycle_name, scales = "free_x")+
-  ylab("Depth (m)")+
-  xlab("NPP (mgC/m3/day)")+
-  scale_colour_manual(values = colours_cycle)
-p
+# p <- npp %>%
+#   filter(station !="15") %>%
+#       filter(!is.na(mean_NPP)) %>% #so that the lines can connect over NA values.
+#   group_by(cycle, cycle_name, depth) %>%
+#   #group_by(cycle_2, cycle_name_2, depth) %>%
+#   summarise(mean=mean(mean_NPP)) %>%
+#   ggplot(aes(x=mean, y= depth, colour=cycle_name)) + 
+#  #   geom_errorbar(aes(xmin=mean-sd, xmax=mean+sd), width=.1) +
+#     geom_path() +
+#   scale_y_reverse()+
+#   ylim(100,0)+
+#   #facet_grid(.~cycle_name, scales = "free_x")+
+#   ylab("Depth (m)")+
+#   xlab("NPP (mgC/m3/day)")+
+#   scale_colour_manual(values = colours_cycle)
+# p
 ```
 
 ```{r}
+#ignore
 test <- npp %>%
       filter(!is.na(mean_NPP)) %>%  #so that the lines can connect over NA values
    group_by(cycle_name, station) %>%

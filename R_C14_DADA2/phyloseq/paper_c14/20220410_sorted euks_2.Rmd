@@ -101,10 +101,14 @@ het <- long_pico_1 %>%
   mutate(sum_n_reads = sum(n_reads)) %>%
   mutate(pct_n_reads = n_reads/sum_n_reads*100) %>%
   select(file_code, trophic_mode, asv_code, species, pct_n_reads) %>%
-  filter(trophic_mode == "heterotrophic") #%>%
-  #ungroup() %>%
-  #filter(!(species %in% c("Gyrodinium_fusiforme", "Spumella_elongata"))) %>%
-  #summarise(mean = mean(pct_n_reads))
+  # filter(trophic_mode == "heterotrophic") %>%
+  filter(trophic_mode %in% c("heterotrophic", "fungi", "syndiniales")) %>%
+  ungroup() %>%
+  group_by(file_code) %>%
+  # filter(!(species %in% c("Gyrodinium_fusiforme", "Spumella_elongata"))) %>%
+  summarise(sum = sum(pct_n_reads))%>%
+  ungroup() %>%
+  summarise(mean = mean(sum))
   
 p <- long_pico_1 %>%
      ps_top_asv(15) %>%
@@ -392,6 +396,20 @@ long_nano_1 <- long_nano_1 %>%
 ##check
 ### check heterotrophics - removed.
 ```{r}
+#check percentage of heterotrophs in samples.
+het <- long_nano_1 %>%
+  group_by(file_code) %>%
+  mutate(sum_n_reads = sum(n_reads)) %>%
+  mutate(pct_n_reads = n_reads/sum_n_reads*100) %>%
+  select(file_code, trophic_mode, asv_code, species, pct_n_reads) %>%
+  # filter(trophic_mode == "heterotrophic") %>%
+  filter(trophic_mode %in% c("heterotrophic", "fungi", "syndiniales")) %>%
+  ungroup() %>%
+  group_by(file_code) %>%
+  # filter(!(species %in% c("Gyrodinium_fusiforme", "Spumella_elongata"))) %>%
+  summarise(sum = sum(pct_n_reads))%>%
+  ungroup() %>%
+  summarise(mean = mean(sum))
 
 p <- long_nano_1 %>%
      ps_top_asv(15) %>%

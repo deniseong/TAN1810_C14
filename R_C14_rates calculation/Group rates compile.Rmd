@@ -55,6 +55,14 @@ pp_rates$exp <- as.character(pp_rates$exp)
 pp_rates <- full_join(pp_rates, C14_hot) %>%
   filter(!is.na(pp)) 
 
+depth_check <- pp_rates %>%
+  select(cycle_name, depth_m) %>%
+  distinct() %>%
+  group_by(cycle_name) %>%
+  arrange(cycle_name,depth_m) 
+
+depth_check
+
 ```
 
 

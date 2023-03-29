@@ -16,7 +16,7 @@ source(here("phyloseq", "init_files", "colours_petb.R")) #colours
 
 # Read data
 ```{r}
-source(here("phyloseq", "init_files", "read_petb.R"))
+source(here("phyloseq", "init_files", "read_petb_2.0.R"))
 ```
 
 #sorted
@@ -166,7 +166,7 @@ p7 <- long %>%
         scale_fill_manual(values=colours_petb_subclade, limits = force) 
 p7
 
-pdf("phyloseq/figures_20211027/C14 syn_merged_duplicates.pdf", height=5, width=8) ; plot(p7) ; dev.off()
+# pdf("phyloseq/figures_20211027/C14 syn_merged_duplicates.pdf", height=5, width=8) ; plot(p7) ; dev.off()
 
 ```
 
@@ -198,5 +198,5 @@ p1 <- long_sorted %>%
   ylab("Percent of reads")
 p1
 
-pdf("phyloseq/figures_ACOP/sorted syn class_light.pdf", height=5, width=5) ; plot(p1) ; dev.off()
+# pdf("phyloseq/figures_ACOP/sorted syn class_light.pdf", height=5, width=5) ; plot(p1) ; dev.off()
 ```

@@ -46,11 +46,11 @@ ps_pico <- ps_pico %>%
     phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
 
 junk <- data.frame(ps_pico@sam_data)
-## Filtration based on taxonomy - remove metazoa and fungi
-ps_pico <- ps_pico %>% 
-    subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
-    subset_taxa(!(class == "Embryophyceae"))  %>% # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
-    subset_taxa(!(species == "Padina_australis")) %>%
-    subset_taxa(!(supergroup %in% c("Opisthokonta")))%>%
-    subset_taxa(!(division %in% c("Pseudofungi")))%>%
-    subset_taxa(!(class %in% c("Syndiniales")))
+# ## Filtration based on taxonomy - remove metazoa and fungi
+# ps_pico <- ps_pico %>% 
+#     subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
+#     subset_taxa(!(class == "Embryophyceae"))  %>% # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
+#     subset_taxa(!(species == "Padina_australis")) %>%
+#     subset_taxa(!(supergroup %in% c("Opisthokonta")))%>%
+#     subset_taxa(!(division %in% c("Pseudofungi"))) %>%
+#     subset_taxa(!(class %in% c("Syndiniales")))

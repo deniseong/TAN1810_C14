@@ -1,3 +1,4 @@
+# Read all petB primer samples - Ong_2022 filtered and sorted samples, Mazard_2012 filtered samples
 # Filtered samples -petB Ong_2022 primer
 
 # Load the phyloseq files
@@ -86,7 +87,7 @@ ps_filt_mazard <- ps_filt_mazard %>%
 ps_filt_mazard <- phyloseq_normalize_median(ps_filt_mazard)
 long_filt_mazard <- phyloseq_transform_to_long(ps_filt_mazard)
 
-# Sorted syn initials
+# Sorted syn
 # Load the phyloseq files
 ps_sorted <- read_rds(here("DADA2", "output_petb_2x300", "output_petb_Denise", "merged_v2", "petB_Denise primer_phyloseq_sortedsyn.RDS"))
 

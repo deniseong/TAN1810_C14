@@ -50,7 +50,7 @@ summary <- pp_rates %>%
   arrange(factor(data, levels = c('pp', 'npp', 'conc_ml')))
 summary
 
-writexl::write_xlsx(summary, path = "group_summary.xlsx")
+# writexl::write_xlsx(summary, path = "group_summary.xlsx")
 
 
 # sum of group sp NPP.
@@ -67,6 +67,25 @@ summary <- pp_rates %>%
   
    unite("mean_sd", mean:sd, sep = " ± ") %>%
   pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+
+
+#cell conc summary
+summary <- pp_rates %>%
+  filter(exp != "5") %>%
+  select(water_mass, population, cycle_name, conc_ml) %>%
+  distinct() %>%
+  pivot_longer(conc_ml, names_to = "data", values_to = "value") %>%
+  group_by(data, population, water_mass) %>%
+  summarize(mean = round(mean(value), 0),
+            sd = round(sd(value),0), 
+            n = n(),
+            min = round(min(value), 0),
+            max = round(max(value), 0)
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  unite("range", min:max, sep = "-")
+
 summary
 
 ```
@@ -90,6 +109,13 @@ summary <- pp_rates %>%
    unite("mean_sd", mean:sd, sep = " ± ") 
 summary
 
+
+summary <- pp_rates %>%
+  group_by(population, depth) %>%
+  summarize(mean = round(mean(pp), 2),
+            sd = round(sd(pp),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = "±") 
+summary
 ```
 ## Overall between groups
 not normally distributed, using kruskal test. 
@@ -152,7 +178,10 @@ summary <- t_test_df %>%
     sd = sd(pp, na.rm = TRUE))
 print(summary)
  p <- t_test_df %>%
-   ggplot(aes(x=depth, y=pp)) + geom_point() +geom_boxplot()+ facet_grid(water_mass~depth, scales = "free") + scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
+   ggplot(aes(x=depth, y=pp))  +geom_boxplot() + geom_point() +
+ # facet_grid(water_mass~depth, scales = "free") +
+facet_grid(~depth, scales = "free") +
+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
  print(p)
 
 #Because p value <0.05, data is not normally distributed. Use the wilcoxon test
@@ -420,6 +449,7 @@ p
 # cell conc supp
   p <- pp_rates %>%
   select(cycle_name, exp, conc_ml, population, depth) %>%
+  filter(exp!="5") %>%
   distinct() %>%
   ggplot() +
     # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
@@ -435,9 +465,11 @@ p
               legend.position = "top")+
     scale_y_continuous(trans='log10') +
     annotation_logticks(sides = "l")+
-    ylab("Cell concentration (ml)")
+    ylab("Cell concentration (mL)") +
+  xlab("Experiment") +
+  labs(shape = "Depth")
 p
-pdf("figures/1_group rates/202231130_cell conc_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+pdf("figures/1_group rates/supp_cell conc_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
 
 
 #supp

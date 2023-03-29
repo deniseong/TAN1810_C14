@@ -49,11 +49,11 @@ ps_nano <- ps_nano %>%
     phyloseq::filter_taxa(function(x) sum(x) > 0 , TRUE) 
 
 ## Filtration based on taxonomy - remove metazoa and fungi
-ps_nano <- ps_nano %>% 
-    subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
-    subset_taxa(!(class == "Embryophyceae")) %>%
-    subset_taxa(!(genus == "Padina")) %>% # to remove the plants. Likely from contamination. Checked with Adriana and Daniel, ok to remove.
-    subset_taxa(!(supergroup %in% c("Opisthokonta")))%>%
-    subset_taxa(!(division %in% c("Pseudofungi")))%>%
-    subset_taxa(!(class %in% c("Syndiniales")))
+# ps_nano <- ps_nano %>% 
+#     subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
+#     subset_taxa(!(class == "Embryophyceae")) %>%
+#     subset_taxa(!(genus == "Padina")) %>% # to remove the plants. Likely from contamination. Checked with Adriana and Daniel, ok to remove.
+#     subset_taxa(!(supergroup %in% c("Opisthokonta")))%>%
+#     subset_taxa(!(division %in% c("Pseudofungi")))%>%
+#     subset_taxa(!(class %in% c("Syndiniales")))
 

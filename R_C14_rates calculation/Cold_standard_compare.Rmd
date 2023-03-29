@@ -73,6 +73,41 @@ summary<- cold_group %>%
    # unite("mean_sd", mean:sd, sep = " ± ") %>%
   # pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
 summary
+
+summary<- cold_group %>%
+  select(cycle_name, exp, depth, cold_corrected) %>%
+  filter(!(is.na(cold_corrected))) %>%
+  group_by(cycle_name, exp, depth) %>%
+  summarise(value = mean(cold_corrected)) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(value), 2),
+            # sd = round(sd(value),2)
+             ) #%>%
+   # unite("mean_sd", mean:sd, sep = " ± ") %>%
+  # pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+
+t_test_df<- cold_group %>%
+  select(cycle_name, exp, depth, cold_corrected, standard_corrected) %>%
+  filter(!(is.na(cold_corrected))) %>%
+  filter(!(is.na(standard_corrected))) %>%
+  filter(standard_corrected >0) %>%
+  pivot_longer(cold_corrected:standard_corrected, names_to = "type", values_to = "npp")
+hist(t_test_df$standard_corrected)
+
+ p <- t_test_df %>%
+   ggplot(aes(x=type, y=npp)) + geom_point() +geom_boxplot()
+ print(p)
+ 
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(cold_corrected))
+print(p)
+p<-with(t_test_df, shapiro.test(standard_corrected))
+print(p)
+res <- wilcox.test(npp ~ type, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
 ```
 
 
@@ -80,14 +115,17 @@ summary
 ```{r}
 cold_group_long <- cold_group %>%
   rename(standard = `standard_corrected`,
-         cold = `cold_corrected`,
+         small = `cold_corrected`,
          group = `npp_group`) %>%
   select(cycle:depth_m, cycle_name, replicate_incubation:standard, group) %>%
-  pivot_longer(cols = cold:group,
+  pivot_longer(cols = small:group,
                values_to = "NPP",
                names_to = "type") %>%
   mutate(depth = fct_relevel(depth, "SUR", "DCM")) %>%
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  filter(type!= "group") %>%
+  filter(exp!="1")
+
 p <- cold_group_long %>%
   ggplot(aes(x=exp, y = NPP, colour =  type, fill = type)) +
   geom_jitter(width = 0.1, alpha = 5/10) +
@@ -95,11 +133,21 @@ p <- cold_group_long %>%
  # geom_point(position=position_jitterdodge(0.01), alpha = 5/10) +
   geom_errorbar(data = plyr::ddply(cold_group_long, c("cycle_name", "depth", "exp", "type"), summarize, mean = mean(NPP, na.rm=TRUE)), aes(y=mean, ymin = mean, ymax = mean), width = 0.5) +
   facet_grid(depth~cycle_name, scales = "free_x", space = "free") +
-  scale_y_continuous(trans='log10') +
-  annotation_logticks(sides = "l") +
-  ylab("NPP (mgC/m3/day)") 
+  # scale_y_continuous(trans='log10') +
+  # annotation_logticks(sides = "l") +
+  ylab("NPP (mgC/m3/day)") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+  scale_color_brewer(palette = "Dark2")
   
 p
+
+pdf("cold_standard_compare.pdf", height=4, width=6) ; plot(p) ; dev.off()
 
 pdf("group_rates_output/group_cold_standard_compare.pdf", height=4, width=6) ; plot(p) ; dev.off()
 

@@ -1141,10 +1141,12 @@ taxon_rel_abund <- otu_rel_abund %>%
 ## summary for results
 summary <- taxon_rel_abund %>%
   # filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae")) %>%
-  # filter(cycle_name_2 == "SA1") %>%
+  filter(cycle_name %in% c("SA2", "SA3")) %>%
   group_by(taxon) %>%
   summarise(median = median(rel_abund),
-            mean = mean(rel_abund))
+            mean = mean(rel_abund),
+            max = mean(rel_abund),
+            min = min(rel_abund))
 summary
 ```
 
