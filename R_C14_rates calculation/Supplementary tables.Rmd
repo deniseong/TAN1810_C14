@@ -55,10 +55,10 @@ table <- read.csv("data_used/supp table_DNA cells sorted.txt", sep = "\t")
 table <- readxl::read_excel("data_used/C14_studies.xlsx", sheet = "for_R") %>%
   unite("rate", Lower:Upper, sep=" ± ", remove = TRUE)
 
-table <- readxl::read_excel("fvfm_summary_2.0.xlsx")
+table <- readxl::read_excel("growth rate stats.xlsx")
 
 library(xtable)
-print(xtable(summary),
+print(xtable(table),
       comment = FALSE,
       include.rownames=FALSE,
       digits=-3)

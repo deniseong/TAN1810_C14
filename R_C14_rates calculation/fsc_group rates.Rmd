@@ -5,6 +5,8 @@ date: "11/17/2022"
 output: html_document
 ---
 
+
+
 # Initialise
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
@@ -91,7 +93,6 @@ join_rates <- join_rates %>%
   mutate(growth_buit = (pp*24)/biomass_buit) %>%
   mutate(division = 1/growth_rate) %>%
   mutate(division_buit = 1/growth_buit)
- # mutate(pp_vol_check = pp_vol_norm*10^(6)*1/24) # I think this is wrong.
 
 ```
 
@@ -319,7 +320,7 @@ p <- join_rates %>%
   # geom_dotplot(binaxis='y', stackdir='center',
   #                position=position_dodge(1)) +
   # geom_jitter(, width = 0.1, alpha =  0.3, position=position_dodge(1)) +
-  # facet_grid(.~water_mass, scales = "free") +
+  # facet_grid(.~depth_cat, scales = "free") +
   scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
   ylab("Growth rate (day-1)") +
   xlab(NULL)+
@@ -329,7 +330,26 @@ p <- join_rates %>%
 
 p
 
-pdf("figures/3_fcm/growth rate_v2.pdf", height=4, width=4) ; plot(p) ; dev.off()
+# pdf("figures/3_fcm/growth rate_v2.pdf", height=4, width=4) ; plot(p) ; dev.off()
+
+
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- join_rates %>%
+  filter(pop_fsc!="Syn_SV") %>%
+  filter(population == i) %>%
+    ungroup() %>%
+    complete(exp, depth_cat) %>%
+  ggplot() +
+    geom_point(aes(x=depth_cat, y=growth_rate))+
+    facet_grid(.~exp, scales = "free_x", space = "free") +
+    # scale_y_continuous(trans='log10') +
+    # annotation_logticks(sides = "l")+
+    ylab("Growth rate (day-1)") +
+    ggtitle(i)
+  print(p)
+  # pdf(here(str_c("pp_depth_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
+}
+
 
 
 p <- join_rates %>%
@@ -341,6 +361,15 @@ p <- join_rates %>%
   scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
 p
 
+p <- join_rates %>%
+  filter(pop_fsc!="Syn_SV") %>%
+  ggplot()+
+  geom_jitter(aes(x=pop_fsc, y=growth_rate), width = 0.2) +
+  geom_boxplot(aes(x=pop_fsc, y=growth_rate), alpha = 0.1)+
+  facet_grid(.~cycle_name, scales = "free") +
+  theme_minimal() +
+  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
+p
 # surface vs DCM
 for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
   p <- join_rates %>%
@@ -362,7 +391,7 @@ summary <- join_rates %>%
             sd=sd(growth_rate, na.rm = TRUE)) %>%
   pivot_wider(names_from = water_mass, values_from = mean)
 summary
-writexl::write_xlsx(summary, "summary_growth rate.xlsx")
+# writexl::write_xlsx(summary, "summary_growth rate.xlsx")
 
 ```
 # Division rate
@@ -639,7 +668,7 @@ print(res)
 ### Kruskal wallis test (for comparing syn, pico, nano)
 ```{r}
 stats_rates <- join_rates %>%
-  filter(pop_fsc !="syn_SV") 
+  filter(pop_fsc !="Syn_SV") 
 hist(stats_rates$diam)
 qqnorm(stats_rates$diam) 
 shapiro.test(stats_rates$diam)
@@ -663,7 +692,7 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
   filter(population == i) %>%
-  select(water_mass,exp, depth_cat, diam) %>%
+  dplyr::select(water_mass,exp, depth_cat, diam) %>%
   distinct()
 
 summary <- t_test_df %>%
@@ -675,17 +704,23 @@ print(summary)
  p <- t_test_df %>%
    ggplot(aes(x=depth_cat, y=diam)) + 
    geom_point() +
-   geom_boxplot()  
+   geom_boxplot()  +ggtitle(i)
  print(p)
+ 
+ print(i)
 
 #Because p value <0.05, data is not normally distributed. Use the wilcoxon test
 p<-with(t_test_df, shapiro.test(diam[depth_cat == "SUR"]))
 print(p)
 p<-with(t_test_df, shapiro.test(diam[depth_cat == "DCM"]))
 print(p)
+var <- var.test(diam ~ depth_cat, data = t_test_df)
+print(var)
 res <- wilcox.test(diam ~ depth_cat, data = t_test_df,
                    exact = FALSE)
 print(res)
+t_test <- t.test(diam ~ depth_cat, data = t_test_df, var.equal = TRUE)
+print(t_test)
 }
 ```
 
@@ -697,7 +732,8 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
   filter(population == i) %>%
-  select(water_mass, exp, depth_cat, diam)
+  dplyr::select(water_mass, exp, depth_cat, diam) %>%
+  distinct()
 
 summary <- t_test_df %>%
   group_by(water_mass) %>%
@@ -706,17 +742,23 @@ summary <- t_test_df %>%
     sd = sd(diam, na.rm = TRUE))
 print(summary)
  p <- t_test_df %>%
-   ggplot(aes(x=water_mass, y=diam)) + geom_point() +geom_boxplot()  
+   ggplot(aes(x=water_mass, y=diam)) + geom_point() +geom_boxplot()   +ggtitle(i)
  print(p)
+ 
+ print(i)
 
 #Because p value <0.05, data is not normally distributed. Use the wilcoxon test
 p<-with(t_test_df, shapiro.test(diam[water_mass == "ST"]))
 print(p)
 p<-with(t_test_df, shapiro.test(diam[water_mass == "SA"]))
 print(p)
+var <- var.test(diam ~ water_mass, data = t_test_df)
+print(var)
 res <- wilcox.test(diam ~ water_mass, data = t_test_df,
-                   exact = FALSE)
+                   paired = FALSE, exact = FALSE)
 print(res)
+t_test <- t.test(diam ~ water_mass, data = t_test_df, var.equal = TRUE)
+print(t_test)
 }
 ```
 
@@ -724,7 +766,7 @@ print(res)
 ### Kruskal wallis test (for comparing syn, pico, nano)
 ```{r}
 stats_rates <- join_rates %>%
-  filter(pop_fsc !="syn_SV") 
+  filter(pop_fsc !="Syn_SV") 
 hist(stats_rates$growth_rate)
 qqnorm(stats_rates$growth_rate) 
 shapiro.test(stats_rates$growth_rate)
@@ -738,14 +780,9 @@ shapiro.test(log10(stats_rates$growth_rate))
 # library(nlme)
 library(car)
 lm <- lm(log10(growth_rate) ~ population, data=stats_rates)
-Anova(lm, type = "3")
+anova <- Anova(lm, type = "3")
 pairwise.t.test(log10(stats_rates$growth_rate), stats_rates$population, p.adj='bonferroni')
 
-library(multcomp)
-tmp <- as.data.frame(confint(glht(lm))$confint)
-tmp$Comparison <- rownames(tmp)
-ggplot(tmp, aes(x = Comparison, y = Estimate, ymin = lwr, ymax = upr)) +
-  geom_errorbar() + geom_point()
 
 library(lsmeans)
 library(multcompView)
@@ -753,7 +790,13 @@ library(multcompView)
 leastsquare = lsmeans(lm,
                       pairwise ~ population,
                       adjust = "tukey")
-
+d <- summary(lsmeans(lm, ~population))
+ggplot(d, aes(population)) +
+  geom_line(aes(y = lsmean, group = 1)) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2) +
+  geom_point(aes(y = lsmean), size = 3, shape = 21, fill = "white") +
+  labs(x = "Time", y = "ls mean", title = "ls mean result over time") +
+  theme_bw()
  
 
 for (i in c("SA")) {
@@ -772,21 +815,62 @@ for (i in c("SA")) {
 for (i in c("ST")) {
   df <- stats_rates %>%
     filter(water_mass == i)
+  hist(log10(df$growth_rate))
+  qqnorm(log10(df$growth_rate))
+  print(shapiro.test(log10(df$growth_rate)))
   print(kruskal.test(growth_rate~population, data = df)) # not significant
+  lm <- lm(log10(growth_rate) ~ population, data=df)
+  print(Anova(lm, type = "3"))
+  print(pairwise.t.test(log10(df$growth_rate), df$population, p.adj='bonferroni'))
   
 }
 
 ```
+
+
 ### t test to check if surface is different from DCM
-surface is not different from DCM for syn and pico. for nano sur > dcm
 ```{r}
 library("ggpubr")
 
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
-  filter(water_mass == "ST") %>%
   filter(population == i) %>%
-  select(depth_cat, growth_rate)
+  dplyr::select(water_mass, exp, depth_cat, growth_rate)
+
+summary <- t_test_df %>%
+  group_by(depth_cat) %>%
+  summarise(count = n(),
+    mean = mean(growth_rate, na.rm = TRUE),
+    sd = sd(growth_rate, na.rm = TRUE),
+median =  median(growth_rate, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth_cat, y=growth_rate)) + geom_point() +geom_violin(alpha = 0.1)+
+   #scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+   ggtitle(i) 
+ print(p)
+ print(i)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(growth_rate[depth_cat == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(growth_rate[depth_cat == "DCM"]))
+print(p)
+var <- var.test(growth_rate ~ depth_cat, data = t_test_df)
+print(var)
+res <- wilcox.test(growth_rate ~ depth_cat, data = t_test_df,
+                   paired = FALSE,exact = FALSE)
+print(res)
+t_test <- t.test(growth_rate ~ depth_cat, data = t_test_df, var.equal = TRUE)
+print(t_test)
+}
+
+#only for syn
+for (i in c("ST", "SA")) {
+t_test_df<- stats_rates %>%
+  filter(population == "Syn") %>%
+  filter(water_mass == i) %>%
+  dplyr::select(water_mass, exp, depth_cat, growth_rate)
 
 summary <- t_test_df %>%
   group_by(depth_cat) %>%
@@ -795,18 +879,26 @@ summary <- t_test_df %>%
     sd = sd(growth_rate, na.rm = TRUE))
 print(summary)
  p <- t_test_df %>%
-   ggplot(aes(x=depth_cat, y=growth_rate)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+   ggplot(aes(x=depth_cat, y=growth_rate)) + geom_point() +geom_boxplot()+ 
+   #scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+   +ggtitle(i) +facet_grid(.~water_mass)
  print(p)
+ print(i)
 
 #Because p value <0.05, data is not normally distributed. Use the wilcoxon test
 p<-with(t_test_df, shapiro.test(growth_rate[depth_cat == "SUR"]))
 print(p)
 p<-with(t_test_df, shapiro.test(growth_rate[depth_cat == "DCM"]))
 print(p)
+var <- var.test(growth_rate ~ depth_cat, data = t_test_df)
+print(var)
 res <- wilcox.test(growth_rate ~ depth_cat, data = t_test_df,
-                   exact = FALSE)
+                   paired = FALSE,exact = FALSE)
 print(res)
+t_test <- t.test(growth_rate ~ depth_cat, data = t_test_df, var.equal = TRUE)
+print(t_test)
 }
+
 ```
 
 ### t test - ST vs SA
@@ -817,7 +909,7 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
   filter(population == i) %>%
-  select(water_mass, growth_rate)
+  dplyr::select(water_mass, exp,  growth_rate)
 
 summary <- t_test_df %>%
   group_by(water_mass) %>%
@@ -826,17 +918,23 @@ summary <- t_test_df %>%
     sd = sd(growth_rate, na.rm = TRUE))
 print(summary)
  p <- t_test_df %>%
-   ggplot(aes(x=water_mass, y=growth_rate)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+   ggplot(aes(x=water_mass, y=growth_rate)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
  print(p)
 
+ print(i)
+ 
 #Because p value <0.05, data is not normally distributed. Use the wilcoxon test
 p<-with(t_test_df, shapiro.test(growth_rate[water_mass == "ST"]))
 print(p)
 p<-with(t_test_df, shapiro.test(growth_rate[water_mass == "SA"]))
 print(p)
+var <- var.test(growth_rate ~ water_mass, data = t_test_df)
+print(var)
 res <- wilcox.test(growth_rate ~ water_mass, data = t_test_df,
-                   exact = FALSE)
+                   paired = FALSE,exact = FALSE)
 print(res)
+t_test <- t.test(growth_rate ~ water_mass, data = t_test_df, var.equal = TRUE)
+print(t_test)
 }
 ```
 

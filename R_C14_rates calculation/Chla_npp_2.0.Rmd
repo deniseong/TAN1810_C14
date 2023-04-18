@@ -4,15 +4,14 @@ author: "Denise Ong"
 date: "11/28/2022"
 output: html_document
 ---
-
+For manuscript figures and data.
+remove stations that correspond to cycles SA1-B
 #init
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
 source(here("init_files", "init.R")) #for libraries
 source(here("init_files", "init_markdown.R")) #for markdown libraries
 
-colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
-colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 ```
 
 #NPP data
@@ -45,7 +44,8 @@ C14_hot$exp <- as.character(C14_hot$exp)
 
 npp <- full_join(npp_raw, C14_hot) %>%
   unite(station_exp, c(station, exp), sep = "_", remove = FALSE) %>%
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) 
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  filter(!(station %in% c("51", "69","90" ))) # remove stations that correspond to cycle SA1-B
 
 depth_check <- npp %>%
   select(cycle_name, depth) %>%
@@ -103,7 +103,7 @@ Based on fluoresence, separate SA1-A and SA1-B. SA1-B has lower flourescence. As
 ## Read data
 ```{r}
 chl <- readxl::read_excel("data_used/TAN1810_SFChla_2.0.xls", sheet = "chla_int") %>%
-  select(NIWA_ID, U_Cast, cycle, cycle_2, time, exp, depth_corrected, Chla_0.2:Chla_20_pct)%>%
+  dplyr::select(NIWA_ID, U_Cast, cycle, cycle_2, time, exp, depth_corrected, Chla_0.2:Chla_20_pct)%>%
   filter(!is.na(cycle)) %>%
   rename(depth = `depth_corrected`,
          CTD = `U_Cast`) %>%
@@ -121,7 +121,8 @@ chl <- readxl::read_excel("data_used/TAN1810_SFChla_2.0.xls", sheet = "chla_int"
   mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
   mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1-a", "SA1-b", "SA2", "SA3")) %>%
   na_if(0) %>% # replace 0% as NA as these values were not measured.
-  drop_na(Chla_0.2,Chla_2, Chla_20) #remove rows where there are some missing measurements for the SF? I think this is better so that the values are more accurate. change the way int chla is calculated? decide later.
+  drop_na(Chla_0.2,Chla_2, Chla_20)  %>% #remove rows where there are some missing measurements for the SF? I think this is better so that the values are more accurate. change the way int chla is calculated? decide later.
+  filter(cycle_name_2 != "SA1-b")
 
 chl$cycle <- as.character(chl$cycle)
 chl$CTD <- sub("^", "U", chl$CTD)
@@ -129,7 +130,7 @@ chl$exp <- as.character(chl$exp)
 
 depth_check <- chl %>%
   filter(time == "noon") %>%
-  select(cycle_name, depth) %>%
+  dplyr::select(cycle_name, depth) %>%
   distinct() %>%
   group_by(cycle_name) %>%
   arrange(cycle_name,depth) 
@@ -143,33 +144,37 @@ chl_summary <- chl %>%
   # filter(cycle_name_2 != "SA1-b") %>%
   select(cycle_name, areal_chl) %>%
   distinct() %>%
-  mutate(water_mass = recode(cycle_name, "SA1" = "SA",
+  mutate(water_mass = recode(cycle_name, 
+                             "SA1" = "SA",
                              "SA2" = "SA",
                              "SA3" = "SA",
                              "ST1" = "ST",
                              "ST2" = "ST"
                              )) %>%
-  group_by(cycle_name) %>%
+  group_by(water_mass) %>%
   summarise(mean = mean(areal_chl),
+            sd = sd(areal_chl),
             min = min(areal_chl),
-            max = max(areal_chl),
-            sd = sd(areal_chl))
+            max = max(areal_chl))
+            
 chl_summary
 
 npp_summary <- npp %>%
   select(cycle_name, areal_PP) %>%
   distinct() %>%
-  mutate(water_mass = recode(cycle_name, "SA1" = "SA",
+  mutate(water_mass = recode(cycle_name, 
+                             "SA1" = "SA",
                              "SA2" = "SA",
                              "SA3" = "SA",
                              "ST1" = "ST",
                              "ST2" = "ST"
                              )) %>%
-  group_by(cycle_name) %>%
+  group_by(water_mass) %>%
   summarise(mean = mean(areal_PP,  na.rm=TRUE),
+            sd = sd(areal_PP,  na.rm=TRUE),
             min = min(areal_PP,  na.rm=TRUE),
-            max = max(areal_PP,  na.rm=TRUE),
-            sd = sd(areal_PP,  na.rm=TRUE))
+            max = max(areal_PP,  na.rm=TRUE)
+            )
 npp_summary
 
 chl_summary <- chl %>%
@@ -178,7 +183,8 @@ chl_summary <- chl %>%
   # filter(cycle_name_2 != "SA1-b") %>%
   select(cycle_name, SumSFChla) %>%
   distinct() %>%
-  mutate(water_mass = recode(cycle_name, "SA1" = "SA",
+  mutate(water_mass = recode(cycle_name, 
+                             "SA1" = "SA",
                              "SA2" = "SA",
                              "SA3" = "SA",
                              "ST1" = "ST",
@@ -189,6 +195,35 @@ chl_summary <- chl %>%
             sd = round(sd(SumSFChla),2)) %>%
   unite("rate", mean:sd, sep=" ± ", remove = TRUE)
 chl_summary
+
+npp_summary <- npp %>%
+  select(cycle_name, mean_NPP) %>%
+  distinct() %>%
+  mutate(water_mass = recode(cycle_name, 
+                             "SA1" = "SA",
+                             "SA2" = "SA",
+                             "SA3" = "SA",
+                             "ST1" = "ST",
+                             "ST2" = "ST"
+                             )) %>%
+  mutate(depth_cat = case_when(depth == "12" ~ "SUR",
+                              (depth == "40" & cycle_name == "ST1") ~ "DCM",
+                               # (depth == "25" & cycle_name == "ST1") ~ "DCM",
+                               # (depth == "30" & cycle_name == "ST2") ~ "DCM",
+                               (depth == "40" & cycle_name == "ST2") ~ "DCM",
+                               (depth == "40" & cycle_name == "SA1") ~ "DCM",
+                               (depth == "40" & cycle_name == "SA2") ~ "DCM",
+                               (depth == "70" & cycle_name == "SA3") ~ "DCM",
+                                  TRUE ~as.character(cycle_name))) %>%
+  filter(depth_cat %in% c("SUR", "DCM")) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = mean(mean_NPP,  na.rm=TRUE),
+            sd = sd(mean_NPP,  na.rm=TRUE),
+            min = min(mean_NPP,  na.rm=TRUE),
+            max = max(mean_NPP,  na.rm=TRUE)
+            )
+npp_summary
+
 ```
 
 ## plot chla raw data- across depth for all individual ctd
@@ -267,7 +302,7 @@ check <- chl %>%
   # filter(cycle_name_2 != "SA1-b") %>%
   group_by(cycle_name, exp, CTD) %>%
   slice_tail() %>%
-  select(CTD, cycle_name, exp, depth, areal_chl) %>%
+  dplyr::select(CTD, cycle_name, exp, depth, areal_chl) %>%
   distinct() %>%
   full_join(depth)
 
@@ -294,7 +329,7 @@ sf_pct <- full_join(sf_mean, sf_sd)
 int_chl <- chl %>%
   filter(time == "noon") %>%
   # filter(cycle_name_2 != "SA1-b") %>%
-  select(cycle_name, CTD, areal_chl) %>%
+  dplyr::select(cycle_name, CTD, areal_chl) %>%
   distinct() %>%
   group_by(cycle_name) %>%
   summarise(mean_int = mean(areal_chl),
@@ -305,9 +340,9 @@ sf_chl <- full_join(sf_pct, int_chl) %>%
 
 sf_summary <- sf_chl %>%
   filter(size == "20") %>%
-  select(sf_int, cycle_name, size) %>%
+  dplyr::select(sf_int, cycle_name, size) %>%
   distinct() %>%
-  filter(cycle_name == "SA3") %>%
+  filter(cycle_name == "SA1") %>%
   summarise(sf_int = mean(sf_int))
 sf_summary
   
@@ -341,7 +376,7 @@ p2
 library(patchwork)
 plot <- p1/p2 +  plot_annotation(tag_levels = 'A')
 plot
-pdf("figures/2_NPP chla/20221129_int chla npp combine.pdf", height=7, width=5) ; plot(plot) ; dev.off()
+pdf("figures/2_NPP chla/20221129_int chla npp combine_v2.pdf", height=7, width=5) ; plot(plot) ; dev.off()
 
 
 # test - combine integrated chla and npp together on one graph
@@ -372,7 +407,7 @@ p <- sf_chl %>%
   theme(legend.position="top") 
 
 p
-pdf("figures/2_NPP chla/20221129_chla proportion.pdf", height=7, width=6) ; plot(p) ; dev.off()
+pdf("figures/2_NPP chla/20221129_chla proportion_v2.pdf", height=7, width=6) ; plot(p) ; dev.off()
 ```
 
 # chla and npp by depth
@@ -407,7 +442,7 @@ p <- chl %>%
   scale_fill_viridis_d()
 
 p
-pdf("figures/2_NPP chla/chla_sf_depth.pdf", height=7, width=6) ; plot(p) ; dev.off()
+pdf("figures/2_NPP chla/chla_sf_depth_v2.pdf", height=7, width=6) ; plot(p) ; dev.off()
 
 ```
 
@@ -468,7 +503,7 @@ p2
 library(patchwork)
 plot <- (p1+p2) +  plot_annotation(tag_levels = 'A') + plot_layout (guides = "collect") & theme (legend.position = "top") 
 plot
-pdf("figures/2_NPP chla/20221213_depth chla npp combine.pdf", height=6, width=6) ; plot(plot) ; dev.off()
+pdf("figures/2_NPP chla/20221213_depth chla npp combine_v2.pdf", height=6, width=6) ; plot(plot) ; dev.off()
 
 
 # npp no smoothing - ignore

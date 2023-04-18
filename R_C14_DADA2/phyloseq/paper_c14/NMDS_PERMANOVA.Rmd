@@ -134,6 +134,86 @@ nmds_euks
 
 ```
 
+
+## Envfit
+```{r}
+library(lubridate)
+env <- sample %>%
+  select(station:cycle_name_2, exp, Julian.Day) %>%
+  mutate(julian_day = Julian.Day-1)
+
+env$depth <- as.double(env$depth)
+ctd<-readxl::read_excel("TK_CTD Downcasts copy.xlsx") %>%
+  dplyr::rename(CTD = `cast`) %>%
+  mutate(datetime =  dmy_hms(datetime)) %>%
+  filter(!is.na(t)) %>%
+  mutate(date = date(datetime)) %>%
+  mutate(time = hour(datetime)) %>%
+  mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
+  filter(time %in% (9:12) ) %>% # only morning CTD
+  mutate(t_mean = (t+t2)/2) %>% # each CTD has 2 readings. use the average of the two readings.
+  mutate(s_mean = (s+s2)/2) %>%
+  mutate(os_mean = (os+os2)/2) %>%
+  select(-t, -t2, -s, -s2, -os, -os2) %>%
+  filter(p <= 70)
+ctd
+
+ctd_2<-readxl::read_excel("TK_CTD Downcasts copy.xlsx") %>%
+  dplyr::rename(CTD = `cast`) %>%
+  mutate(datetime =  dmy_hms(datetime)) %>%
+  filter(!is.na(t)) %>%
+  mutate(date = date(datetime)) %>%
+  mutate(time = hour(datetime)) %>%
+  mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
+  filter(julian_day %in% c("308", "309")) %>%
+  filter(time %in% (4:18) ) %>% # only morning CTD
+  mutate(t_mean = (t+t2)/2) %>% # each CTD has 2 readings. use the average of the two readings.
+  mutate(s_mean = (s+s2)/2) %>%
+  mutate(os_mean = (os+os2)/2) %>%
+  select(-t, -t2, -s, -s2, -os, -os2) %>%
+  filter(p <= 70)
+ctd_2
+ctd <- full_join(ctd,ctd_2)
+
+env_ctd <- left_join(env, ctd, by = c('julian_day', 'depth'='p')) %>%
+  filter(!(sample_name %in% c("nano-12")))
+```
+
+```{r}
+nutrients_raw <- readxl::read_excel("TAN1810_nutrients copy.xls") %>%
+  dplyr::rename(CTD = `U_Cast`,
+                depth =`Depth`)
+
+CTD_raw <- readxl::read_excel("TK_CTD Downcasts copy.xlsx") %>%
+  dplyr::rename(CTD = `cast`) %>%
+  mutate(datetime =  dmy_hms(datetime)) %>%
+  filter(!is.na(t)) %>%
+  mutate(date = date(datetime)) %>%
+  mutate(time = hour(datetime)) %>%
+  mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
+  select(CTD, datetime, date, time, julian_day) %>%
+  mutate(CTD=as.character(CTD)) %>%
+  distinct()
+
+nutrients <- full_join(nutrients_raw,CTD_raw) %>%
+  filter(!is.na(depth)) %>%
+  filter(!is.na(julian_day)) %>% 
+  filter(time %in% (0:3)) #how to insert date for the missing dates. Corresponding CTD no. is 9167, 9171, 9169, 9168 
+
+nutrients
+
+nutrients$CTD <- as.double(nutrients$CTD)
+
+env_ctd_nut <-  left_join(env_ctd, nutrients, by = c("julian_day", "depth")) %>%
+  select("DRP_uM", "NH4_uM", "NO3_uM", "DRSi_uM", t_mean, s_mean)
+
+en = envfit(scores(nmds_sub), env_ctd_nut, permutations = 999, na.rm = TRUE)
+en
+
+plot(nmds)
+plot(en)
+```
+
 ## PCOA
 nano is more clustered compared to pico? why do the plots look so differen
 ```{r}

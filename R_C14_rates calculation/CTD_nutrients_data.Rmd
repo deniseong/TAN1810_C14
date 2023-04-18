@@ -26,8 +26,8 @@ opts_knit$set(width=75)
 ```
 
 
-Denise notes 20210315:
-- depth was selected until 100 m
+
+- depth was selected until 150 m
 - depth interval selected every 5 m
 - cycle 1/subantarctic 1 - 24 Oct to 30 Oct
 - cycle 2/subantarctic 2 - 2 Nov to 6 Nov
@@ -57,7 +57,7 @@ CTD_raw <- readxl::read_excel("data_used/TK_CTD Downcasts.xlsx") %>%
   mutate(date = date(datetime)) %>%
   mutate(time = hour(datetime)) %>%
   mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
-  # filter(time %in% (9:12) ) %>% # only morning CTD
+  filter(time %in% (9:12) ) %>% # only morning CTD
   mutate(t_mean = (t+t2)/2) %>% # each CTD has 2 readings. use the average of the two readings.
   mutate(s_mean = (s+s2)/2) %>%
   mutate(os_mean = (os+os2)/2) %>%
@@ -113,9 +113,10 @@ CTD <- CTD %>% mutate(cycle_name = recode(cycle, "1" = "SA1",
                                   julian_day == "301" ~ "SA1-B",
                                   julian_day == "302" ~ "SA1-B",
                                   TRUE ~ as.character(cycle_name))) %>%
-  # filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
+  filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A. remve SA1-B
   filter(!is.na(cycle)) %>% #remove rows without cycle number
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  filter(julian_day %in% c("297", "298", "305", "306", "311", "312", "315", "316", "319")) # only days corresponding to exp, except 5th and 6th nov, without afternoon CTD.
 
 #check the dates
 check <- CTD  %>% 
@@ -187,19 +188,23 @@ ts_plot
 ```{r}
 
 par_plot <- CTD %>%
+   filter(julian_day %in% c("297", "298", "305", "306", "311", "312", "315", "316", "319")) %>% # selecting only for exp dates
   group_by(cycle_name, CTD) %>%
   group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  # filter(p <= 100) %>%
+ 
   ggplot(aes(x=par, y=p, colour=cycle_name)) + 
    geom_path(size=0.1) +
  geom_point(size=0.01, alpha = 0.6) +
-  # geom_smooth(orientation = "y", method = "gam") +
+  geom_smooth(orientation = "y", method = "gam") +
   scale_y_reverse() +
   ylab(NULL)+
-  xlab("Par") +
+  xlab("PAR") +
   labs(colour = "Cycle") +
   scale_colour_manual(values = colours_cycle)
 
 par_plot
+
 
 ```
 Plot oxygen
@@ -337,18 +342,20 @@ summary_sst <-  CTD %>%
   select(cycle_name,  "SST")
 summary_sst
 # writexl::write_xlsx(summary, "summary_nutrients.xlsx")
-summary_s <-  CTD %>%
-  filter(p <= 150) %>%
-  pivot_longer(cols = c("s_mean"), names_to = "ctd", values_to = "value") %>%
-  group_by(cycle_name, ctd) %>%
-  summarise(mean = round(mean(value), 2),
-            sd= round(sd(value),2)) %>%
-  unite("Salinity", mean:sd, sep = " ± ") %>%
-  # pivot_wider(names_from = ctd,  values_from = mean_sd) %>%
-  ungroup() %>%
-  select(cycle_name,  "Salinity")
-summary_s
-summary_ctd <- full_join(summary_sst, summary_s)
+
+#not using salinity anymore.
+# summary_s <-  CTD %>%
+#   filter(p <= 150) %>%
+#   pivot_longer(cols = c("s_mean"), names_to = "ctd", values_to = "value") %>%
+#   group_by(cycle_name, ctd) %>%
+#   summarise(mean = round(mean(value), 2),
+#             sd= round(sd(value),2)) %>%
+#   unite("Salinity", mean:sd, sep = " ± ") %>%
+#   # pivot_wider(names_from = ctd,  values_from = mean_sd) %>%
+#   ungroup() %>%
+#   select(cycle_name,  "Salinity")
+# summary_s
+# summary_ctd <- full_join(summary_sst, summary_s)
 ```
 
 #check SA1-A and SA1-B
@@ -444,22 +451,23 @@ CTD_raw <- readxl::read_excel("data_used/TK_CTD Downcasts.xlsx") %>%
   mutate(datetime =  dmy_hms(datetime)) %>%
   filter(!is.na(t)) %>%
   mutate(date = date(datetime)) %>%
-  #mutate(time = hour(datetime)) %>%
+  mutate(time = hour(datetime)) %>%
   mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
-  select(CTD, datetime, date, julian_day) %>%
+  select(CTD, datetime, date, time, julian_day) %>%
   mutate(CTD=as.character(CTD)) %>%
   distinct()
 
-nutrients <- full_join(nutrients_raw,CTD_raw) %>%
+nutrients_raw <- full_join(nutrients_raw,CTD_raw) %>%
   filter(!is.na(depth)) %>%
   filter(!is.na(julian_day)) #how to insert date for the missing dates. Corresponding CTD no. is 9167, 9171, 9169, 9168
 
-nutrients
+nutrients_raw
 
 
 ```
+
 ```{r}
-nutrients <- nutrients %>%
+nutrients <- nutrients_raw %>%
   mutate(cycle = NA)
 
 nutrients$julian_day <- as.character(nutrients$julian_day)
@@ -499,12 +507,15 @@ nutrients <- nutrients %>%
                                   julian_day == "301" ~ "SA1-B",
                                   julian_day == "302" ~ "SA1-B",
                                   TRUE ~ as.character(cycle_name))) %>%
-  # filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
+  filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  filter(time %in% (0:3) ) # only morning CTD
+
 
 check <- nutrients  %>% 
-  select(CTD, date, cycle_name_2) %>%
-  distinct()
+  select(CTD, date, time, cycle_name_2) %>%
+  distinct() %>%
+  arrange(date)
 check
 
 
@@ -517,7 +528,7 @@ depth_check <- nutrients %>%
 depth_check
 ```
 
-#Summary table
+#Summary table - ignore. Nutrients are averaged over the whole depth. Maybe should do until DCM?
 ```{r}
 summary <-   nutrients %>%
   mutate(nitrate_ammonia = NO3_uM/NH4_uM) %>%
@@ -535,11 +546,10 @@ summary
 
 summary_all <- full_join(summary_ctd, summary)
 summary_all
-writexl::write_xlsx(summary_all, "summary_ctdnut.xlsx")
+# writexl::write_xlsx(summary_all, "summary_ctdnut.xlsx")
 
 library(xtable)
-summary <- readxl::read_excel("data_used/C14_studies.xlsx", sheet = "Sheet3") %>%
-  unite("CO2 fixation rate", Lower:Upper, sep = " – ")
+summary <- readxl::read_excel("summary_ctdnut_3.0.xlsx")
 print(xtable(summary),
       comment = FALSE,
       include.rownames=FALSE)
@@ -549,22 +559,22 @@ print(xtable(summary),
 nutrients_sub <- nutrients %>%
   mutate(depth_cat = case_when(depth == "12" ~ "SUR",
                               (depth == "40" & cycle_name == "ST1") ~ "DCM",
-                               (depth == "25" & cycle_name == "ST1") ~ "DCM",
-                               (depth == "30" & cycle_name == "ST2") ~ "DCM",
+                               # (depth == "25" & cycle_name == "ST1") ~ "DCM",
+                               # (depth == "30" & cycle_name == "ST2") ~ "DCM",
                                (depth == "40" & cycle_name == "ST2") ~ "DCM",
                                (depth == "40" & cycle_name == "SA1") ~ "DCM",
                                (depth == "40" & cycle_name == "SA2") ~ "DCM",
                                (depth == "70" & cycle_name == "SA3") ~ "DCM",
                                   TRUE ~as.character(cycle_name))) %>%
-  filter(depth_cat %in% c("SUR", "DCM"))
+  filter(depth_cat %in% c("SUR"))
 
 summary <-   nutrients_sub %>%
   mutate(nitrate_ammonia = NO3_uM/NH4_uM) %>%
    mutate(si_nitrate=DRSi_uM/NO3_uM) %>%
   pivot_longer(cols = c("DRP_uM", "NH4_uM", "NO3_uM", "DRSi_uM", "nitrate_ammonia", "si_nitrate"), names_to = "nutrients", values_to = "conc") %>%
   group_by(cycle_name, nutrients) %>%
-  summarise(conc_mean = round(mean(conc), 2),
-            conc_sd= round(sd(conc),2)) %>%
+  summarise(conc_mean = round(mean(conc), 3),
+            conc_sd= round(sd(conc),3)) %>%
   unite("mean_sd", conc_mean:conc_sd, sep = " ± ") %>%
   pivot_wider(names_from = nutrients,  values_from = mean_sd) %>%
   ungroup() %>%
@@ -573,11 +583,11 @@ summary
 
 summary_all <- full_join(summary_sst, summary)
 summary_all
-writexl::write_xlsx(summary_all, "summary_ctdnut_2.0.xlsx")
+writexl::write_xlsx(summary_all, "summary_ctdnut_3.0.xlsx")
 ```
 
 
-Plot nitrate
+## Plots
 
 ```{r}
 
@@ -593,7 +603,7 @@ nitrate_plot <- nutrients %>%
               ) +
   scale_y_reverse(limits = c(100,0))+
   # scale_y_reverse()+
-  ylab("Depth (m)")+
+  ylab(NULL)+
   xlab(expression(paste("Nitrate (uM)")))+
   labs(colour = "Cycle name") +
   scale_colour_manual(values = colours_cycle)
@@ -620,11 +630,6 @@ ammonia_plot <- nutrients %>%
  
 ammonia_plot
 
-```
-
-Plot phosphorus
-
-```{r}
 p_plot <- nutrients %>%
   arrange(cycle_name, CTD, depth)%>%
   group_by(cycle_name, CTD) %>%
@@ -643,30 +648,6 @@ p_plot <- nutrients %>%
  
 p_plot
 
-```
-#combine phosphorus and nitrate
-```{r}
-scale=10
-p <- nutrients %>%
-  ggplot(aes(y=depth)) + 
- # geom_point(aes(x= NO3_uM, colour = cycle_name), shape = 1, size = 0.1) +
-  geom_smooth(aes(x= NO3_uM, colour = cycle_name), method="loess", orientation = "y", se = FALSE) +  
-#  geom_point(aes(x= DRP_uM * scale, colour = cycle_name), shape = 1, size = 0.1) + 
-  geom_smooth(aes(x=DRP_uM * scale, colour = cycle_name), method="loess", orientation = "y",  linetype="dashed", se = FALSE)+
-  scale_x_continuous(name="Nitrate (uM)", sec.axis=sec_axis(~./scale, name="Phosphate (uM)")) +
-  scale_y_reverse(limits = c(100,0))+
-  ylab("Depth (m)")+
-  labs(colour = "Cycle name") +
-  scale_colour_manual(values = colours_cycle)
- 
-p
-
-```
-
-Plot silicate
-
-```{r}
-
 si_plot <- nutrients %>%
   # group_by(cycle_name, CTD) %>%
   # group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
@@ -684,20 +665,41 @@ si_plot <- nutrients %>%
   scale_colour_manual(values = colours_cycle)
  
 si_plot
-
 ```
 
 ```{r}
 library(patchwork)
 
 
-plot <- temp_plot + s_plot + nitrate_plot + p_plot + si_plot  + ammonia_plot +  plot_annotation(tag_levels = 'A') + plot_layout(guides = 'collect')
+plot <- (temp_plot | s_plot |plot_spacer() | plot_spacer()) / (ammonia_plot | nitrate_plot | p_plot | si_plot) +  plot_annotation(tag_levels = 'A') & theme(legend.position="none")
 plot
-pdf("figures/4_ctd nutrients/ctd nut all.pdf", height=7, width=9) ; plot(plot) ; dev.off()
+pdf("figures/4_ctd nutrients/ctd nut all_v2.pdf", height=7, width=9) ; plot(plot) ; dev.off()
 
 ```
 
+##combine phosphorus and nitrate -ignore
+```{r}
+scale=10
+p <- nutrients %>%
+  ggplot(aes(y=depth)) + 
+ # geom_point(aes(x= NO3_uM, colour = cycle_name), shape = 1, size = 0.1) +
+  geom_smooth(aes(x= NO3_uM, colour = cycle_name), method="loess", orientation = "y", se = FALSE) +  
+#  geom_point(aes(x= DRP_uM * scale, colour = cycle_name), shape = 1, size = 0.1) + 
+  geom_smooth(aes(x=DRP_uM * scale, colour = cycle_name), method="loess", orientation = "y",  linetype="dashed", se = FALSE)+
+  scale_x_continuous(name="Nitrate (uM)", sec.axis=sec_axis(~./scale, name="Phosphate (uM)")) +
+  scale_y_reverse(limits = c(100,0))+
+  ylab("Depth (m)")+
+  labs(colour = "Cycle name") +
+  scale_colour_manual(values = colours_cycle)
+ 
+p
 
+```
+`
+
+
+
+##cow plot nutrients ignore
 ```{r}
 nutrients_figure <- plot_grid(
   nitrate_plot+ theme(legend.position="none"), 
@@ -720,11 +722,11 @@ legend_b <- get_legend(
 # of the height of one plot (via rel_heights).
 nutrients_figure <- plot_grid(nutrients_figure, legend_b, ncol = 1, rel_heights = c(1, .1))
 nutrients_figure
- pdf("figures/4_ctd nutrients/nutrients all depth.pdf", height=6, width=8) ; plot(nutrients_figure) ; dev.off()
+ # pdf("figures/4_ctd nutrients/nutrients all depth.pdf", height=6, width=8) ; plot(nutrients_figure) ; dev.off()
 
 ```
 
-#Nitrate: silicate ratio
+##Nitrate: silicate ratio
 ```{r}
 
 
@@ -794,46 +796,80 @@ p
 overall 7 has slightly less nutrients than 8
 same community
 
+ONLY USE SURFACE
+
 ```{r}
 
 ST1 <-nutrients %>%
-  filter(CTD %in% c("9142", "9145"))
-p <- ST1 %>%
-  ggplot(aes(x=NO3_uM, y=depth, colour=CTD)) + 
-    geom_point(size=0.1, alpha = 0.6) +
-  geom_path(orientation = "y") +
-  scale_y_reverse()+
-  theme_bw() +
-  ylab("Depth (m)")+
-  xlab(expression(paste("Nitrate (uM)")))+
-  labs(colour = "Cycle name") 
- 
-p
+  filter(CTD %in% c("9141", "9144"))
 
-p <- ST1 %>%
-  ggplot(aes(x=DRP_uM, y=depth, colour=CTD)) + 
-    geom_point(size=0.1, alpha = 0.6) +
-  geom_path(orientation = "y") +
+nitrate_plot <- ST1 %>%
+    arrange(cycle_name, CTD, depth)%>%
+  group_by(cycle_name, CTD) %>%
+  group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  ggplot(aes(x=NO3_uM, y=Depth_nominal, colour=CTD)) + 
+  geom_point(size=0.2, alpha = 0.6) +
+  # geom_path(size=0.2)+
+  geom_smooth(orientation = "y",
+             se = FALSE
+              ) +
+  # scale_y_reverse(limits = c(100,0))+
   scale_y_reverse()+
-  theme_bw() +
-  ylab("Depth (m)")+
-  xlab(expression(paste("Phosphorus (uM)")))+
-  labs(colour = "Cycle name") +
-  geom_hline(yintercept=1, linetype="dashed")
- 
-p
+  ylab(NULL)+
+  xlab(expression(paste("Nitrate (uM)")))
+nitrate_plot
 
-p <- ST1 %>%
-  ggplot(aes(x=DRSi_uM, y=depth, colour=CTD)) + 
-    geom_point(size=0.1, alpha = 0.6) +
-  geom_path(orientation = "y") +
+
+ammonia_plot <- ST1 %>%
+    arrange(cycle_name, CTD, depth)%>%
+  group_by(cycle_name, CTD) %>%
+  group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  ggplot(aes(x=NH4_uM, y=Depth_nominal, colour=CTD)) + 
+  geom_point(size=0.1, alpha = 0.6) +
+  # geom_path(size=0.2)+
+  geom_smooth(orientation = "y",
+             se = FALSE
+              ) +
+  # scale_y_reverse(limits = c(100,0))+
   scale_y_reverse()+
-  theme_bw() +
   ylab("Depth (m)")+
-  xlab(expression(paste("Silicate (uM)")))+
-  labs(colour = "Cycle name") +
-  geom_hline(yintercept=1, linetype="dashed")
+  xlab(expression(paste("Ammonia (uM)")))
  
-p
+ammonia_plot
+
+p_plot <- ST1 %>%
+  arrange(cycle_name, CTD, depth)%>%
+  group_by(cycle_name, CTD) %>%
+  group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  ggplot(aes(x=DRP_uM, y=Depth_nominal, colour=CTD)) + 
+  geom_point(size=0.1, alpha = 0.6) +
+  # geom_path(size=0.2)+
+  geom_smooth(orientation = "y",
+              se = FALSE
+              ) +
+  # scale_y_reverse(limits = c(100,0))+
+  scale_y_reverse()+
+  ylab(NULL)+
+  xlab(expression(paste("Phosphorus (uM)")))
+ 
+p_plot
+
+si_plot <-ST1 %>%
+  # group_by(cycle_name, CTD) %>%
+  # group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  ggplot(aes(x=DRSi_uM, y=Depth_nominal, colour=CTD)) + 
+  geom_point(size=0.1, alpha = 0.6) +
+  # geom_path(size=0.2) +
+  geom_smooth(orientation = "y",
+              se = FALSE,
+              fill = "lightgrey"
+              ) +
+  # scale_y_reverse(limits = c(100,0))+
+  scale_y_reverse()+
+  ylab(NULL)+
+  xlab(expression(paste("Silicate (uM)")))
+ 
+si_plot
+
 ```
 

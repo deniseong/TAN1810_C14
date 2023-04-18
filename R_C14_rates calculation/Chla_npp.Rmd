@@ -4,6 +4,7 @@ author: "Denise Ong"
 date: "10/25/2022"
 output: html_document
 ---
+Data exploration only. Figures are in 2.0
 - TAN1810_NPP_areal.xlsx has some gaps in data. I checked with the excel Copy of Chla NPP Raw TAN1810 V5 and created a new column for few calculated values. For future calculations will use the excel TAN1810_NPP_areal_2.0.
 - TAN1810_SFChla.xls I added cycle number and int chla. I am not using chla readings in the TAN1810_NPP_areal.xlsx excel because there are many rows that do not correspond to the CTD cast number. Not sure how the chla values are deduced in the NPP excel. I am using the TAN1810_SFChla.xls because it is direct from the chla readings. 
 -u9104 why are the depths sampled 3,4,5,10,25, 100? 

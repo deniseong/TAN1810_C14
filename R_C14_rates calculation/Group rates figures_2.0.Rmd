@@ -279,6 +279,28 @@ for (i in c("SA")) {
 }
 ```
 
+## PP against light
+```{r}
+ctd<-readxl::read_excel("data_used/TK_CTD Downcasts.xlsx") %>%
+  dplyr::rename(CTD = `cast`) %>%
+  mutate(datetime =  dmy_hms(datetime)) %>%
+  filter(!is.na(t)) %>%
+  mutate(date = date(datetime)) %>%
+  mutate(time = hour(datetime)) %>%
+  mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
+  filter(time %in% (9:12) ) %>% # only morning CTD
+  mutate(t_mean = (t+t2)/2) %>% # each CTD has 2 readings. use the average of the two readings.
+  mutate(s_mean = (s+s2)/2) %>%
+  mutate(os_mean = (os+os2)/2) %>%
+  select(-t, -t2, -s, -s2, -os, -os2) %>%
+  filter(p <= 70)
+ctd
+
+env_ctd <- left_join(env, ctd, by = c('julian_day', 'depth'='p')) %>%
+  filter(!(sample_name %in% c("nano-12")))
+```
+
+
 # NPP
 ## Overall between groups
 not normally distributed, using kruskal test. 
@@ -323,7 +345,7 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- pp_rates %>%
   filter(population == i) %>%
-  select(depth, npp)
+  dplyr::select(depth, npp)
 
 summary <- t_test_df %>%
   group_by(depth) %>%
@@ -332,8 +354,10 @@ summary <- t_test_df %>%
     sd = sd(npp, na.rm = TRUE))
 print(summary)
  p <- t_test_df %>%
-   ggplot(aes(x=depth, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+   ggplot(aes(x=depth, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
  print(p)
+ 
+ print(i)
 
 #Because p value <0.05, data is not normally distributed. Use the wilcoxon test
 p<-with(t_test_df, shapiro.test(npp[depth == "SUR"]))
@@ -566,6 +590,7 @@ for (i in c("Syn", "Pico", "Nano")) {
 }
 
 ```
+## Main fig plot
 ```{r}
   p <- pp_rates %>%
   ggplot() +
