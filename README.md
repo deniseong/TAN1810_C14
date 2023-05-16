@@ -40,21 +40,24 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - Instructions and prerequisites for DADA2 processing (readme_dada2.md)
 - Script for DADA2 to process raw Illumina sequences (DADA2_paired.Rmd)
 
-### 2_DADA2 output and phyloseq output
+### 2_DADA2 and phyloseq output
 
 #### 2.1_petB
-- number of reads at each processing step
-- DADA2 output
-- fasta file with all filtered and sorted ASV sequences
-- ASV table
-- Phyloseq
+- number of reads at each processing step (TAN1810_petB_nested_summary_dada2.txt)
+- DADA2 output (TAN1810_petB_nested_dada2.tsv)
+- fasta file with all filtered and sorted ASV sequences (TAN1810_petB_nested_no_taxo.fasta)
+- ASV table (TAN1810_petB_nested_metapr2_asv.txt)
+- Phyloseq sorted Synechococcus samples (TAN1810_petB_nested_phyloseq_asv_set_sortedsyn.RDS)
+- Phyloseq filtered samples (TAN1810_petB_nested_phyloseq_asv_set_nestedCTD.RDS)
 
 #### 2.2_18SV4
-- number of reads at each processing step
-- DADA2 output
-- fasta file with all filtered and sorted ASV sequences
-- ASV table
-- Phyloseq
+- number of reads at each processing step (TAN1810_18SV4_summary_dada2.xlsx)
+- DADA2 output (TAN1810_18SV4_dada2.tsv)
+- fasta file with all filtered and sorted ASV sequences (TAN1810_18SV4_taxo.fasta)
+- ASV table (TAN1810_C14_18SV4_taxo.xlsx)
+- Phyloseq sorted picoeukaryotes samples (TAN1810_18SV4phyloseq_sorted_pico.RDS)
+- Phyloseq sorted nanoeukaryotes samples (TAN1810_18SV4phyloseq_sorted_nano.RDS)
+- Phyloseq filtered samples (TAN1810_18SV4phyloseq_CTD_18SV4.RDS)
 
 ### 3_Phyloseq output and figures
 - Heatmap (Fig_heatmap_2.0.Rmd)
