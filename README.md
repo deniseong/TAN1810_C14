@@ -58,6 +58,7 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - Phyloseq sorted picoeukaryotes samples (TAN1810_18SV4phyloseq_sorted_pico.RDS)
 - Phyloseq sorted nanoeukaryotes samples (TAN1810_18SV4phyloseq_sorted_nano.RDS)
 - Phyloseq filtered samples (TAN1810_18SV4phyloseq_CTD_18SV4.RDS)
+- Phyloseq all sorted pico, nanoeukaryotes and filtered samples (phyloseq_merge_asv_set_47_Eukaryota_D4_filt_sort_seqhash.RDS)
 
 ### 3_Phyloseq output and figures
 - Heatmap (Fig_heatmap_2.0.Rmd)
