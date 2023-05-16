@@ -1,0 +1,598 @@
+---
+title: "Script DADA2 for paired reads adapted from DV"
+author: "Denise Ong"
+date: "8/28/2021"
+output: html_document
+---
+
+I adapted this script from Daniel's script (script_dada2.R, version 2.0.1 - 2020-12-08) to make it easier for me to understand, also made as R markdown to make easier to run.
+This script assumes paired reads and big data set. 
+
+This is a nice guide that is easy to follow: https://astrobiomike.github.io/amplicon/dada2_workflow_ex
+Other guides to use together:
+https://vaulot.github.io/tutorials/R_dada2_tutorial.html#dada2-processing
+https://benjjneb.github.io/dada2/tutorial.html
+Guides for certain sections linked as well.
+
+# Preparation
+## Libraries
+```{r}
+suppressPackageStartupMessages({
+    library(dada2) # Must use version >= 1.12
+    library(Biostrings)
+    library(ShortRead)
+    library(stringr)
+    library(ggplot2)
+    library(dplyr)
+    library(tidyr)
+    library(tibble)
+    library(readr)
+    library(purrr)
+    
+    library("optparse")
+})
+```
+
+## Parameters
+```{r results='hide'}
+## First read in the arguments listed at the command line
+option_list = list(
+  make_option(c("-d", "--dataset"), type="character", action = "store", default=006, 
+              help="ID of dataset to process [default= %default]", metavar="number"),
+  make_option(c("-t", "--test"), type="character", action = "store_true", default=FALSE, 
+              help="Test [default= %default]", metavar="logical")
+) 
+
+opt_parser = OptionParser(option_list=option_list)
+opt = parse_args(opt_parser)
+
+dataset_id  = opt$dataset
+#testing = opt$test
+
+## Read the parameter file and print it in output file  
+
+file_param <- str_c("process_DADA2/dataset_CS_LABY/param_dada2_dataset_CS_LABY.R") # Change this to the parameter source code
+
+source(file_param)
+
+#system(str_c("cat ",file_param))
+
+## When testing is on, disable dada2 and below  
+
+#if (testing) {
+#  do_dada2    <- FALSE
+#  do_taxo <- FALSE
+#  bigdata <- FALSE
+#  multithread <- FALSE
+#  multithread_filter <- FALSE  
+#}
+
+## Take care of novel parameters 
+
+if(!exists("multithread_filter")) multithread_filter <- FALSE # To prevent problem with SLURM
+if(!exists("remove_primers") & do_cutadapt == TRUE) remove_primers <- TRUE # For older param versions that did not contain remove_primers
+
+
+#print(sessionInfo())
+```
+
+## Define directories
+```{r} 
+source("process_DADA2/dataset_CS_LABY/directories_DADA2_dataset_CS_LABY.R")
+```
+
+## Define variables
+```{r}
+# Maximum number of quality plots to print
+max_plot_quality = 8
+
+# For assigning taxonomy by chunks
+taxo_slice_size = 1000
+
+# Primer information
+primer_length_fwd <- str_length(FWD)
+primer_length_rev <- str_length(REV)
+```
+
+## Get file names
+```{r}
+# generate file names so the output can be assigned later. 
+
+# get a list of all fastq files in the ngs directory and separate R1 and R2
+fns <- sort(list.files(dir_fastq, full.names = TRUE))
+fns <- fns[str_detect( basename(fns),file_identifier)]
+#if (testing) fns <- fns[1:6]
+
+# print(fns)
+
+fns_R1 <- fns[str_detect( basename(fns),R1_identifier)]
+fns_R2 <- fns[str_detect( basename(fns),R2_identifier)]
+ 
+fns_R1.fastq <- fns_R1
+fns_R2.fastq <- fns_R2
+ 
+# filters with reads with N removed
+fns_R1.filtN <-  str_c(dir_fastqN, basename(fns_R1))  # Put N-filterd files in filtN/ subdirectory
+fns_R2.filtN <- str_c(dir_fastqN, basename(fns_R2))
+
+# after cutadapt
+fns_R1.cut <- str_c(dir_cutadapt, basename(fns_R1))  # Put files in /cutadapt subdirectory
+fns_R2.cut <- str_c(dir_cutadapt, basename(fns_R2))
+ 
+# after FilterAndTrim
+fns_R1.filt <- str_c(dir_filtered, basename(fns_R1)) # Put files in /filtered subdirectory
+fns_R2.filt <- str_c(dir_filtered, basename(fns_R2))
+
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+sample.names <- str_split(basename(fns_R1), pattern = file_name_separator, simplify = TRUE)
+sample.names <- sample.names[,1]
+sample.names # check if sample.names are generated
+sample_names_check <- data.frame(sample.names) #for later to merge to phyloseq file
+
+```
+
+## Examine the fastQ files before manipulation.
+```{r}
+#Number of reads in R1 because paired reads
+summary_raw_reads <- data.frame()
+fns.summary <- fns_R1
+for(i in 1:length(fns.summary)) {
+    # For the next line to work needs to install the latest Biostrings lib (see https://github.com/benjjneb/dada2/issues/766)
+    geom <- fastq.geometry(fns.summary[i])
+    summary_one_row <- data.frame (n_seq=geom[1], file_name=basename(fns.summary[i]))
+    summary_raw_reads <- bind_rows(summary_raw_reads, summary_one_row)
+    print(paste("Finished with file:",i ,fns.summary[i], summary_one_row$n_seq,"sequences", sep=" "))
+}
+
+
+write_tsv(summary_raw_reads, output_path("_summary_raw_files.tsv"))
+
+# Plot the histogram with the number of sequences
+
+ggplot(summary_raw_reads, aes(x = n_seq)) + geom_histogram(alpha = 0.5, position = "identity", 
+                                            binwidth = 10)
+
+# Plot quality for reads
+
+plotQualityProfile(fns[1:6]) 
+# This is just to check initial plot quality. The plots will be generated as PDF after cutadapt. 
+```
+
+# Preprocessing
+## Remove primers using cutadapt
+following: https://benjjneb.github.io/dada2/ITS_workflow.html
+```{r}
+#Step 1: Create all orientations of the input primers
+  allOrients <- function(primer) {
+    
+    require(Biostrings)
+    dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+    orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
+                 RevComp = reverseComplement(dna))
+    return(sapply(orients, toString))  # Convert back to character vector
+  }
+  FWD.orients <- allOrients(FWD)
+  REV.orients <- allOrients(REV)
+  FWD.orients
+  REV.orients
+
+#Step 2: Remove any reads that contain N 
+out_N <- filterAndTrim(fns_R1.fastq, fns_R1.filtN, fns_R2.fastq, fns_R2.filtN, 
+                          maxN = 0, minQ = -10, multithread = multithread)
+out_N
+
+#Step 3: Check primers in one sample
+primerHits <- function(primer, fn) {
+    # Exist if primer is empty
+    if (primer == "") return(0)
+    # Counts number of reads in which the primer is found 
+    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+    return(sum(nhits > 0))
+}
+primer_test <- rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fns_R1.filtN[[1]]), 
+                     FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fns_R2.filtN[[1]]), 
+                     REV.ForwardReads = sapply(REV.orients, primerHits, fn = fns_R1.filtN[[1]]), 
+                     REV.ReverseReads = sapply(REV.orients, primerHits, fn = fns_R2.filtN[[1]]))
+print(primer_test) 
+
+```
+
+```{r}
+#Step 4: Run cutadapt - This does not work under R studio....
+
+cutadapt <- "/opt/miniconda3/envs/cutadaptenv/bin/cutadapt"
+system2(cutadapt, args = "--version")
+  
+FWD.RC <- dada2:::rc(FWD)
+REV.RC <- dada2:::rc(REV)
+
+
+#I changed this part to follow https://astrobiomike.github.io/amplicon/dada2_workflow_ex#removing-primers because the previous code was not removing the rev comp reads.
+# Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+R1.flags <- paste("-g ", anchor , FWD, "-a", REV.RC) 
+        
+# Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+R2.flags <- paste("-G ", anchor, REV, "-A", FWD.RC) 
+        
+# Run Cutadapt
+        
+for(i in seq_along(fns_R1)) {
+system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2,              # -n 2 required to remove FWD and REV from reads
+                           "--trim-n",                               # Remove any N present (some Illumina have N at the end)    
+                           "-o", fns_R1.cut[i], "-p", fns_R2.cut[i], # output files
+                           fns_R1.filtN[i], fns_R2.filtN[i],         # input files
+                           "--cores=0",                              # automatic detection of number of cores
+                           "--discard-untrimmed",                    # remove all reads where primer not found
+                           "--minimum-length 10"))                   # removal reads that are less than 10 bp just to remove 0bp reads (will cause an error in Plot Quality)   
+} 
+
+# To check the presence of primers after removal. Should appear as all 0.
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fns_R1.cut[[1]]), 
+      FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fns_R2.cut[[1]]), 
+      REV.ForwardReads = sapply(REV.orients, primerHits, fn = fns_R1.cut[[1]]), 
+      REV.ReverseReads = sapply(REV.orients, primerHits, fn = fns_R2.cut[[1]]))
+
+# Using now the cutadapt files as the starting files. 
+fns_R1 <- fns_R1.cut
+fns_R2 <- fns_R2.cut
+fns <- c(fns_R1, fns_R2)
+```
+
+```{r}
+#   Get the number of reads in each file (just R1)
+print("=== Number of reads in each file ===")  
+    
+summary <- data.frame()
+    
+fns.summary <- fns
+
+
+    for(i in 1:length(fns.summary)) {
+      geom <- fastq.geometry(fns.summary[i])
+      summary_one_row <- data.frame (n_seq=geom[1], file_name=basename(fns.summary[i]))
+      summary <- bind_rows(summary, summary_one_row)
+      print(paste("Finished with file", fns.summary[i], ". ", round(i/length(fns.summary)*100, 2), "%", sep=""))
+    }
+
+
+write_tsv(summary, output_path("_summaryreads_after_cutadapt.tsv"))   
+
+summary
+```
+
+```{r}
+#   Plot quality after removing primers with cutadapt   
+    print("=== Plot quality ===")   
+    
+    for(i in 1:min(length(fns), max_plot_quality)) {
+      print(str_c("i = ", i))
+      p1 <- plotQualityProfile(fns[i])
+      # if (i <= 2) {print(p1)}
+      p1_file <- paste0(dir_qual, basename(fns[i]),".qual.pdf")
+      ggsave( plot=p1, filename= p1_file, device = "pdf", width = 15, height = 15, scale=1, units="cm")
+      
+      read_length <- data.frame(length = width(ShortRead::readFastq(fns[i]))) # Read the fastQ file and get the length of all the reads...
+      print(str_c("File before filtration", fns[i], "- Read length min=", min(read_length$length),"max=", max(read_length$length), "mean=", mean(read_length$length, na.rm=TRUE),  sep=" "))
+      
+      print(paste("Finished with file", fns[i], ". ", sep=""))
+    }
+    
+```
+
+## Filter and trim
+
+```{r}
+#Change parameters here
+#  truncLen = c(250, 280) # truncate reads to the length
+#  minLen = c(250, 280) #remove reads that are shorter.
+#  truncQ = 2        # Truncate reads at the first instance of a quality score less than or equal to truncQ
+#  maxEE = c(10, 10) #after truncation, reads with higher than expected errors are discarded. 
+  
+#Filtering
+out <- filterAndTrim(fns_R1.cut, fns_R1.filt, fns_R2.cut, fns_R2.filt, 
+                     maxN=0, rm.phix=TRUE,
+                     truncLen=truncLen, minLen=minLen,truncQ=truncQ, maxEE=maxEE,
+                     compress=TRUE, multithread = multithread_filter)
+
+class(out) 
+dim(out) 
+
+out 
+
+writexl::write_xlsx(data.frame(out), path = output_path("summary_filtered_files.xlsx"))
+
+fns.filt <- c(fns_R1.filt, fns_R2.filt)
+
+# plot quality to check after filtering
+plotQualityProfile(fns.filt[1:8]) 
+```
+
+At this stage, we have
+1) defined the directories and names where the processed sequences can go to.
+2) examined the sequences before manipulation
+3) removed the primers from the sequences 
+4) Trim and filter the sequences so that they are of good quality.
+Now we are ready to start DADA2.
+
+# DADA2
+## Generating error model of our data
+https://benjjneb.github.io/dada2/tutorial.html#learn-the-error-rates
+here, check the pdf output to see if the error is similar to the line.
+```{r}
+err_R1 <- learnErrors(fns_R1.filt, multithread = multithread)
+p <- plotErrors(err_R1, nominalQ=TRUE)
+p_file <- output_path("LearnErrors_R1.pdf")
+ggsave( plot=p, filename= p_file, device = "pdf", 
+        width = 15, height = 15, scale=1, units="cm")
+      
+      
+      
+err_R2 <- learnErrors(fns_R2.filt, multithread = multithread)
+p <- plotErrors(err_R2, nominalQ=TRUE)
+p_file <- output_path("LearnErrors_R2.pdf")
+ggsave( plot=p, filename= p_file, device = "pdf", 
+        width = 15, height = 15, scale=1, units="cm")
+```
+
+## the DADA chunk!!
+justConcatnenate function=TRUE for petB F29-R
+https://github.com/benjjneb/dada2/issues/108
+N will be ignored for assignTaxonomy (kmer) but not assignSpecies (exact matching)
+Using the error output from learnerrors function to account for errors during sequencing (?). Dereplicate the reads to keep 1 unique read only, run DADA2, merge the forward and reverse reads 
+Assuming this is a big dataset and paired reads:
+```{r}
+mergers <- vector("list", length(sample.names))
+names(mergers) <- sample.names 
+      
+for(i in 1:length(fns_R1.filt)) {
+  print(cat("Processing file # :", i, "\n"))
+  derep_R1 <- derepFastq(fns_R1.filt[i], verbose=T)
+  dada_R1 <- dada(derep_R1, err=err_R1, multithread=TRUE)
+  derep_R2 <- derepFastq(fns_R2.filt[i], verbose=T)
+  dada_R2 <- dada(derep_R2, err=err_R2, multithread=TRUE)
+  merger <- mergePairs(dada_R1, derep_R1,dada_R2, derep_R2)
+  #merger <- mergePairs(dada_R1, derep_R1,dada_R2, derep_R2, justConcatenate = TRUE)#To add N bases
+  #merger$sequence <- gsub("NNNNNNNNNN", "", merger$sequence) #to remove N bases. does not make a difference
+  mergers[[i]] <- merger
+      }
+      
+rm(derep_R1)
+rm(derep_R2)
+      
+# Construct sequence table and remove chimeras
+seqtab <- makeSequenceTable(mergers)
+t_seqtab <- t(seqtab) #to check
+
+# Only takes the first max_number_asvs rows
+if(exists("max_number_asvs")) {
+  if(max_number_asvs > 0) {
+    t_seqtab <- head(t_seqtab, max_number_asvs)
+    }
+  }
+    
+print(table(nchar(getSequences(seqtab))))
+print(sprintf("Mean asv length : %.2f", mean(nchar(getSequences(seqtab)))))
+```
+
+
+## Remove chimera and check
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method=method_chimera, multithread=multithread, verbose=TRUE) 
+
+# trying different chimera removal settings. Check process_DADA2/datasetD2/chimera_test for notes.
+#seqtab.nochim_2 <- removeBimeraDenovo(seqtab, multithread=multithread, verbose=TRUE) #recommended to use default method consensus instead. 47% non chimera
+#seqtab.nochim_3 <- removeBimeraDenovo(seqtab, multithread=multithread, verbose=TRUE, minFoldParentOverAbundance=8)  #65% non chimera
+#seqtab.nochim_4 <- removeBimeraDenovo(seqtab, minFoldParentOverAbundance=8, method="consensus", multithread = TRUE, verbose = TRUE) #65% non chimera
+#seqtab.nochim_5 <- removeBimeraDenovo(seqtab, minFoldParentOverAbundance=10, method="consensus", multithread = TRUE, verbose = TRUE) #69% non chimera
+
+#to check number of merged ASVs removed as chimera, compare dim of seqtab and seqtab.nochim
+dim(seqtab.nochim)
+dim(seqtab)
+
+#check percentage of reads that are non-chimera
+sum(seqtab.nochim)/sum(seqtab)
+
+#check chimera sequences
+#bim <- isBimeraDenovoTable(seqtab, minFoldParentOverAbundance=10, multithread = TRUE, verbose = TRUE)
+#table(bim)
+#dada2:::pfasta(head(getSequences(seqtab)[bim_test])) #generates list of seq that are categorised as chimeras
+
+#export the sequences that are listed as chimeras TRUE= bimera, FALSE= not bimera
+#bim_table <- data.frame(bim)
+#bim_table$sequence <-rownames(bim_table)
+#writexl::write_xlsx(bim_table, path = output_path("chimera_list.xlsx"))
+
+#check output
+p <- ggplot(data.frame(seq_length=nchar(getSequences(seqtab.nochim)))) +
+      geom_histogram(aes(x=seq_length)) +
+      ggtitle(str_c("Number of asv: ", ncol(seqtab.nochim)))
+p_file <- output_path("asv_length_hist.pdf")
+ggsave( plot=p, filename= p_file, device = "pdf", width = 15, height = 15, scale=1, units="cm")  
+```
+
+## Save sequence table after removing chimeras
+```{r}
+saveRDS(seqtab.nochim, output_path("_seqtab.nochim.rds"))
+```
+
+## Compile number of reads at each step
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind( out,
+                sapply(mergers, getN), 
+                rowSums(seqtab), 
+                rowSums(seqtab.nochim))
+        colnames(track) <- c("cutadapt", "filtered", "merged", "tabled", "nonchim")
+track <- data.frame(track) %>% 
+      mutate(file_code = sample.names)
+
+track
+
+writexl::write_xlsx(track, path = output_path("_summary_dada2.xlsx"))
+```
+
+## Write fasta file without taxo
+```{r}
+seqtab.nochim <- readRDS(output_path("_seqtab.nochim.rds"))
+seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% 
+      rownames_to_column(var = "sequence") %>%
+      rowid_to_column(var = "asv_number") %>%
+      mutate(asv_code = sprintf("asv_%03s_%05d", dataset_id, asv_number)) %>% 
+      mutate(sequence = str_replace_all(sequence, "(-|\\.)",""))
+    
+seq_out <- Biostrings::DNAStringSet(seqtab.nochim_trans$sequence)
+names(seq_out) <- seqtab.nochim_trans$asv_code
+Biostrings::writeXStringSet(seq_out, output_path("_no_taxo.fasta"), 
+                                compress=FALSE, width = 20000)
+```
+
+## Write fasta file without taxo - before chim removal
+just for checking. Not using. The output is used for vsearch testing cluster_fast function.
+```{r eval=FALSE}
+seqtab_trans <- as.data.frame(t(seqtab)) %>% 
+      rownames_to_column(var = "sequence") %>%
+      rowid_to_column(var = "asv_number") %>%
+      mutate(asv_code = sprintf("asv_%03s_%05d", dataset_id, asv_number)) %>% 
+      mutate(sequence = str_replace_all(sequence, "(-|\\.)",""))
+    
+seqtab_out <- Biostrings::DNAStringSet(seqtab_trans$sequence)
+names(seqtab_out) <- seqtab_trans$asv_code
+Biostrings::writeXStringSet(seqtab_out, output_path("_no_taxo_befchim.fastq"), 
+                                compress=FALSE, append = FALSE, format = "fastq")
+```
+
+# Taxonomy and output
+## Assign taxonomy
+https://github.com/benjjneb/dada2/commit/21a615ca240d58b5aae0e69f54af697f746f35f0
+assignTaxonomy uses the RDPNaive Bayseian classifer (RDP k-mer based classification), same as Needham 2016 paper. Technically should work because using the same type of method.
+```{r}
+#seqtab.nochim <- readRDS("output_sorted_syn/seqtab.nochim.rds")
+taxa_list <- list()
+    
+n_asvs <- ncol(seqtab.nochim) 
+    
+    
+# Create the boundary of each slice
+slices = c(seq(from = 1, n_asvs, by=taxo_slice_size), n_asvs)
+#[1]  1  4  7 10 10
+    
+# Remove the last slice if repeated
+slices <- unique(slices)
+# [1]  1  4  7 10
+    
+for (i in 1:(length(slices)-1)){
+      
+  print(cat("Taxo slice = ", i, "\n"))
+      
+  seq_one <- seqtab.nochim[,slices[i]:slices[i+1]]
+      
+  taxa_one <- assignTaxonomy(seqs=seq_one,
+                              refFasta=database_path,
+                              taxLevels = tax_levels,
+                              minBoot = 0, 
+                              outputBootstraps = TRUE,
+                              verbose = TRUE,
+                              multithread = multithread)
+  boot_one <- data.frame(taxa_one$boot) %>%
+        rename_all(funs(str_c(.,"_boot")))
+  taxa_one <- data.frame(taxa_one$tax)  %>% 
+        rownames_to_column(var = "sequence")
+      
+  taxa_list[[i]] <- bind_cols(taxa_one, boot_one)
+}
+    
+taxa.df <- purrr::reduce(taxa_list, bind_rows)
+saveRDS(taxa.df, output_path("_taxa.rds")) 
+```
+
+## Create ASV table
+```{r}
+seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% 
+      rownames_to_column(var = "sequence") %>%
+      rowid_to_column(var = "asv_number") %>%
+      mutate(asv_code = sprintf("asv_%03s_%05d", dataset_id, asv_number)) %>% 
+      mutate(sequence = str_replace_all(sequence, "(-|\\.)","")) %>% 
+      left_join(taxa.df) %>%
+  distinct()
+    
+write_tsv(seqtab.nochim_trans, output_path("_dada2.tsv"), na="")
+#seqtab.nochim_trans <- read.csv("output_petb_2x300/output_petb_Mazard/merged_v2/petB Mazard primer_dada2.tsv", sep = "\t") %>%
+#    rename_all(funs(stringr::str_replace_all(., '\\.', '-')))
+```
+
+## Create tables for import to database
+```{r}
+metapr2_asv <- seqtab.nochim_trans %>% 
+      mutate(gene = gene, gene_region = gene_region, organelle = organelle, dataset_id = dataset_id) %>% 
+      select(asv_code,sequence, asv_code:dataset_id)
+    
+metapr2_asv$sequence_hash = purrr::map_chr(metapr2_asv$sequence,digest::sha1)
+    
+write_tsv(metapr2_asv, output_path("_Farrant_asv.txt"), na="")
+    
+metapr2_asv_abundance <- seqtab.nochim_trans %>% 
+      select(-asv_number, -sequence, -(Domain:Subclade)) %>% 
+      gather("file_code", "n_reads", -contains("asv_code")) %>% 
+      filter(n_reads > 0 )
+    
+write_tsv(metapr2_asv_abundance, output_path("_Farrant_asv_abundance.txt"), na="")
+
+```
+
+## Write fasta file with taxonomy
+```{r}
+seq_out <- Biostrings::DNAStringSet(seqtab.nochim_trans$sequence)
+names(seq_out) <- str_c(seqtab.nochim_trans$asv_code,seqtab.nochim_trans$species, sep="|") #need to change.
+Biostrings::writeXStringSet(seq_out, output_path("_taxo.fasta"), 
+                            compress=FALSE, width = 20000)
+```
+
+# Create phyloseq object
+```{r}
+library(phyloseq)
+
+# Form OTU table
+otus <- seqtab.nochim_trans %>% 
+      select(-asv_number, -sequence, -(Domain:Subclade_boot)) %>%
+      distinct()
+row.names(otus)<-otus$asv_code
+otus <- otus %>%
+  select(-asv_code) 
+
+# Form taxa table
+taxa <- seqtab.nochim_trans %>%
+  select(asv_code:Subclade) %>%
+  distinct()
+row.names(taxa)<-taxa$asv_code
+taxa <- taxa %>%
+  select(-asv_code) 
+
+otus <- as.matrix(otus)
+taxa <- as.matrix(taxa)
+
+# Some samples were excluded to place into different rds files so need to use semi_join to only include samples in the list.
+sample <- readxl::read_excel("sample_list/sampleList_CTD_petB_normal_2.0.xlsx") #%>%
+ # arrange(sorting_number)
+sample_join <- semi_join(sample, sample_names_check, by = c("sample_name" = "sample.names"))
+row.names(sample_join) <- sample_join$sample_name
+#row.names(sample) <- sample$sample_name
+
+otus= otu_table(otus, taxa_are_rows = TRUE)
+taxa = tax_table(taxa)
+sample_join = sample_data(sample_join, errorIfNULL = T)
+row.names(sample_join) <- sample_join$sample_name
+
+#sample = sample_data(sample, errorIfNULL = T)
+#row.names(sample) <- sample$sample_name
+
+
+ps <- merge_phyloseq(otus, taxa, sample_join)
+#ps <- merge_phyloseq(otus, taxa, sample)
+
+ps
+junk <- data.frame(ps@sam_data)
+
+saveRDS(ps, output_path("petB Mazard primer_phyloseq_CTD_2.0.RDS"))
+
+```
+
