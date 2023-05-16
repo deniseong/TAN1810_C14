@@ -40,7 +40,7 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - Instructions and prerequisites for DADA2 processing (readme_dada2.md)
 - Script for DADA2 to process raw Illumina sequences (DADA2_paired.Rmd)
 
-### 2_DADA2 output
+### 2_DADA2 output and phyloseq output
 
 #### 2.1_petB
 - number of reads at each processing step
