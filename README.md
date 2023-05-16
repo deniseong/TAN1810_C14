@@ -35,3 +35,29 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - Files generated
 
 ## R_C14_DADA2
+
+### 1_DADA2 processing
+- Instructions and prerequisites for DADA2 processing (readme_dada2.md)
+- Script for DADA2 to process raw Illumina sequences (DADA2_paired.Rmd)
+
+### 2_DADA2 output
+
+#### 2.1_petB
+- number of reads at each processing step
+- DADA2 output
+- fasta file with all filtered and sorted ASV sequences
+- ASV table
+- Phyloseq
+
+#### 2.2_18SV4
+- number of reads at each processing step
+- DADA2 output
+- fasta file with all filtered and sorted ASV sequences
+- ASV table
+- Phyloseq
+
+### 3_Phyloseq output and figures
+- Heatmap (Fig_heatmap_2.0.Rmd)
+- NMDS figure and statistical tests (NMDS_PERMANOVA_2.0.Rmd)
+- Compare incubation vials of initials, light incubation and dark incubation (Fig_incubation vials.Rmd)
+- Compare filtered and sorted samples (Fig_filt vs sort.Rmd)
