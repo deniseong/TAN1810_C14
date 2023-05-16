@@ -1,0 +1,558 @@
+---
+title: "Group rates figure"
+author: "Denise Ong"
+date: "3/11/2021"
+output: html_document
+---
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("init_files", "init.R")) #for libraries
+source(here("init_files", "init_markdown.R")) #for markdown libraries
+
+#Colours
+colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+
+colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
+
+# For consistency between scatterplot
+set.seed(1)
+```
+
+# Read data
+```{r}
+cold_standard <- readxl::read_excel("group_rates_output/NPP_cold_standard.xlsx") %>% 
+  rename(depth_m = `depth`,
+         depth = `sample`)
+cold_standard$exp <- as.character(cold_standard$exp)
+
+pp_rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx")
+
+#set factor levels
+pp_rates$water_mass <- factor(pp_rates$water_mass, levels = c("ST", "SA"))
+pp_rates$cycle_name <- factor(pp_rates$cycle_name, levels = c("ST1", "ST2", "SA1", "SA2", "SA3"))
+pp_rates$population <- factor(pp_rates$population, levels = c("Syn", "Pico", "Nano"))
+pp_rates$depth <- factor(pp_rates$depth, levels = c("SUR", "DCM"))
+```
+
+
+# Plots for paper
+## Figure 4 
+```{r}
+p1 <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=pp), width = 0.2, alpha = 0.4)+
+    geom_boxplot(aes(x=water_mass, y= pp, fill=water_mass))+
+    scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(population~water_mass, scales = "free", space = "free_x") +
+        theme(strip.text.y.right = element_blank(),
+              legend.position = "none",
+              panel.spacing = unit(1, "lines"))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l", outside = TRUE)+
+  coord_cartesian(clip = "off")+
+    ylab("Carbon fixation rate (fgC/cell/hr)") +
+  xlab("Cycle")
+p1
+
+
+p2 <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=npp), width = 0.2, alpha = 0.4)+
+    geom_boxplot(aes(x=water_mass, y= npp, fill=water_mass))+
+    scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(population~water_mass, scales = "free", space = "free_x") +
+    theme(panel.spacing = unit(1,"lines"),
+          legend.position = "none",
+          strip.text.y.right = element_text(angle = 0))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l", outside = TRUE)+
+    coord_cartesian(clip = "off") +
+    ylab("NPP (mgC/m3/day)")+
+    xlab("Cycle")
+p2
+
+library(patchwork)
+plot <- p1 + p2 +  plot_annotation(tag_levels = 'A')
+plot
+pdf("figures/1_group rates/202231213_pp_npp.pdf", height=6, width=8) ; plot(plot) ; dev.off()
+
+
+```
+
+## Supplementary figures - Figures S6, S7, S8.
+```{r}
+
+# Figure S6 - PP by experiment
+  p <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=exp, y=pp, shape = depth), width = 0.2, alpha = 0.5) +
+    scale_fill_manual (values = colours_cycle)+
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("Carbon fixation rate (fgC/cell/hr)")
+p
+pdf("figures/1_group rates/202231130_pp_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+
+# Figure S7 - cell conc by experiment
+  p <- pp_rates %>%
+  select(cycle_name, exp, conc_ml, population, depth) %>%
+  filter(exp!="5") %>%
+  distinct() %>%
+  ggplot() +
+    # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    geom_jitter(aes(x=exp, y=conc_ml, shape = depth), width = 0.2, alpha = 0.5) +
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme_minimal()+
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("Cell concentration (mL)") +
+  xlab("Experiment") +
+  labs(shape = "Depth")
+p
+pdf("figures/1_group rates/supp_cell conc_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+# Figure S8- npp by experiment
+  p <- pp_rates %>%
+  ggplot() +
+    # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    geom_jitter(aes(x=exp, y=npp, shape = depth), width = 0.2, alpha = 0.5) +
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme_minimal()+
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("NPP (mgC/m3/day)")
+p
+pdf("figures/1_group rates/202231130_npp_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+```
+
+
+## Table 2 - summary for paper - pp, npp, cell conc
+```{r}
+# General summary
+summary <- pp_rates %>%
+  select(population, cycle_name, pp, npp, conc_ml) %>%
+  pivot_longer(pp:conc_ml, names_to = "data", values_to = "value") %>%
+  group_by(data, population, cycle_name) %>%
+  summarize(mean = round(mean(value), 2),
+            sd = round(sd(value),2), 
+             # n = n()
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd") %>%
+  arrange(factor(data, levels = c('pp', 'npp', 'conc_ml')))
+summary
+
+# writexl::write_xlsx(summary, path = "group_summary.xlsx")
+
+# cell conc summary - only change for SA2
+summary <- pp_rates %>%
+  filter(exp != "5") %>%
+  select(water_mass, population, cycle_name, conc_ml) %>%
+  distinct() %>%
+  pivot_longer(conc_ml, names_to = "data", values_to = "value") %>%
+  group_by(data, population, water_mass) %>%
+  summarize(mean = round(mean(value), 0),
+            sd = round(sd(value),0), 
+            n = n(),
+            min = round(min(value), 0),
+            max = round(max(value), 0)
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  unite("range", min:max, sep = "-")
+
+summary
+
+# Small phyto NPP
+summary <- pp_rates %>%
+  select(population, cycle_name, npp, exp, depth) %>%
+  group_by(population, cycle_name, exp, depth) %>%
+  summarize(mean = round(mean(npp), 2)) %>%
+  group_by(cycle_name, exp,depth) %>%
+  summarise(sum = sum(mean)) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(sum), 2),
+             sd = round(sd(sum),2)
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+```
+
+Mean of pp and npp between water mass and depth
+```{r}
+summary <- pp_rates %>%
+  group_by(population, water_mass) %>%
+  summarize(mean = round(mean(pp), 2),
+            sd = round(sd(pp),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = "±") 
+summary
+
+summary <- pp_rates %>%
+  group_by(population, water_mass) %>%
+  summarize(median = round(median(npp), 2),
+            mean = round(mean(npp), 2),
+            sd = round(sd(npp),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") 
+summary
+
+
+summary <- pp_rates %>%
+  group_by(population, depth) %>%
+  summarize(mean = round(mean(pp), 2),
+            sd = round(sd(pp),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = "±") 
+summary
+```
+
+
+#Statistical tests
+## PP
+### Overall between groups
+not normally distributed, using kruskal test. Significantly different between all groups.
+```{r}
+hist(pp_rates$pp)
+qqnorm(pp_rates$pp)
+shapiro.test(pp_rates$pp)
+
+hist(log10(pp_rates$pp))
+qqnorm(log10(pp_rates$pp))
+shapiro.test(log10(pp_rates$pp)) # still not significant. Cannot use anova
+
+# lm <- lm(log10(pp) ~ population, data=pp_rates)
+# Anova(lm, type = "3")
+# pairwise.t.test(log10(pp_rates$pp), rates_data$population, p.adj='bonferroni')
+
+kruskal.test(pp~population, data = pp_rates)
+library(FSA)
+dunnTest(pp~population, data = pp_rates,
+         method="bonferroni")
+```
+In each water mass compare between groups. Same pattern
+```{r}
+#ST is not normally distributed. Use kruskal wallis test.
+for (i in c("ST")) {
+  df <- pp_rates %>%
+    filter(water_mass == i)
+  print(kruskal.test(pp~population, data = df)) # not significant
+  print(
+  dunnTest(pp~population, data = df,
+         method="bonferroni")
+  )
+}
+
+#SA is not normally distributed. Use kruskal wallis test.
+for (i in c("SA")) {
+  df <- pp_rates %>%
+    filter(water_mass == i)
+  print(kruskal.test(pp~population, data = df)) # not significant
+  print(
+  dunnTest(pp~population, data = df,
+         method="bonferroni")
+  )
+}
+```
+
+### surface and DCM
+#### plot
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+    ungroup() %>%
+    complete(exp, depth) %>%
+  ggplot() +
+    geom_point(aes(x=depth, y=pp))+
+    facet_grid(.~exp, scales = "free_x", space = "free") +
+    #scale_colour_manual(values = colours_exp)+
+    #scale_fill_manual (values = colours_cycle)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("PP rate (fgC/cell/hr)") +
+    ggtitle(i)
+  print(p)
+  # pdf(here(str_c("pp_depth_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
+}
+
+```
+
+#### t test to check if surface is different from DCM
+surface is not different from DCM for all groups
+not significantly different, from here on combine surface and DCM
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(depth, water_mass, pp)
+
+summary <- t_test_df %>%
+  group_by(depth) %>%
+  summarise(count = n(),
+    mean = mean(pp, na.rm = TRUE),
+    sd = sd(pp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=pp))  +geom_boxplot() + geom_point() +
+ # facet_grid(water_mass~depth, scales = "free") +
+facet_grid(~depth, scales = "free") +
+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(pp[depth == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(pp[depth == "DCM"]))
+print(p)
+res <- wilcox.test(pp ~ depth, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+### within each group - ST vs SA
+#### plot
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+  ggplot() +
+    geom_point(aes(x=exp, y=pp, fill=exp), pch = 21, colour = "black", alpha = 0.5)+
+    scale_fill_manual (values = colours_exp)+
+    #geom_jitter(aes(x=exp, y=pp, shape = depth, fill=exp), width = 0.1, alpha = 0.5) +
+    geom_boxplot(aes(x=cycle_name, y= pp, fill=cycle_name))+
+    scale_fill_manual (values = colours_cycle)+
+        scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    facet_grid(.~cycle_name, scales = "free_x", space = "free") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA))+
+
+    ylab("PP rate (fgC/cell/hr)") +
+    ggtitle(i)
+  print(p)
+}
+
+```
+#### t test to check if ST is different from SA
+ST is different from SA for syn and pico.
+```{r}
+library("ggpubr")
+
+#within each group, ST VS SA.
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(water_mass, pp)
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(pp, na.rm = TRUE),
+    sd = sd(pp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=pp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(pp[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(pp[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(pp ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+
+## NPP
+### Overall between groups
+normally distributed after log transformation. Using ANOVA.
+```{r}
+hist(pp_rates$npp)
+qqnorm(pp_rates$npp)
+shapiro.test(pp_rates$npp)
+
+hist(log10(pp_rates$npp))
+qqnorm(log10(pp_rates$npp))
+shapiro.test(log10(pp_rates$npp)) # significant. Meet assumptions, using ANOVA
+
+lm <- lm(log10(npp) ~ population, data=pp_rates)
+Anova(lm, type = "3")
+pairwise.t.test(log10(pp_rates$pp), pp_rates$population, p.adj='bonferroni')
+
+
+```
+### Within each water mass check between groups
+```{r}
+
+for (i in c("SA")) {
+  df <- pp_rates %>%
+    filter(water_mass == i)
+  hist(log10(df$npp))
+  qqnorm(log10(df$npp))
+  print(shapiro.test(log10(df$npp)))
+  
+  lm <- lm(log10(npp) ~ population, data=df)
+  print(Anova(lm, type = "3"))
+  print(pairwise.t.test(log10(df$npp), df$population, p.adj='bonferroni'))
+}
+
+#ST is not normally distributed. Use kruskal wallis test.
+for (i in c("ST")) {
+  df <- pp_rates %>%
+    filter(water_mass == i)
+  print(kruskal.test(pp~population, data = df)) # not significant
+  print(
+  dunnTest(pp~population, data = df, #perform Dunn's Test with Bonferroni correction for p-values
+         method="bonferroni")
+  )
+}
+```
+
+### surface and DCM
+#### plot
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+  ggplot() +
+    geom_point(aes(x=depth, y=npp, shape = depth, colour=exp))+
+    facet_grid(.~exp, scales = "free_x", space = "free") +
+    scale_colour_manual(values = colours_exp)+
+    scale_fill_manual (values = colours_cycle)+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    #ylab("PP rate (fgC/cell/hr)") +
+    ggtitle(i)
+  print(p)
+}
+
+```
+#### t test to check if surface is different from DCM
+```{r}
+library("ggpubr")
+
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  dplyr::select(depth, npp)
+
+summary <- t_test_df %>%
+  group_by(depth) %>%
+  summarise(count = n(),
+    mean = mean(npp, na.rm = TRUE),
+    sd = sd(npp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
+ print(p)
+ 
+ print(i)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(npp[depth == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(npp[depth == "DCM"]))
+print(p)
+res <- wilcox.test(npp ~ depth, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+
+
+
+### within each group - ST vs SA
+#### plot
+```{r}
+for (i in c("Syn", "Pico", "Nano")) {
+  p <- pp_rates %>%
+  filter(population == i) %>%
+  ggplot() +
+    geom_point(aes(x=exp, y=npp, fill=exp), pch = 21, colour = "black", alpha = 0.5)+
+    scale_fill_manual (values = colours_exp)+
+    geom_boxplot(aes(x=cycle_name, y= npp, fill=cycle_name))+
+    scale_fill_manual (values = colours_cycle)+
+        scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    facet_grid(.~cycle_name, scales = "free_x", space = "free") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA))+
+    ylab("NPP rate") +
+    ggtitle(i)
+  print(p)
+}
+
+```
+#### t test to check if ST is different from SA
+ST is different from SA for pico. 
+```{r}
+library("ggpubr")
+
+#within each group, ST VS SA.
+for (i in c("Syn", "Pico", "Nano")) {
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(water_mass, npp)
+
+summary <- t_test_df %>%
+  group_by(water_mass) %>%
+  summarise(count = n(),
+    mean = mean(npp, na.rm = TRUE),
+    sd = sd(npp, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(npp[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(npp[water_mass == "SA"]))
+print(p)
+res <- wilcox.test(npp ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+}
+```
+

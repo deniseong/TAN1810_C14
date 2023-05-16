@@ -16,7 +16,9 @@ ps_filt_sort<- ps_filt_sort %>%
     subset_taxa(!(supergroup %in% c("Opisthokonta")))%>%
     subset_taxa(!(division %in% c("Pseudofungi")))%>%
     subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
-    subset_taxa(!(class == "Embryophyceae")) # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
+    subset_taxa(!(class == "Embryophyceae")) %>% # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
+    subset_taxa(!(species == "Padina_australis")) %>%
+    subset_taxa(!(class %in% c("Syndiniales")))
 
 junk <- data.frame(ps_filt_sort@sam_data)
-junk<- data.frame(ps_filt_sort@otu_table)
+# junk <- data.frame(ps_filt_sort@otu_table)    

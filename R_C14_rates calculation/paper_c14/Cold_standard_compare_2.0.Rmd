@@ -1,0 +1,153 @@
+---
+title: "Cold vs group rates compare"
+author: "Denise Ong"
+date: "10/25/2022"
+output: html_document
+---
+npp units mgC/m3/day.
+Group calculations from method 2.
+
+Standard rates: NPP from standard volume incubation
+Cold rates: NPP from small volume incubation
+Group rates: NPP from summation of Syn, Pico and Nano NPP.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("init_files", "init.R")) #for libraries
+source(here("init_files", "init_markdown.R")) #for markdown libraries
+```
+
+# Read data
+```{r}
+cold_standard <- readxl::read_excel("group_rates_output/NPP_cold_standard.xlsx") %>% 
+  rename(depth_m = `depth`,
+         depth = `sample`)
+cold_standard$exp <- as.character(cold_standard$exp)
+group_rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx")
+```
+
+#Compute NPP for EACH vial by adding the NPP values of the groups - from group-specific rates to compare.
+some of the rows have NA. leave for now.
+how about average the NPP across the vials before adding?
+
+```{r}
+group_npp <- group_rates %>%
+  select(cycle, exp, depth, vial, population, cycle_name, station, depth_m, ctd, npp) %>%
+  pivot_wider(names_from = population, values_from = npp) %>%
+  mutate(npp_group = Nano + Pico + Syn) %>%
+  rename(replicate =`vial`)
+```
+
+
+# Join group and cold rates
+For column replicates, the replicates for cold, standard and group are not from the same source. ie. replicate A is not the same across the different types. Just a way to number and identify the replicates.
+```{r}
+cold_group <- full_join(cold_standard, group_npp) %>%
+  unite(cycle_exp, c(cycle_name, exp), sep = "_", remove = FALSE)
+
+# writexl::write_xlsx(cold_group, path = "group_rates_output/NPP_cold_standard_group.xlsx")
+
+summary<- cold_group %>%
+  group_by(cycle, cycle_name, station, exp, cycle_exp, depth) %>%
+  dplyr::summarise(cold_mean = mean(cold_corrected, na.rm = TRUE),
+                   cold_sd = sd(cold_corrected, na.rm = TRUE),
+                   standard_mean = mean(standard_corrected, na.rm = TRUE),
+                   standard_sd = sd(standard_corrected, na.rm = TRUE),
+                   group_mean = mean(npp_group, na.rm = TRUE),
+                   group_sd = sd(npp_group, na.rm = TRUE)) %>%
+  mutate(diff_standard_cold = standard_mean - cold_mean) %>%
+  mutate(diff_cold_group = cold_mean - group_mean) %>%
+  mutate(standard_cold_ratio = standard_mean/cold_mean) %>%
+  ungroup() %>%
+  arrange(cycle_exp)
+# writexl::write_xlsx(summary, "group_rates_output/NPP_cold_standard_group_summary.xlsx")
+```
+
+#summary for cold rates
+```{r}
+summary<- cold_group %>%
+  select(cycle_name, exp, depth, cold_corrected) %>%
+  filter(!(is.na(cold_corrected))) %>%
+  group_by(cycle_name, exp, depth) %>%
+  summarise(value = mean(cold_corrected)) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(value), 2),
+            # sd = round(sd(value),2)
+             ) #%>%
+   # unite("mean_sd", mean:sd, sep = " ± ") %>%
+  # pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+
+```
+
+# Statistical test to check difference between standard and small volume NPP incubation.
+No significant difference.
+```{r}
+t_test_df<- cold_group %>%
+  select(cycle_name, exp, depth, cold_corrected, standard_corrected) %>%
+  filter(!(is.na(cold_corrected))) %>%
+  filter(!(is.na(standard_corrected))) %>%
+  filter(standard_corrected >0) 
+hist(t_test_df$standard_corrected)
+
+ p <- t_test_df %>%
+   ggplot(aes(x=type, y=npp)) + geom_point() +geom_boxplot()
+ print(p)
+ 
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(cold_corrected))
+print(p)
+p<-with(t_test_df, shapiro.test(standard_corrected))
+print(p)
+
+# wilcoxon test
+t_test_df <- t_test_df %>%
+  pivot_longer(cold_corrected:standard_corrected, names_to = "type", values_to = "npp")
+res <- wilcox.test(npp ~ type, data = t_test_df,
+                   exact = FALSE)
+print(res)
+
+```
+
+
+#prepare dataframe
+```{r}
+cold_group_long <- cold_group %>%
+  rename(standard = `standard_corrected`,
+         small = `cold_corrected`,
+         group = `npp_group`) %>%
+  select(cycle:depth_m, cycle_name, replicate_incubation:standard, group) %>%
+  pivot_longer(cols = small:group,
+               values_to = "NPP",
+               names_to = "type") %>%
+  mutate(depth = fct_relevel(depth, "SUR", "DCM")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  filter(type!= "group") %>%
+  filter(exp!="1")
+```
+
+# Figure S2 - compare small and standard vol incubation.
+```{r}
+p <- cold_group_long %>%
+  ggplot(aes(x=exp, y = NPP, colour =  type, fill = type)) +
+  geom_jitter(width = 0.1, alpha = 5/10) +
+  # geom_bar(position = "dodge", stat = "summary", fun.y = "mean") + #to visualise mean. Not using.
+ # geom_point(position=position_jitterdodge(0.01), alpha = 5/10) +
+  geom_errorbar(data = plyr::ddply(cold_group_long, c("cycle_name", "depth", "exp", "type"), summarize, mean = mean(NPP, na.rm=TRUE)), aes(y=mean, ymin = mean, ymax = mean), width = 0.5) +
+  facet_grid(depth~cycle_name, scales = "free_x", space = "free") +
+  # scale_y_continuous(trans='log10') +
+  # annotation_logticks(sides = "l") +
+  ylab("NPP (mgC/m3/day)") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+  scale_color_brewer(palette = "Dark2")
+  
+p
+
+```
+

@@ -1,0 +1,60 @@
+---
+title: "Studies comparison"
+author: "Denise Ong"
+date: "4/15/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+  knitr::opts_chunk$set(message=FALSE,
+                        warning=FALSE,
+                        cache=TRUE,
+                        tidy=FALSE)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(broom)
+library(ggpubr)
+library(stringr)
+library(RColorBrewer)
+library(cowplot)
+```
+
+#Colours for water mass
+```{r}
+colours_water <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet =  "Sheet3")
+colours_water <- structure(colours_water$colour,.Names=colours_water$water)
+```
+
+# Figure 9 - compare rates obtained between studies
+```{r}
+studies <- readxl::read_excel("data_used/C14_studies.xlsx", sheet = "Sheet1")  #updated one study
+
+studies$Group<-factor(studies$Group, levels = c("Synechococcus", "Pico 1", "Pico 2", "Nano"))
+studies$cat<-factor(studies$cat, levels = c("tropical", "ST", "SA", "antarctic"))
+
+
+p <- studies %>% 
+  ggplot(aes(fct_reorder(Study, Year), ymin = Lower, ymax = Upper, color = cat)) +
+  geom_linerange(position = position_dodge(width = 1), size = 2) +
+  facet_grid(.~ Group, scales = "free", space = "free") +
+   scale_y_continuous(trans='log10') +
+  annotation_logticks(sides = "l", 
+                      short = unit(0.07, "cm"),
+                      mid = unit(0.15, "cm"),
+                      long = unit(0.2, "cm"),
+                      size = 0.3) +
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  ylab(expression(Carbon~Fixation~Rate~(fgC~cell^-1~hr^-1))) +
+  xlab(NULL)+
+  theme(#strip.text.x = element_blank(),
+        panel.spacing.x = unit(0.5,"line")) +
+  scale_color_manual(values = colours_water, name = "Water mass") +
+  theme(legend.position="top")
+p
+# pdf("figures/pp_rates_pico1_2.pdf", height=5, width=8) ; plot(p) ; dev.off()
+
+```

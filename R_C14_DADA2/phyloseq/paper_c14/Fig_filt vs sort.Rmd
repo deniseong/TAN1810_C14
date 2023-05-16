@@ -1,0 +1,459 @@
+---
+title: "18S filt vs sort"
+author: "Denise Ong"
+date: "10/27/2022"
+output: html_document
+---
+Supplementary figure S14 for filtered samples.
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("phyloseq", "init_files", "init.R")) #for libraries
+source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps
+source(here("phyloseq", "trophic_mode", "trophic_function.R"))  #function to assign trophic level for phyloseq objects
+source(here("phyloseq", "init_files", "colours_18sv4.R")) # predetermined colours
+source(here("phyloseq", "init_files", "colours_petb.R")) # predetermined colours
+source(here("phyloseq", "init_files", "colours_random.R")) #random colours
+```
+
+# Eukaryotes 18SV4 
+## read data
+```{r}
+source(here("phyloseq", "init_files", "read_18s_filt_sort.R"))
+
+ps_filt_sort <- phyloseq_assign_trophic(ps_filt_sort) %>%
+    subset_taxa(trophic_mode_2 != "heterotrophic") #remove heterotrophs
+# Do normalizations and transformation
+ps_filt_sort <- phyloseq_normalize_median(ps_filt_sort)
+long_filt_sort <- phyloseq_transform_to_long(ps_filt_sort) %>%
+  mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(sample = fct_relevel(sample, "SUR", "DCM"))
+```
+
+
+check overlapping samples
+```{r}
+sample <- data.frame(ps_filt_sort@sam_data) %>%
+    select(ctd_cast, station, depth, sample_type, cycle_name_2) %>%
+    distinct() %>%
+    pivot_wider(names_from = depth, values_from = sample_type)
+sample
+```
+
+## check photosynthetic in filt not included in sorted
+```{r}
+long_sorted_asvhash <- long_filt_sort %>%
+    filter(sample_type != "filt") %>%
+    select(asv_code) 
+
+long_filt<- long_filt_sort %>%
+    filter(sample_type == "filt")
+
+long_filt_anti <- anti_join(long_filt, long_sorted_asvhash) %>%
+  distinct() %>%
+  # mutate(in_sorted = "no") %>%
+    mutate(in_sorted = case_when(class == "Dinophyceae" ~ "dinophyceae",
+                               TRUE~ "no"))  %>%
+  filter(class != "Syndiniales") %>%
+  filter(species != "Dinophyceae_XXX_sp.") %>%
+  filter(trophic_mode == "photosynthetic") 
+
+long_filt_sort <- inner_join(long_filt, long_sorted_asvhash) %>%
+    distinct() %>%
+  mutate(in_sorted = "yes")
+
+
+long_filt_sort_join <- full_join(long_filt_anti, long_filt_sort) %>%
+  filter(class != "Syndiniales") %>%
+  filter(species != "Dinophyceae_XXX_sp.") %>%
+  filter(trophic_mode == "photosynthetic") 
+
+# check proportion of photosynthetic not in sorted
+p  <- long_filt_sort_join %>%
+  ggplot(aes(x=station, y=n_reads, fill=in_sorted, colour = in_sorted)) +
+  geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") 
+p
+
+# check proportion of dinophyceae
+p  <- long_filt_anti %>%
+  ggplot(aes(x=station, y=n_reads, fill=trophic_mode_2, colour = trophic_mode_2)) +
+  geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") 
+p
+
+```
+
+## Pico vs filt
+```{r}
+# select only ASVs which are in sorted Pico samples 
+long_pico_asvhash <- long_filt_sort %>%
+    filter(sample_type == "Pico") %>%
+    select(asv_code)
+
+long_pico <- long_filt_sort %>%
+    filter(sample_type == "Pico") %>%
+    filter(class != "Dinophyceae") #remove Dinophyceae
+
+long_filt<- long_filt_sort %>%
+    filter(sample_type == "filt") %>%
+    filter(class != "Dinophyceae")
+
+long_filt_pico <- inner_join(long_filt, long_pico_asvhash) %>%
+    distinct()
+```
+
+to calculate relative abundance in filtered sample
+```{r}
+# pivot longer dataframe
+otu_rel_abund <- long_filt_pico %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+## summary for results
+
+summary <- taxon_rel_abund %>%
+  filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae", "Chloropicophyceae")) %>%
+  # filter(cycle_name_2 == "SA1") %>%
+  group_by(taxon, water_mass) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
+```
+
+### Supp fig
+```{r}
+# sorted pico at each station to check against filtered samples.
+p <- long_pico %>%
+  # mutate(class = fct_infreq(taxa))%>%
+  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+#  ps_top(class, 8) %>%
+  #mutate(class = fct_infreq(class)) %>%
+  ggplot(aes(x=station, y=n_reads, fill=class, colour = class)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") +
+        ggtitle("Sorted pico - class level") +
+        scale_color_manual(values=classPalette, limits = force) + 
+        scale_fill_manual(values=classPalette, limits = force) +
+  ylab("Proportion of reads")
+p
+
+#for supplementary figure filtered pico
+p2 <- long_filt_pico %>%
+  filter(class != "Dinophyceae") %>% # remove dinophyceae.
+  filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+  filter(station != "108") %>% # remove station 108 because it is in SA1-b
+  mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
+                                 depth_category == "5" ~ "DCM",
+                                 TRUE ~ depth_category)) %>%
+   mutate(depth_cat_2 = fct_relevel(depth_cat_2, "SUR", "DCM")) %>%
+   mutate(class = case_when(class == 'Mamiellophyceae' ~ 'Mamiellophyceae',
+                            class == 'Chloropicophyceae' ~ 'Chloropicophyceae',
+                            class == 'Prymnesiophyceae' ~ 'Prymnesiophyceae',
+                            class == 'Bacillariophyta' ~ 'Bacillariophyta',
+                            class == 'Dictyochophyceae' ~ 'Dictyochophyceae',
+                            class == 'Pelagophyceae' ~'Pelagophyceae',
+                            class == "Cryptophyceae" ~ 'Cryptophyceae',
+                            class == 'Dictyochophyceae' ~'Dictyochophyceae',
+                            class == 'MOCH-2' ~'MOCH-2',
+                            TRUE~ 'Other')) %>%
+   mutate(class = fct_relevel(class, c("Mamiellophyceae", "Chloropicophyceae", 
+                                       "Prymnesiophyceae", 
+                                       'Bacillariophyta', 'Dictyochophyceae', 'MOCH-2', "Pelagophyceae",
+                                       "Cryptophyceae", "Others"))) %>%
+  ggplot(aes(x=station, y=n_reads, fill=class, colour = class)) + 
+  geom_bar(position="fill", stat="identity", size=0.5) + 
+  theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0),
+        legend.position = "bottom") +
+        facet_grid(depth_cat_2~cycle_name_2, scales = "free_x", space = "free") +
+        scale_color_manual(values=colours_18s_class, limits = force) + 
+        scale_fill_manual(values=colours_18s_class, limits = force) +
+  ylab("Proportion of reads") +
+  xlab("Station") +
+  labs(fill = "Class",
+       color = "Class")
+p2
+```
+
+additional checks
+```{r}
+filt_pico_merge <-full_join(long_pico,long_filt_pico) %>%
+  distinct()
+
+# compare directly sorted vs filtered. 
+p <- filt_pico_merge %>%
+  filter(sample %in% c("SUR", "DCM")) %>%
+  filter(station != "108") %>% # remove station 108 because it is in SA1-b
+  unite("cycle_station", cycle_name_2, station, sep = "_") %>%
+  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+#  ps_top(class, 8) %>%
+  #mutate(class = fct_infreq(class)) %>%
+  ggplot(aes(x=sample_type, y=n_reads, fill=class, colour = class)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(sample~cycle_station, scales = "free_x", space = "free") +
+        ggtitle("Sorted pico - class level") +
+        scale_color_manual(values=classPalette, limits = force) + 
+        scale_fill_manual(values=classPalette, limits = force) +
+  ylab("Proportion of reads")
+p
+```
+
+## Nano vs filt
+```{r}
+long_nano_asvhash <- long_filt_sort %>%
+    filter(sample_type == "Nano") %>%
+    select(asv_code)
+
+long_nano <- long_filt_sort %>%
+    filter(sample_type == "Nano") 
+
+long_filt<- long_filt_sort %>%
+    filter(sample_type == "filt")
+
+long_filt_nano <- inner_join(long_filt, long_nano_asvhash) %>%
+    distinct()
+```
+
+to calculate relative abundance and summary for results
+```{r}
+# pivot longer dataframe
+otu_rel_abund <- long_filt_nano %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+## summary for results
+summary <- taxon_rel_abund %>%
+  filter(taxon %in% c("Bacillariophyta")) %>%
+  # filter(cycle_name_2 %in% c("SA1", "SA2")) %>%
+  group_by(taxon, cycle_name_2) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
+```
+
+### Supp fig
+```{r}
+# Sorted nano at each station to check against filtered samples.
+p <- long_nano %>%
+  # mutate(class = fct_infreq(taxa))%>%
+  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+  ggplot(aes(x=station, y=n_reads, fill=class, colour = class)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") +
+        ggtitle("Sorted nano - class level") +
+        scale_color_manual(values=classPalette, limits = force) + 
+        scale_fill_manual(values=classPalette, limits = force) +
+  ylab("Proportion of reads")
+p
+
+#for supplementary figure filtered nano
+p3 <- long_filt_nano %>%
+  filter(class!= "Mamiellophyceae") %>%
+  filter(class!= "Chloropicophyceae") %>%
+  filter(station != "108") %>% # remove station 108 because it is in SA1-b
+  filter(depth_category %in% c("2", "5")) %>%
+  mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
+                                 depth_category == "5" ~ "DCM",
+                                 TRUE ~ depth_category)) %>%
+  mutate(depth_cat_2 = fct_relevel(depth_cat_2, "SUR", "DCM")) %>%
+  mutate(order = case_when(order == 'Cryptomonadales' ~ 'Cryptomonadales',
+                                 order == 'Dinophyceae_X' ~ 'Dinophyceae_X',
+                                 # order == 'Suessiales' ~ 'Suessiales',
+                                 order == 'Gymnodiniales' ~ 'Gymnodiniales',
+                                 # order == 'Bolidophyceae' ~ 'Bolidophyceae',
+                                 order == 'Peridiniales' ~'Peridiniales',
+                                 order == 'Prorocentrales' ~ 'Prorocentrales',
+                                 order == 'Isochrysidales' ~'Isochrysidales',
+                                 order == 'Prymnesiales' ~'Prymnesiales',
+                                 order == 'Phaeocystales' ~'Phaeocystales',
+                                 order == 'Bacillariophyta_X' ~'Bacillariophyta_X',
+                                 order == 'Haptophyta_Clade_HAP3_X' ~'Haptophyta_Clade_HAP3_X',
+                                # order == 'Chloropicales' ~'Chloropicales',
+                                 TRUE~ 'Other')) %>%
+  mutate(order = fct_relevel(order, c("Bacillariophyta_X","Cryptomonadales",
+                        "Prorocentrales","Peridiniales","Gymnodiniales","Dinophyceae_X",
+                        "Haptophyta_Clade_HAP3_X", "Prymnesiales",
+                        "Phaeocystales","Isochrysidales",
+                      # "Chloropicales",
+                        "Other"))) %>%
+  ggplot(aes(x=station, y=n_reads, fill=order, colour = order)) + 
+  geom_bar(position="fill", stat="identity", size=0.5) + 
+  theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0),
+        legend.position = "bottom") +
+        facet_grid(depth_cat_2~cycle_name_2, scales = "free_x", space = "free") +
+        scale_color_manual(values=colours_18s_order, limits = force) +
+        scale_fill_manual(values=colours_18s_order, limits = force) +
+  ylab("Proportion of reads") +
+  xlab("Station") +
+  labs(fill = "Order",
+       color = "Order")
+p3
+
+```
+
+Checks - lots of Mamiellophyceae in the filt nano samples
+```{r}
+p <- long_filt_pico %>%
+    filter(class == "Mamiellophyceae") %>%
+   # mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+#  ps_top(class, 8) %>%
+  #mutate(class = fct_infreq(class)) %>%
+  ggplot(aes(x=station, y=n_reads, fill = species, colour =species)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") +
+        ggtitle("Filt, overlap ASVs to pico - class level") +
+        scale_color_manual(values=speciesPalette, limits = force) + 
+        scale_fill_manual(values=speciesPalette, limits = force) +
+  ylab("Proportion of reads")
+p
+
+p2 <- long_filt_nano %>%
+    filter(class == "Mamiellophyceae") %>%
+    ggplot(aes(x=station, y=n_reads, fill = species, colour =species)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") +
+        ggtitle("Filt, overlap ASVs to nano - class level") +
+        scale_color_manual(values=speciesPalette, limits = force) + 
+        scale_fill_manual(values=speciesPalette, limits = force) +
+  ylab("Proportion of reads")
+p
+
+```
+
+
+#Syn - petB
+## read data
+```{r}
+source(here("phyloseq", "init_files", "read_petb_2.0.R"))
+```
+
+## Supp fig
+```{r}
+p1 <- long_filt_ong %>%
+  filter(station != "108") %>% # remove station 108 because it is in SA1-b
+  filter(depth_category %in% c("2", "5")) %>%
+  mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
+                                 depth_category == "5" ~ "DCM",
+                                 TRUE ~ depth_category)) %>%
+  mutate(cycle_name = recode(cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(depth_cat_2 = fct_relevel(depth_cat_2, "SUR", "DCM")) %>%
+  mutate(Subclade = recode(Subclade, "VIc"= "Others", "II-WPC2"= "Others", "V"= "Others", "VIb"= "Others", "Ic"= "Others", "UC-A"= "Others", "IIe"= "Others", "IIh"= "Others", "WPC1" = "Others",  "EnvA"= "Others", "EnvB"= "Others", "IIb" = "Others")) %>%
+  ggplot(aes(x=station, y=n_reads, fill=Subclade, colour = Subclade))+
+  geom_bar(position="fill", stat="identity") + 
+  facet_grid(depth_cat_2~cycle_name, scales = "free", space = "free")+
+  scale_color_manual(values=colours_petb_subclade, limits = force) + 
+  scale_fill_manual(values=colours_petb_subclade, limits = force) +
+  ylab("Proportion of reads") +
+  xlab("Station")+
+  theme(panel.spacing.y = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              panel.border = element_rect(colour = "black", fill = NA),
+              strip.text.y.right = element_text(angle = 0),
+        legend.position = "bottom") 
+p1
+```
+
+to calculate relative abundance
+```{r}
+# pivot longer dataframe
+otu_rel_abund <- long_filt_ong %>%
+  filter(depth_category %in% c("2", "5")) %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:Subclade,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "Subclade") %>% #choose level here 
+    group_by(water_mass, cycle_name, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+## summary for results
+summary <- taxon_rel_abund %>%
+  filter(taxon %in% c("Ia", "Ib","IVa","IVb", "CRD1")) %>%
+  filter(cycle_name %in% c("SA2", "SA3")) %>%
+  group_by(taxon) %>%
+  summarise(median = median(rel_abund),
+            mean = mean(rel_abund))
+summary
+```
+
+```{r}
+library(patchwork)
+
+patchwork <- p1 /p2/p3+ plot_annotation(tag_levels = 'A') &theme(legend.text=element_text(size=9)) &theme(plot.margin = margin(0,0,0,0, "cm"))
+patchwork
+pdf("supp_filt_compare_all.pdf", height=11.5, width=8) ; plot(patchwork) ; dev.off()
+
+```
+

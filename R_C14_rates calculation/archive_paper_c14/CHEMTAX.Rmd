@@ -1,0 +1,240 @@
+---
+title: "Pigment analysis"
+author: "Denise Ong"
+date: "3/30/2023"
+output: html_document
+---
+Only using data corresponding to C14 exp.
+MD - C14 exp
+1 -1 (SA1)
+2 -2 (SA1)
+3 - 
+4
+5
+6
+7 - 3 (SA2)
+8 - 4 (SA2)
+9 - 6 (SA2)
+10
+11 -7 (ST1)
+12 -8 (ST1)
+13 -9 (ST2)
+14 -10 (ST2)
+15
+16 -11 (SA3)
+17
+18
+
+#init
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("init_files", "init.R")) #for libraries
+source(here("init_files", "init_markdown.R")) #for markdown libraries
+```
+
+# Read data - Integrated pigment
+```{r}
+
+pigment_int <- readxl::read_excel("data_used/Copy of TAN1810_Chemtax_veryrough.xlsx", sheet = "CHEMTAX_int") %>%
+  filter(Treatment %in% c('Initials', 'Closing Profile')) %>%
+  filter(exp %in% c("MD", "Closing")) %>%
+  select(Stn:U_Cast, exp, DINO_int:TChla_int) %>%
+  filter(!(is.na(TChla_int))) %>%
+  distinct() %>%
+  mutate(cycle_name = recode(Cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  pivot_longer(DINO_int:PRO_int, names_to = "group", values_to = "conc") %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(group = fct_relevel(group, 
+                             "PRO_int",
+                             "SYN_int",
+                             "DIAT_int",
+                             "GREEN_int", 
+                             "HAPT6+7_int",
+                             "PELAGO_int",
+                             "DINO_int",
+                             "CRYPTO_int"
+                             )) %>%
+   mutate(group = recode(group, 
+                             "PRO_int" = "Prochlorococcus",
+                             "SYN_int" = "Synechococcus",
+                             "DIAT_int" = "Diatoms",
+                             "GREEN_int" = "Prasinophytes", 
+                             "HAPT6+7_int" = "Haptophytes",
+                             "PELAGO_int" = "Pelagophytes",
+                             "DINO_int" = "Dinoflagellates",
+                             "CRYPTO_int" = "Cryptophytes"
+                             )) %>%
+    filter(Exp %in% c("MD1", "MD2", "MD7", "MD8", "MD9", "MD11", "MD12", "MD13", "MD14", "MD16")) %>%
+   mutate(c14_exp = recode(Exp, 
+                          "MD1" = "1", 
+                          "MD2" = "2", 
+                          "MD7" = "3", 
+                          "MD8" = "4", 
+                          "MD9" = "6", 
+                          "MD11" = "7", 
+                          "MD12" = "8", 
+                          "MD13" = "9", 
+                          "MD14"  = "10", 
+                          "MD16" = "11"
+                          ))
+```
+
+#summary
+```{r}
+total <- pigment_int %>%
+  group_by(cycle_name, CTD) %>%
+  summarise(total = sum(conc))
+
+summary <- full_join(pigment_int, total) %>%
+  mutate(prop = conc/total *100) %>%
+  group_by(cycle_name, group) %>%
+  summarise(mean = mean(prop)) %>%
+  pivot_wider(names_from = "group",
+              values_from = "mean")
+
+```
+
+#int plot
+```{r}
+#all
+p <- pigment_int %>%
+  # filter(group != "Prochlorococcus") %>%
+  # filter(group != "Synechococcus") %>%
+  # filter(group != "Diatoms") %>%
+  ggplot(aes(x=c14_exp, y=conc, fill =group)) +
+  geom_bar(stat="identity", position = "fill") +
+    # geom_bar(position="stack", stat="identity") +
+  scale_fill_paletteer_d("tvthemes::kimPossible") +
+  scale_colour_paletteer_d("tvthemes::kimPossible") +
+  xlab("Experiment") +
+  ylab("Proportion of pigment (%)") +
+  theme(legend.position="top") +
+  facet_grid(.~cycle_name, space = "free", scales = "free_x") +
+  labs(fill = "Group",
+       colour = "Group")
+p
+
+pdf("figures/CHEMTAX_prop_exp.pdf", height=5, width=6) ; plot(p) ; dev.off()
+
+#by cycle
+p <- pigment_int %>%
+  # filter(group != "Prochlorococcus") %>%
+  # filter(group != "Synechococcus") %>%
+  # filter(group != "Diatoms") %>%
+  ggplot(aes(x=cycle_name, y=conc, fill =group, colour = group)) +
+  geom_bar(stat="identity", position = "fill") +
+  scale_fill_paletteer_d("tvthemes::kimPossible") +
+  scale_colour_paletteer_d("tvthemes::kimPossible") +
+  xlab(NULL) +
+  ylab("Proportion of Chl a (%)") +
+  theme(legend.position="right") +
+  labs(fill = "Group",
+       colour = "Group")
+  # facet_grid(.~cycle_name, space = "free", scales = "free_x")
+p
+
+pdf("figures/CHEMTAX_prop_cycle.pdf", height=5, width=6) ; plot(p) ; dev.off()
+
+# stacked barplot assuming that the total = chla conc. Probably not comparable to the other figs in the paper because this is from 2am CTD but the paper chla conc is from noon.
+p <- pigment_int %>%
+  ggplot(aes(x=cycle_name, y=conc/1000, fill =group, colour = group)) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_paletteer_d("tvthemes::kimPossible") +
+  scale_colour_paletteer_d("tvthemes::kimPossible") +
+  xlab(NULL) +
+  ylab("Chl a (mg m2)") +
+  theme(legend.position="right") +
+  labs(fill = "Group",
+       colour = "Group")
+  # facet_grid(.~cycle_name, space = "free", scales = "free_x")
+p
+
+
+```
+
+# depth
+```{r}
+pigment_depth <- readxl::read_excel("data_used/Copy of TAN1810_Chemtax_veryrough.xlsx", sheet = "CHEMTAX_int") %>%
+  filter(Treatment %in% c('Initials', 'Closing Profile')) %>%
+  filter(exp %in% c("MD", "Closing")) %>%
+  filter(Denise_avg != "duplicate") %>%
+  select(Stn:TChla_CHEMTAX) %>%
+  mutate(cycle_name = recode(Cycle, "1" = "SA1",
+                                    "2" = "SA2",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA3")) %>%
+  pivot_longer(DINO:PRO, names_to = "group", values_to = "conc") %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(group = fct_relevel(group, 
+                             "PRO",
+                             "SYN",
+                             "DIAT",
+                             "GREEN", 
+                             "HAPT6+7",
+                             "PELAGO",
+                             "DINO",
+                             "CRYPTO"
+                             )) %>%
+     mutate(group = recode(group, 
+                             "PRO" = "Prochloroccus",
+                             "SYN" = "Synechococcus",
+                             "DIAT" = "Diatoms",
+                             "GREEN" = "Prasinophytes", 
+                             "HAPT6+7" = "Haptophytes",
+                             "PELAGO" = "Pelagophytes",
+                             "DINO" = "Dinoflagellates",
+                             "CRYPTO" = "Cryptophytes"
+                             )) %>%
+    filter(Exp %in% c("MD1", "MD2", "MD7", "MD8", "MD9", "MD11", "MD12", "MD13", "MD14", "MD16")) %>%
+  mutate(c14_exp = recode(Exp, 
+                          "MD1" = "1", 
+                          "MD2" = "2", 
+                          "MD7" = "3", 
+                          "MD8" = "4", 
+                          "MD9" = "6", 
+                          "MD11" = "7", 
+                          "MD12" = "8", 
+                          "MD13" = "9", 
+                          "MD14"  = "10", 
+                          "MD16" = "11"
+                          )) %>%
+  unite("cycle_exp",cycle_name, c14_exp, remove = FALSE) %>%
+  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_6", "SA3_11"))
+
+
+
+#area plot
+p <-pigment_depth %>%
+  ggplot(aes(x=conc/1000, y= Depth, fill=group)) + 
+  geom_area(size=0.25, colour = "white", orientation = "y")+
+  scale_y_reverse()+
+  facet_grid(.~cycle_exp, scales = "free_x")+
+  ylab("Depth (m)")+
+  xlab("Chl a (mg m3)") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "top")  +
+  # scale_fill_manual(values = pal)
+  scale_fill_paletteer_d("tvthemes::kimPossible") +
+  labs(fill = "Group")
+p
+# pdf("figures/CHEMTAX_depth.pdf", height=6, width=8) ; plot(p) ; dev.off()
+
+
+p <- pigment_depth_raw %>%
+  # filter(NominalDepth %in% c("2", "5")) %>%
+  unite("cycle_exp",cycle_name, Exp, remove = FALSE) %>%
+  ggplot(aes(x=conc, y= fct_rev(NominalDepth), fill=group)) + 
+  geom_bar(stat="identity", position = "fill", orientation = "y") +
+  facet_grid(.~cycle_name, scales = "free_x")+
+  ylab("Depth (m)")+
+  xlab("Chla (mg/m3)") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))  +
+  scale_fill_paletteer_d("tvthemes::kimPossible")
+p
+```
+
