@@ -14,8 +14,7 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 ### 1_Map, CTD, nutrients, CHEMTAX, compare studies
 - Map (Map_temp_2.0.Rmd)
 - CTD and nutrients (CTD_nutrients_data_2.0.Rmd)
-- CHEMTAX (CHEMTAX_2.0.Rmd)
-- Compare group-specific CO2 fixation rates against other studies (Rates_studies compare_2.0.Rmd)
+- CHEMTAX chemotaxonomic pigments (CHEMTAX_2.0.Rmd)
 
 ### 2_Chl a and NPP
 - calculate small volume NPP rates (NPP rates calculation 2.0.Rmd)
@@ -26,6 +25,7 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - calculate group-specific CO2 fixation rates (Group rates calculation_2.0.Rmd)
 - compile group-specific rates with cell concentration and group-specific NPP (Group rates compile_2.0.Rmd)
 - figures, tables and statistical analysis for group-specific rates (Group rates figures_3.0.Rmd)
+- Compare group-specific CO2 fixation rates against other studies (Rates_studies compare_2.0.Rmd)
 
 ### 4_Growth rates
 - calculate biomass based on forward scatter data (Group-specific biomass calculations.Rmd)
@@ -57,7 +57,7 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - ASV table (TAN1810_C14_18SV4_taxo.xlsx)
 - Phyloseq sorted picoeukaryotes samples (TAN1810_18SV4phyloseq_sorted_pico.RDS)
 - Phyloseq sorted nanoeukaryotes samples (TAN1810_18SV4phyloseq_sorted_nano.RDS)
-- Phyloseq filtered samples (TAN1810_18SV4phyloseq_CTD_18SV4.RDS)
+- Phyloseq filtered samples from station 9 and 39 (TAN1810_18SV4phyloseq_CTD_18SV4.RDS)
 - Phyloseq all sorted pico, nanoeukaryotes and filtered samples (phyloseq_merge_asv_set_47_Eukaryota_D4_filt_sort_seqhash.RDS)
 
 ### 3_Phyloseq output and figures
