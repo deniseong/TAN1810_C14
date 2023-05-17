@@ -4,7 +4,7 @@ Script and data for:
 
 All bioinformatics data have been deposited in NCBI Sequence Read Archive (petB (filtered and sorted)-PRJNA885274, 18SV4 (filtered)-PRJNA670061 and XXX, 18SV4 (sorted)-XXX).
 
-Flow cytometry data is available on ([flowrepository.org](https://http://flowrepository.org/experiments/1773)) (Repository ID: FR-FCM-Z5P8).
+Flow cytometry data is available on ([flowrepository.org](https://http://flowrepository.org/experiments/1773)) (Repository ID: FR-FCM-Z5P8). Metadata for files are found on Github at ([deniseong/marine-Synechococcus-metaB](https://github.com/deniseong/marine-Synechococcus-metaB/tree/main/7_FCM%20files%20metadata)). 
 
 ## R_C14_rates calculation
 
