@@ -19,7 +19,3 @@ library(readxl) # Read excel file
 library(lubridate) 
 library(patchwork)
 library(car)
-
-#Colours
-colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
-colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)

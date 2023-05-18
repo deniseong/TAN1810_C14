@@ -7,7 +7,7 @@ phyloseq_assign_trophic <- function(ps) {
     samples <- data.frame(sample_data(ps))
     
     # Load the file that assign trophic mode to every PR2 
-    pr2_trophic <- readxl::read_excel(here("phyloseq", "trophic_mode", "pr2_trophic.xlsx"), sheet="with trophic") %>%
+    pr2_trophic <- readxl::read_excel(here("3_Phyloseq output and figures", "trophic_mode", "pr2_trophic.xlsx"), sheet="with trophic") %>%
         select(species, taxon_level, trophic_mode) %>%
         mutate(trophic_mode = recode(trophic_mode, phytoplankton = "photosynthetic",
                              mixoplankton = "mixotrophic",

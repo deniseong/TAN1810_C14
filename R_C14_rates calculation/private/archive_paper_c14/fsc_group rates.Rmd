@@ -10,20 +10,20 @@ output: html_document
 # Initialise
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("init_files", "init.R")) #for libraries
-source(here("init_files", "init_markdown.R")) #for markdown libraries
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for markdown libraries
 
-colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- readxl::read_excel("0_init_files/colours_cycle.xlsx")
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 
-colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "exp")
 colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
 ```
 
 # Read data - only including cell size data with corresponding pp rates.
 PP rates for exp 4 and 5 (except syn SV exp 5) do not have corresponding cell size data. Using the average biomass calculations for SA2.
 ```{r}
-size_raw <-  readxl::read_excel("group_rates_output/fsc_cell size.xlsx") %>%
+size_raw <-  readxl::read_excel("Output/Raw data/fsc_cell size.xlsx") %>%
   separate(population, c("population", "fsc_type")) %>%
   mutate(population = dplyr::recode(population, "syn" = "Syn",
                              "pico" = "Pico",
@@ -31,7 +31,7 @@ size_raw <-  readxl::read_excel("group_rates_output/fsc_cell size.xlsx") %>%
   mutate(cycle = as.character(cycle)) %>%
   mutate(exp = as.character(exp))
 
-rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx") %>%
+rates <- readxl::read_excel("Output/Raw data/Rates_cell_npp_method2.xlsx") %>%
   select(-MD) %>%
   rename(depth_cat = depth,
          CTD = ctd)
@@ -708,6 +708,8 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
   filter(population == i) %>%
+  filter(exp != "4") %>%
+  filter(exp != "5") %>%
   dplyr::select(water_mass,exp, depth_cat, diam) %>%
   distinct()
 
@@ -735,8 +737,8 @@ print(var)
 res <- wilcox.test(diam ~ depth_cat, data = t_test_df,
                    exact = FALSE)
 print(res)
-t_test <- t.test(diam ~ depth_cat, data = t_test_df, var.equal = TRUE)
-print(t_test)
+# t_test <- t.test(diam ~ depth_cat, data = t_test_df, var.equal = TRUE)
+# print(t_test)
 }
 ```
 
@@ -748,6 +750,8 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
   filter(population == i) %>%
+  filter(exp != "4") %>%
+  filter(exp != "5") %>%
   dplyr::select(water_mass, exp, depth_cat, diam) %>%
   distinct()
 
@@ -851,6 +855,7 @@ library("ggpubr")
 for (i in c("Syn", "Pico", "Nano")) {
 t_test_df<- stats_rates %>%
   filter(population == i) %>%
+  # filter(exp != "7") %>%
   dplyr::select(water_mass, exp, depth_cat, growth_rate)
 
 summary <- t_test_df %>%
@@ -949,8 +954,8 @@ print(var)
 res <- wilcox.test(growth_rate ~ water_mass, data = t_test_df,
                    paired = FALSE,exact = FALSE)
 print(res)
-t_test <- t.test(growth_rate ~ water_mass, data = t_test_df, var.equal = TRUE)
-print(t_test)
+# t_test <- t.test(growth_rate ~ water_mass, data = t_test_df, var.equal = TRUE)
+# print(t_test)
 }
 ```
 

@@ -9,19 +9,25 @@ Supplementary figure S14 for filtered samples.
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("phyloseq", "init_files", "init.R")) #for libraries
-source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
-source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps
-source(here("phyloseq", "trophic_mode", "trophic_function.R"))  #function to assign trophic level for phyloseq objects
-source(here("phyloseq", "init_files", "colours_18sv4.R")) # predetermined colours
-source(here("phyloseq", "init_files", "colours_petb.R")) # predetermined colours
-source(here("phyloseq", "init_files", "colours_random.R")) #random colours
+source(here("3_Phyloseq output and figures", "init_files", "init.R")) #for libraries
+source(here("3_Phyloseq output and figures", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("3_Phyloseq output and figures", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps
+source(here("3_Phyloseq output and figures", "trophic_mode", "trophic_function.R"))  #function to assign trophic level for phyloseq objects
+source(here("3_Phyloseq output and figures", "init_files", "colours_18sv4.R")) # predetermined colours
+source(here("3_Phyloseq output and figures", "init_files", "colours_petb.R")) # predetermined colours
+source(here("3_Phyloseq output and figures", "init_files", "colours_random.R")) #random colours
 ```
 
 # Eukaryotes 18SV4 
 ## read data
 ```{r}
-source(here("phyloseq", "init_files", "read_18s_filt_sort.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_18s_filt_sort.R"))
+
+filt_samples_list <- junk %>%
+  filter(sample_type == "filt") %>%
+  filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+  filter(station != "108")
+writexl::write_xlsx(filt_samples_list, "filt_samples_list.xlsx")
 
 ps_filt_sort <- phyloseq_assign_trophic(ps_filt_sort) %>%
     subset_taxa(trophic_mode_2 != "heterotrophic") #remove heterotrophs
@@ -380,7 +386,7 @@ p
 #Syn - petB
 ## read data
 ```{r}
-source(here("phyloseq", "init_files", "read_petb_2.0.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_petb_2.0.R"))
 ```
 
 ## Supp fig

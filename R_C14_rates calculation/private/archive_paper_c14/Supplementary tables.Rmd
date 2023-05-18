@@ -51,7 +51,8 @@ writexl::write_xlsx(C14_DPM, "supp table_rates cells sorted.xlsx")
 ```
 
 ```{r}
-table <- read.csv("data_used/supp table_DNA cells sorted.txt", sep = "\t")
+
+table <- read.csv("3_Phyloseq output and figures/filt_samples_list.txt", sep = "\t")
 table <- readxl::read_excel("data_used/C14_studies.xlsx", sheet = "for_R") %>%
   unite("rate", Lower:Upper, sep=" ± ", remove = TRUE)
 
