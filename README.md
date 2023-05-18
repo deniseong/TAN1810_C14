@@ -11,7 +11,7 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 ### 0_data_used
 - raw data used for analysis and figures
 
-### 1_Map, CTD, nutrients, CHEMTAX, compare studies
+### 1_Map, CTD, nutrients, CHEMTAX
 - Map (Map_temp_2.0.Rmd)
 - CTD and nutrients (CTD_nutrients_data_2.0.Rmd)
 - CHEMTAX chemotaxonomic pigments (CHEMTAX_2.0.Rmd)
