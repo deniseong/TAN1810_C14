@@ -1,6 +1,6 @@
 #Read C14 sorted pico PHYLOSEQ
 # Load the phyloseq files
-ps_pico <- read_rds(here("DADA2", "output_18SV4","TAN1810_18SV4phyloseq_sorted_pico.RDS"))
+ps_pico <- read_rds(here("2.2_18SV4","TAN1810_18SV4phyloseq_sorted_pico.RDS"))
 
 #copy the column of interest to create new column, and replacing names for water masses SA and ST
 sample_data(ps_pico)$water_mass <- sample_data(ps_pico)$Cycle.
@@ -27,9 +27,9 @@ sample_data(ps_pico)$cycle_location_name <- str_c(sample_data(ps_pico)$cycle_loc
 sample_data(ps_pico)$cycle_exp_location_name <- str_c(sample_data(ps_pico)$cycle_location, sample_data(ps_pico)$cycle_name, sample_data(ps_pico)$EXP., sep ="_")
 
 sample_data(ps_pico)$cycle_name_2 <- sample_data(ps_pico)$cycle_name
-sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "SA-Cycle_1", "SA1")
-sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "SA-Cycle_2", "SA2") 
-sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "SA-Cycle_5", "SA3")
+sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "SA-Cycle_1", "SA-Sc")
+sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "SA-Cycle_2", "SA1") 
+sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "SA-Cycle_5", "SA2")
 sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "ST-Cycle_3", "ST1") 
 sample_data(ps_pico)$cycle_name_2 = str_replace(sample_data(ps_pico)$cycle_name_2, "ST-Cycle_4", "ST2")
 

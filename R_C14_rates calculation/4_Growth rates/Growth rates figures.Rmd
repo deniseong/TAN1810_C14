@@ -9,20 +9,20 @@ Figures and statistical tests for cell diameter and growth rates.
 # Initialise
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("init_files", "init.R")) #for libraries
-source(here("init_files", "init_markdown.R")) #for markdown libraries
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for markdown libraries
 
-colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"), sheet = "cycle")
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 
-colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"), sheet = "exp")
 colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
 ```
 
 # Read data - only including cell size data with corresponding pp rates.
 PP rates for exp 4 and 5 (except syn SV exp 5) do not have corresponding cell size data. Using the average biomass calculations for SA2.
 ```{r}
-size_raw <-  readxl::read_excel("group_rates_output/fsc_cell size.xlsx") %>%
+size_raw <-  readxl::read_excel(here("Output", "Raw data", "fsc_cell size.xlsx")) %>%
   separate(population, c("population", "fsc_type")) %>%
   mutate(population = dplyr::recode(population, "syn" = "Syn",
                              "pico" = "Pico",
@@ -30,7 +30,7 @@ size_raw <-  readxl::read_excel("group_rates_output/fsc_cell size.xlsx") %>%
   mutate(cycle = as.character(cycle)) %>%
   mutate(exp = as.character(exp))
 
-rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx") %>%
+rates <- readxl::read_excel(here("Output", "Raw data", "Rates_cell_npp_method2.xlsx")) %>%
   select(-MD) %>%
   rename(depth_cat = depth,
          CTD = ctd)
@@ -141,7 +141,7 @@ p
 # pdf("figures/3_fcm/diam_surdcm_group.pdf", height=7, width=6) ; plot(p) ; dev.off()
 
 # surface vs DCM
-for(i in c("Syn_SV", "Syn_LV", "Pico_NA", "Nano_NA")){
+for(i in c("Syn_LV", "Pico_NA", "Nano_NA")){
   p <-  join_rates %>%
     select(water_mass, cycle_name,exp,  pop_fsc,depth_cat, diam) %>%
     distinct() %>%
@@ -197,15 +197,13 @@ for (i in c("Syn", "Pico", "Nano")) {
 ## Figure 5 - Growth rates by water mass
 ```{r}
 p <- join_rates %>%
+  # filter(growth_rate <2)%>%
   ggplot(aes(x=population, y=growth_rate, fill = water_mass))+
   # geom_violin(aes(x=population, y=growth_rate))+
   geom_boxplot(outlier.shape = NA, alpha = 0.8)+
-  geom_point(colour = "black",  alpha = 0.5, position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2))+
-  # geom_dotplot(binaxis='y', stackdir='center',
-  #                position=position_dodge(1)) +
+  geom_point(colour = "black",  alpha = 0.5, size = 1, position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2))+
   # geom_jitter(, width = 0.1, alpha =  0.3, position=position_dodge(1)) +
-  # facet_grid(.~depth_cat, scales = "free") +
-  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
+  # scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
   ylab("Growth rate (day-1)") +
   xlab(NULL)+
   theme(strip.background = element_blank(),
@@ -214,11 +212,33 @@ p <- join_rates %>%
 
 p
 
-# pdf("figures/3_fcm/growth rate_v2.pdf", height=4, width=4) ; plot(p) ; dev.off()
+pdf("growth rate_not log.pdf", height=6, width=6) ; plot(p) ; dev.off()
 
 
 ```
 
+```{r}
+p <- join_rates %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=growth_rate, colour = depth_cat), width = 0.2, alpha = 0.5, size = 1.5)+
+      geom_boxplot(aes(x=water_mass, y= growth_rate, fill=water_mass))+
+      scale_colour_manual(values =  c("#009292", "#DB6D00"))+
+      scale_fill_manual(values = c("#C62828", "#1565C0")) +
+      facet_grid(population~water_mass, scales = "free", space = "free_x") +
+  theme_bw()+
+      # theme_linedraw() +
+      theme(legend.position = "top",
+            panel.spacing = unit(1, "lines"))+
+      # scale_y_continuous(trans='log10') +
+      # annotation_logticks(sides = "l", outside = TRUE)+
+      # coord_cartesian(clip = "off")+
+      ylab("Growth rate (day-1)") +
+      xlab("Cycle")
+p
+
+pdf("growth rate by cycle and depth_not log.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+```
 
 #Statistical tests
 

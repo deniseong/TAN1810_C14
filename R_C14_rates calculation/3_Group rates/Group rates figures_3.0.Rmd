@@ -42,31 +42,35 @@ pp_rates$depth <- factor(pp_rates$depth, levels = c("SUR", "DCM"))
 # Plots for paper
 ## Figure 4 
 ```{r}
-p1 <- pp_rates %>%
-  ggplot() +
-    geom_jitter(aes(x=cycle_name, y=pp), width = 0.2, alpha = 0.4)+
-    geom_boxplot(aes(x=water_mass, y= pp, fill=water_mass))+
-    scale_fill_manual(values = c("#C62828", "#1565C0")) +
-    facet_grid(population~water_mass, scales = "free", space = "free_x") +
-        theme(strip.text.y.right = element_blank(),
-              legend.position = "none",
-              panel.spacing = unit(1, "lines"))+
-    scale_y_continuous(trans='log10') +
-    annotation_logticks(sides = "l", outside = TRUE)+
-  coord_cartesian(clip = "off")+
-    ylab("Carbon fixation rate (fgC/cell/hr)") +
-  xlab("Cycle")
-p1
 
+
+# water mass by population
+p1 <- pp_rates %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=pp, colour = depth), width = 0.2, alpha = 0.5, size = 1.5)+
+      geom_boxplot(aes(x=water_mass, y= pp, fill=water_mass))+
+      scale_colour_manual(values =  c("#009292", "#DB6D00"))+
+      scale_fill_manual(values = c("#C62828", "#1565C0")) +
+      facet_grid(population~water_mass, scales = "free", space = "free_x") +
+      theme(strip.text.y.right = element_blank(),
+            legend.position = "none",
+            panel.spacing = unit(1, "lines"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)+
+      coord_cartesian(clip = "off")+
+      ylab("Carbon fixation rate (fgC/cell/hr)") +
+      xlab("Cycle")
+p1
 
 p2 <- pp_rates %>%
   ggplot() +
-    geom_jitter(aes(x=cycle_name, y=npp), width = 0.2, alpha = 0.4)+
+    geom_jitter(aes(x=cycle_name, y=npp, colour = depth), width = 0.2, alpha = 0.5, size = 1.5)+
     geom_boxplot(aes(x=water_mass, y= npp, fill=water_mass))+
+    scale_colour_manual(values =  c("#009292", "#DB6D00"))+
     scale_fill_manual(values = c("#C62828", "#1565C0")) +
     facet_grid(population~water_mass, scales = "free", space = "free_x") +
     theme(panel.spacing = unit(1,"lines"),
-          legend.position = "none",
+          legend.position = "top",
           strip.text.y.right = element_text(angle = 0))+
     scale_y_continuous(trans='log10') +
     annotation_logticks(sides = "l", outside = TRUE)+
@@ -76,10 +80,10 @@ p2 <- pp_rates %>%
 p2
 
 library(patchwork)
-plot <- p1 + p2 +  plot_annotation(tag_levels = 'A')
+plot <- p1 + p2 +  plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
+  theme(legend.position='top')
 plot
-pdf("figures/1_group rates/202231213_pp_npp.pdf", height=6, width=8) ; plot(plot) ; dev.off()
-
+pdf("pp_npp v2.pdf", height=7, width=8) ; plot(plot) ; dev.off()
 
 ```
 

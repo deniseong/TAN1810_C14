@@ -9,16 +9,16 @@ Supplementary figures S10, S11, S12 for sorted samples Syn, Pico, Nano. Vials  A
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("phyloseq", "init_files", "init.R")) #for libraries
-source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
-source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
-source(here("phyloseq", "init_files", "colours_petb.R")) #colours
-source(here("phyloseq", "init_files", "colours_18sv4.R")) # predetermined colours
+source(here("3_Phyloseq output and figures", "init_files", "init.R")) #for libraries
+source(here("3_Phyloseq output and figures", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("3_Phyloseq output and figures", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source(here("3_Phyloseq output and figures", "init_files", "colours_petb.R")) #colours
+source(here("3_Phyloseq output and figures", "init_files", "colours_18sv4.R")) # predetermined colours
 ```
 
 # Read data
 ```{r}
-source(here("phyloseq", "init_files", "read_petb_2.0.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_petb_2.0.R"))
 ```
 
 # Supplementary figure S10 - sorted Syn, compare initials, light, dark
@@ -27,34 +27,24 @@ long <- long_sorted %>%
   dplyr::rename(station = STN,
                 exp = `EXP.`,
                 depth_cat = SAMPLE) %>%
-  mutate(cycle_name = recode(Cycle., "1" = "SA1",
-                                    "2" = "SA2",
+  mutate(cycle_name = recode(Cycle., "1" = "SA-Sc",
+                                    "2" = "SA1",
                                     "3" = "ST1",
                                     "4" = "ST2",
-                                    "5" = "SA3")) %>%
+                                    "5" = "SA2")) %>%
   mutate(cycle_exp = str_c (cycle_name, exp, sep = "_")) %>%
   filter(sample_name != "syn-02-5") %>%
   filter(sample_name != "syn-01-20") %>%
-  # mutate(cycle_station = recode (cycle_station, "ST1_207" = "ST1_3",
-  #                                               "ST1_223" = "ST1_4",
-  #                                               "ST2_266" = "ST2_1",
-  #                                               "ST2_283" = "ST2_3",
-  #                                               "SA1_24" = "SA1_3",
-  #                                               "SA1_15" = "SA1_5",
-  #                                               "SA2_150" = "SA2_3",
-  #                                               "SA2_188" = "SA2_2",
-  #                                               "SA2_176" = "SA2_4",
-  #                                               "SA3_324" = "SA3_1"))  %>%
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1","SA2","SA3")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc","SA1","SA2")) %>%
   mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark")) %>%
-    mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA-Sc_1", "SA-Sc_2", "SA1_3", "SA1_4", "SA1_5", "SA1_6", "SA2_11")) %>%
     mutate(depth_cat = fct_relevel(depth_cat, "SUR", "DCM")) %>%
     mutate(vial = fct_relevel(vial, "i", "A", "B", "C", "D"))
 
 
 p <- long %>%
   # filter(vial_type != "dark") %>%
-  mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others",  "EnvA"= "Others", "EnvB"= "Others"))  %>%
+  mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others",  "EnvA"= "Others", "EnvB"= "Others", "IX" = "Others"))  %>%
     complete(cycle_exp, vial, depth_cat) %>%
   ggplot(aes(x=vial, y=n_reads, color=Subclade, fill=Subclade)) + 
         geom_bar(position="fill", stat="identity") + 
@@ -84,7 +74,7 @@ pdf("supp_syn_vials.pdf", height=6, width=8) ; plot(p) ; dev.off()
 remove heterotrophs and 2 samples 
 also removing 
 ```{r}
-source(here("phyloseq", "init_files", "read_pico.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_pico.R"))
 
 #Assign trophic mode and remove heterotrophics that are not dinophyceae
 ps_pico <- phyloseq_assign_trophic(ps_pico) %>%
@@ -98,9 +88,9 @@ long_pico <- phyloseq_transform_to_long(ps_pico) %>%
 
 #create levels for factors
 long_pico <- long_pico %>%
-    mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+    mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA-Sc_1", "SA-Sc_2", "SA1_3", "SA1_4", "SA1_5", "SA1_6", "SA2_11")) %>%
     mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic", "dinophyceae")) %>%
-    mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+    mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
     mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark")) %>%
     mutate(depth_cat = fct_relevel(SAMPLE, "SUR", "DCM")) %>%
     mutate(vial = fct_relevel(vial, "i", "A", "B", "C", "D"))
@@ -131,18 +121,7 @@ taxon_rel_abund <- otu_rel_abund %>%
                               #   taxon == 'Dinophyceae' ~'Dinophyceae',
                                  TRUE~ 'Other')) 
 
-
-# %>%
-#      group_by(cycle_name_2, file_code, taxon) %>%
-#     summarise(rel_abund = 100*sum(rel_abund), .groups = "drop") %>%
-#     pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
-#     replace(., is.na(.), 0) %>%
-#     pivot_longer(cols=Chrysophyceae:Chloropicophyceae,
-#                  names_to = "taxon",
-#                  values_to = "rel_abund")
-
 p <- taxon_rel_abund %>%
-  # mutate(Subclade = recode(Subclade, "VIb"= "Others", "Ic"= "Others", "II-WPC2"= "Others", "UC-A"= "Others",  "EnvA"= "Others", "EnvB"= "Others"))  %>%
     complete(cycle_exp, vial, depth_cat) %>%
     mutate(taxon = fct_relevel(taxon, c("Mamiellophyceae", "Chloropicophyceae", "Prymnesiophyceae", "Pelagophyceae","Chrysophyceae", "Others"))) %>%
   ggplot(aes(x=vial, y=rel_abund, color=taxon, fill=taxon)) + 
@@ -200,7 +179,7 @@ pdf("supp_pico_vials.pdf", height=5.5, width=8) ; plot(p) ; dev.off()
 # Figure S12 - Sorted nano
 ## Read data
 ```{r}
-source(here("phyloseq", "init_files", "read_nano.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_nano.R"))
 
 #assign trophic mode and remove heterotrophics that are not dinophyceae
 ps_nano <- phyloseq_assign_trophic(ps_nano)%>%
@@ -213,10 +192,10 @@ long_nano <- phyloseq_transform_to_long(ps_nano) %>%
 
 #order all the factors
 long_nano <- long_nano %>%
-  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA-Sc_1", "SA-Sc_2", "SA1_3", "SA1_4", "SA1_5", "SA1_6", "SA2_11")) %>%
   mutate(trophic_mode = fct_relevel(trophic_mode, "photosynthetic", "mixotrophic"))  %>%
   mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic",  "dinophyceae"))  %>%
-  mutate(cycle_name_2 =  fct_relevel(cycle_name_2,"ST1", "ST2", "SA1", "SA2", "SA3"))  %>%
+  mutate(cycle_name_2 =  fct_relevel(cycle_name_2,"ST1", "ST2", "SA-Sc", "SA1", "SA2"))  %>%
   mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark"))%>%
   mutate(depth_cat = fct_relevel(SAMPLE, "SUR", "DCM")) %>%
     mutate(vial = fct_relevel(vial, "i", "A", "B", "C", "D"))
