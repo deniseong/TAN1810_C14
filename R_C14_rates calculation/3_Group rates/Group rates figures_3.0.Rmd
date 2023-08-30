@@ -8,14 +8,16 @@ output: html_document
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("init_files", "init.R")) #for libraries
-source(here("init_files", "init_markdown.R")) #for markdown libraries
-
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for markdown libraries
+library(FSA)
+library(ggeffects)
+library(gghalves)
 #Colours
-colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "cycle")
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 
-colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "exp")
 colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
 
 # For consistency between scatterplot
@@ -24,12 +26,12 @@ set.seed(1)
 
 # Read data
 ```{r}
-cold_standard <- readxl::read_excel("group_rates_output/NPP_cold_standard.xlsx") %>% 
+cold_standard <- readxl::read_excel("Output/Raw data/NPP_cold_standard.xlsx") %>% 
   rename(depth_m = `depth`,
          depth = `sample`)
 cold_standard$exp <- as.character(cold_standard$exp)
 
-pp_rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx")
+pp_rates <- readxl::read_excel("Output/Raw data/Rates_cell_npp_method2.xlsx")
 
 #set factor levels
 pp_rates$water_mass <- factor(pp_rates$water_mass, levels = c("ST", "SA"))
@@ -242,52 +244,7 @@ summary
 
 #Statistical tests
 ## PP
-### Overall between groups
-not normally distributed, using kruskal test. Significantly different between all groups.
-```{r}
-hist(pp_rates$pp)
-qqnorm(pp_rates$pp)
-shapiro.test(pp_rates$pp)
-
-hist(log10(pp_rates$pp))
-qqnorm(log10(pp_rates$pp))
-shapiro.test(log10(pp_rates$pp)) # still not significant. Cannot use anova
-
-# lm <- lm(log10(pp) ~ population, data=pp_rates)
-# Anova(lm, type = "3")
-# pairwise.t.test(log10(pp_rates$pp), rates_data$population, p.adj='bonferroni')
-
-kruskal.test(pp~population, data = pp_rates)
-library(FSA)
-dunnTest(pp~population, data = pp_rates,
-         method="bonferroni")
-```
-In each water mass compare between groups. Same pattern
-```{r}
-#ST is not normally distributed. Use kruskal wallis test.
-for (i in c("ST")) {
-  df <- pp_rates %>%
-    filter(water_mass == i)
-  print(kruskal.test(pp~population, data = df)) # not significant
-  print(
-  dunnTest(pp~population, data = df,
-         method="bonferroni")
-  )
-}
-
-#SA is not normally distributed. Use kruskal wallis test.
-for (i in c("SA")) {
-  df <- pp_rates %>%
-    filter(water_mass == i)
-  print(kruskal.test(pp~population, data = df)) # not significant
-  print(
-  dunnTest(pp~population, data = df,
-         method="bonferroni")
-  )
-}
-```
-
-### surface and DCM
+### surface and DCM - remove this as a factor to check
 #### plot
 ```{r}
 for (i in c("Syn", "Pico", "Nano")) {
@@ -313,10 +270,19 @@ for (i in c("Syn", "Pico", "Nano")) {
 #### t test to check if surface is different from DCM
 surface is not different from DCM for all groups
 not significantly different, from here on combine surface and DCM
+
+Syn: t-test t = -1.9885, df = 40, p-value = 0.05363
+Pico: t = -1.3297, df = 41, p-value = 0.191
+Nano: t = -0.28573, df = 21.247, p-value = 0.7778
 ```{r}
 library("ggpubr")
 
-for (i in c("Syn", "Pico", "Nano")) {
+# For syn and pico, t.test var.equal=TRUE. For nano, var.equal = FALSE
+
+i = "Syn"
+# i = "Pico"
+# i = "Nano"
+
 t_test_df<- pp_rates %>%
   filter(population == i) %>%
   select(depth, water_mass, pp)
@@ -327,26 +293,179 @@ summary <- t_test_df %>%
     mean = mean(pp, na.rm = TRUE),
     sd = sd(pp, na.rm = TRUE))
 print(summary)
+
  p <- t_test_df %>%
    ggplot(aes(x=depth, y=pp))  +geom_boxplot() + geom_point() +
- # facet_grid(water_mass~depth, scales = "free") +
-facet_grid(~depth, scales = "free") +
- scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
+    facet_grid(~depth, scales = "free") +
+    scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
  print(p)
 
-#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
-p<-with(t_test_df, shapiro.test(pp[depth == "SUR"]))
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$pp))
+qqnorm(log10(t_test_df$pp))
+p<-with(t_test_df, shapiro.test(log10(pp[depth == "SUR"])))
 print(p)
-p<-with(t_test_df, shapiro.test(pp[depth == "DCM"]))
+p<-with(t_test_df, shapiro.test(log10(pp[depth == "DCM"])))
 print(p)
-res <- wilcox.test(pp ~ depth, data = t_test_df,
-                   exact = FALSE)
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(pp) ~ depth, t_test_df)
+
+res <- t.test(log10(pp) ~ depth, data =  t_test_df, var.equal = TRUE)
 print(res)
-}
+
+# create lm and check residuals
+lm <- lm(log10(pp) ~ depth, data=pp_rates)
+plot(lm) 
+
+
+# Calculate model estimated means and CIs
+library(ggeffects)
+lm_emm <- ggemmeans(lm, 
+                    terms = c("depth"),
+                    type = "fixed")
+
+lm_emm
+plot(lm_emm)
+
 ```
 
+### Overall between groups
+based on anova analysis and model means and CI, all groups are different from each other. 
+
+population | Predicted |         95% CI
+Syn        |      0.71 | [ 0.53,  0.96]
+Pico       |      1.72 | [ 1.28,  2.31]
+Nano       |     47.18 | [35.25, 63.14]
+
+```{r}
+# check between groups, not normally distributed.
+hist(pp_rates$pp)
+qqnorm(pp_rates$pp)
+shapiro.test(pp_rates$pp)
+
+# transform the data and check again.
+hist(log10(pp_rates$pp))
+qqnorm(log10(pp_rates$pp))
+shapiro.test(log10(pp_rates$pp)) # still not significant. 
+
+# create lm and check residuals
+lm <- lm(log10(pp) ~ population, data=pp_rates)
+plot(lm) 
+# based on diagnostic plots, lm is suitable.
+Anova(lm, type = "3") # p< 0.0001
+
+# Calculate model estimated means and CIs
+library(ggeffects)
+lm_emm <- ggemmeans(lm, 
+                    terms = c("population"),
+                    type = "fixed")
+
+lm_emm
+
+# Plot 
+pp_all <- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = population,
+                            y = pp),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = pp_rates) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 1),
+                        data = lm_emm) +
+        labs(x = "Population",
+             y = "PP"
+             # colour = "Water mass",
+             # shape = "Cycle",
+             # title = i
+             ) +
+      # scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      # scale_colour_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+pp_all
+
+
+# interaction plot population and water mass?
+# lm <- lm(log10(pp) ~ population*water_mass, data=pp_rates)
+# plot(lm) 
+# Anova(lm, type = "3") # p< 0.0001
+# 
+# lm_emm <- ggemmeans(lm, 
+#                     terms = c("population", "water_mass"),
+#                     type = "fixed")
+# 
+# lm_emm
+# plot(lm_emm) + scale_y_continuous(trans='log10') +
+#       annotation_logticks(sides = "l", outside = TRUE)
+```
+In each water mass compare between groups. Because values do not fit the assumptions of anova, using non-parametric equivalent of Kruskal wallis test. 
+In  ST, Syn=pico<nano
+In SA, all groups different from each other.
+```{r}
+#ST is not normally distributed. Use kruskal wallis test.
+# in ST cycles only.
+df <- pp_rates %>%
+  filter(water_mass == "ST")
+hist(log10(df$pp))
+qqnorm(log10(df$pp))
+shapiro.test(log10(df$pp)) # not normally distributed. 
+
+# checking diagnostic plots of lm. Not fitted to assumptions of linear model. Use non-parametric test
+lm <- lm(log10(pp) ~ population, data=df)
+plot(lm)
+Anova(lm, type = "3")
+lm_emm <- ggemmeans(lm,
+                    terms = c("population"),
+                    type = "fixed")
+
+lm_emm
+plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)
+
+# skewed data, run non parametric test
+print(kruskal.test(pp~population, data = df)) # significant
+print(
+dunnTest(pp~population, data = df,
+       method="bonferroni")
+)
+
+
+#SA is not normally distributed. Use kruskal wallis test.
+df <- pp_rates %>%
+  filter(water_mass == "SA")
+hist(log10(df$pp))
+qqnorm(log10(df$pp))
+shapiro.test(log10(df$pp))
+
+# checking diagnostic plots of lm. Not fitted to assumptions of linear model. Use non-parametric test
+lm <- lm(log10(pp) ~ population, data=df)
+plot(lm)
+#load lmtest package
+library(lmtest)
+#perform Breusch-Pagan Test
+bptest(lm) # according to BP test, residuals are not homoscedastic (evenly spread). 
+# Anova(lm, type = "3")
+
+print(kruskal.test(pp~population, data = df)) # not significant
+print(
+dunnTest(pp~population, data = df,
+       method="bonferroni")
+)
+
+```
+
+
+
 ### within each group - ST vs SA
-#### plot
+#### ignore - plot
 ```{r}
 for (i in c("Syn", "Pico", "Nano")) {
   p <- pp_rates %>%
@@ -372,16 +491,32 @@ for (i in c("Syn", "Pico", "Nano")) {
 }
 
 ```
-#### t test to check if ST is different from SA
-ST is different from SA for syn and pico.
-```{r}
-library("ggpubr")
 
-#within each group, ST VS SA.
-for (i in c("Syn", "Pico", "Nano")) {
+#### t test to check if ST is different from SA within each group
+ST is different from SA for syn and pico, not different for nano.
+Syn: t = 6.224, df = 40, p-value = 2.289e-07
+water_mass | Predicted |       95% CI
+ST         |      1.73 | [1.19, 2.51]
+SA         |      0.39 | [0.29, 0.53]
+
+pico: t = 2.4321, df = 41, p-value = 0.01946
+water_mass | Predicted |       95% CI
+ST         |      2.76 | [1.67, 4.57]
+SA         |      1.26 | [0.84, 1.90]
+
+nano: t = 0.72648, df = 42, p-value = 0.4716
+water_mass | Predicted |         95% CI
+ST         |     52.71 | [35.83, 77.52]
+SA         |     44.28 | [33.08, 59.28]
+```{r}
+
+# i = "Syn"
+# i = "Pico"
+i = "Nano"
+
 t_test_df<- pp_rates %>%
   filter(population == i) %>%
-  select(water_mass, pp)
+  select(water_mass, pp, population,cycle_name)
 
 summary <- t_test_df %>%
   group_by(water_mass) %>%
@@ -389,69 +524,147 @@ summary <- t_test_df %>%
     mean = mean(pp, na.rm = TRUE),
     sd = sd(pp, na.rm = TRUE))
 print(summary)
+
  p <- t_test_df %>%
    ggplot(aes(x=water_mass, y=pp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
  print(p)
+ 
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$pp))
+qqnorm(log10(t_test_df$pp))
+p<-with(t_test_df, shapiro.test(log10(pp[water_mass == "ST"])))
+print(p)
+p<-with(t_test_df, shapiro.test(log10(pp[water_mass == "SA"])))
+print(p)
 
-#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
-p<-with(t_test_df, shapiro.test(pp[water_mass == "ST"]))
-print(p)
-p<-with(t_test_df, shapiro.test(pp[water_mass == "SA"]))
-print(p)
-res <- wilcox.test(pp ~ water_mass, data = t_test_df,
-                   exact = FALSE)
+lm <- lm(log10(pp) ~ water_mass, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(pp) ~ water_mass, t_test_df)
+
+#var.equal = TRUE
+res <- t.test(log10(pp) ~ water_mass, data =  t_test_df, var.equal = TRUE)
+
 print(res)
-}
+
+lm_emm <- ggemmeans(lm, 
+                    terms = c("water_mass"),
+                    type = "fixed")
+
+lm_emm
+
+plot(lm_emm)
+######### Plot #######
+library(gghalves)
+pp_syn <- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = water_mass,
+                            y = pp,
+                            colour = water_mass,
+                            shape = cycle_name),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = t_test_df) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = x),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 1),
+                        data = lm_emm) +
+        labs(x = "Water mass",
+             y = "PP",
+             colour = "Water mass",
+             shape = "Cycle",
+             title = i) +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+pp_syn
+
+pp_pico <- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = water_mass,
+                            y = pp,
+                            colour = water_mass,
+                            shape = cycle_name),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = t_test_df) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = x),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(0.25),
+                        data = lm_emm) +
+        labs(x = "Water mass",
+             y = "PP",
+             colour = "Water mass",
+             shape = "Cycle",
+             title = i) +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+pp_pico
+
+pp_nano<- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = water_mass,
+                            y = pp,
+                            colour = water_mass,
+                            shape = cycle_name),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = t_test_df) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = x),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(0.25),
+                        data = lm_emm) +
+        labs(x = "Water mass",
+             y = "PP",
+             colour = "Water mass",
+             shape = "Cycle",
+             title = i) +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_colour_manual(values = c("#C62828", "#1565C0")) +
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+  
+pp_nano
+
+# layout <- '
+# AA#
+# BCD
+# '
+# 
+# p<- pp_all+pp_syn+pp_pico+pp_nano + plot_annotation(tag_levels = 'A') + plot_layout(design = layout)+ plot_layout(guides = 'collect')  & theme(legend.position='top')
+p <- ((pp_all+ plot_spacer())/(pp_syn|pp_pico|pp_nano)) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
+  theme(legend.position='right')
+p
+pdf("pp_mean and CI.pdf", height=7, width=8) ; plot(p) ; dev.off()
+
 ```
 
 
 ## NPP
-### Overall between groups
-normally distributed after log transformation. Using ANOVA.
-```{r}
-hist(pp_rates$npp)
-qqnorm(pp_rates$npp)
-shapiro.test(pp_rates$npp)
-
-hist(log10(pp_rates$npp))
-qqnorm(log10(pp_rates$npp))
-shapiro.test(log10(pp_rates$npp)) # significant. Meet assumptions, using ANOVA
-
-lm <- lm(log10(npp) ~ population, data=pp_rates)
-Anova(lm, type = "3")
-pairwise.t.test(log10(pp_rates$pp), pp_rates$population, p.adj='bonferroni')
-
-
-```
-### Within each water mass check between groups
-```{r}
-
-for (i in c("SA")) {
-  df <- pp_rates %>%
-    filter(water_mass == i)
-  hist(log10(df$npp))
-  qqnorm(log10(df$npp))
-  print(shapiro.test(log10(df$npp)))
-  
-  lm <- lm(log10(npp) ~ population, data=df)
-  print(Anova(lm, type = "3"))
-  print(pairwise.t.test(log10(df$npp), df$population, p.adj='bonferroni'))
-}
-
-#ST is not normally distributed. Use kruskal wallis test.
-for (i in c("ST")) {
-  df <- pp_rates %>%
-    filter(water_mass == i)
-  print(kruskal.test(pp~population, data = df)) # not significant
-  print(
-  dunnTest(pp~population, data = df, #perform Dunn's Test with Bonferroni correction for p-values
-         method="bonferroni")
-  )
-}
-```
-
 ### surface and DCM
-#### plot
+#### plot -ignore
 ```{r}
 for (i in c("Syn", "Pico", "Nano")) {
   p <- pp_rates %>%
@@ -469,14 +682,30 @@ for (i in c("Syn", "Pico", "Nano")) {
 }
 
 ```
+
 #### t test to check if surface is different from DCM
+not using wilcoxon test output, but all not significant.
+syn: t-test t = -1.5679, df = 40, p-value = 0.1248
+wilcoxon test W = 136, p-value = 0.1124
+
+pico t = -1.4587, df = 41, p-value = 0.1523
+W = 148, p-value = 0.1171
+
+nano t = 0.92363, df = 19.711, p-value = 0.3668
+W = 255, p-value = 0.4568
 ```{r}
 library("ggpubr")
 
-for (i in c("Syn", "Pico", "Nano")) {
+
+# For syn and pico, t.test var.equal=TRUE. For nano, var.equal = FALSE
+
+# i = "Syn"
+# i = "Pico"
+i = "Nano"
+
 t_test_df<- pp_rates %>%
   filter(population == i) %>%
-  dplyr::select(depth, npp)
+  select(depth, water_mass, npp)
 
 summary <- t_test_df %>%
   group_by(depth) %>%
@@ -484,27 +713,193 @@ summary <- t_test_df %>%
     mean = mean(npp, na.rm = TRUE),
     sd = sd(npp, na.rm = TRUE))
 print(summary)
- p <- t_test_df %>%
-   ggplot(aes(x=depth, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  +ggtitle(i)
- print(p)
- 
- print(i)
 
-#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
-p<-with(t_test_df, shapiro.test(npp[depth == "SUR"]))
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=npp))  +geom_boxplot() + geom_point() +
+    facet_grid(~depth, scales = "free") +
+    scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
+ print(p)
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$npp))
+qqnorm(log10(t_test_df$npp))
+p<-with(t_test_df, shapiro.test(log10(npp[depth == "SUR"])))
 print(p)
-p<-with(t_test_df, shapiro.test(npp[depth == "DCM"]))
+p<-with(t_test_df, shapiro.test(log10(npp[depth == "DCM"])))
 print(p)
-res <- wilcox.test(npp ~ depth, data = t_test_df,
-                   exact = FALSE)
+
+lm <- lm(log10(npp) ~ depth, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(npp) ~ depth, t_test_df)
+
+# parametric
+res <- t.test(log10(npp) ~ depth, data =  t_test_df, var.equal = FALSE)
 print(res)
-}
+
+#non-parametric - not using.
+# res <- wilcox.test(npp ~ depth, data = t_test_df,
+#                    exact = FALSE)
+# print(res)
+
+
 ```
 
+### Overall between groups
+normally distributed after log transformation. Using ANOVA.
+```{r}
 
+hist(pp_rates$npp)
+qqnorm(pp_rates$npp)
+shapiro.test(pp_rates$npp)
+
+hist(log10(pp_rates$npp))
+qqnorm(log10(pp_rates$npp))
+shapiro.test(log10(pp_rates$npp)) # significant. Meet assumptions, using ANOVA
+
+lm <- lm(log10(npp) ~ population, data=pp_rates)
+plot(lm)
+# based on diagnostic plots, lm is suitable.
+Anova(lm, type = "3")
+# pairwise.t.test(log10(pp_rates$pp), pp_rates$population, p.adj='bonferroni')
+
+
+# Calculate model estimated means and CIs
+library(ggeffects)
+lm_emm <- ggemmeans(lm, 
+                    terms = c("population"),
+                    type = "fixed")
+
+lm_emm
+plot(lm_emm)
+
+# Plot 
+npp_all <- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = population,
+                            y = npp),
+                        side = 'l', alpha = 0.6,
+                        size = 1, range_scale = 0.5,
+                        data = pp_rates) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 1),
+                        data = lm_emm) +
+        labs(x = "Population",
+             y = "NPP"
+             # colour = "Water mass",
+             # shape = "Cycle",
+             # title = i
+             ) +
+      # scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      # scale_colour_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+npp_all
+
+
+# interaction plot population and water mass?
+lm <- lm(log10(npp) ~ population*water_mass, data=pp_rates)
+plot(lm)
+Anova(lm, type = "3") # p< 0.0001
+
+lm_emm <- ggemmeans(lm,
+                    terms = c("population", "water_mass"),
+                    type = "fixed")
+
+lm_emm
+plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)
+```
+### Within each water mass check between groups
+same for both water masses
+ST
+Anova Table (Type III tests)
+
+Response: log10(npp)
+             Sum Sq Df F value Pr(>F)
+(Intercept)  0.0840  1  0.2878 0.5942
+population   1.3067  2  2.2379 0.1179
+Residuals   13.7220 47        
+
+population | Predicted |       95% CI
+-------------------------------------
+Syn        |      1.18 | [0.64, 2.16]
+Pico       |      0.92 | [0.50, 1.68]
+Nano       |      2.24 | [1.20, 4.18]
+
+SA
+Anova Table (Type III tests)
+
+Response: log10(npp)
+             Sum Sq Df F value    Pr(>F)    
+(Intercept)  2.5359  1  14.599   0.00027 ***
+population   8.4950  2  24.453 6.322e-09 ***
+Residuals   13.2014 76                      
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+```{r}
+
+#ST is not normally distributed. Use kruskal wallis test.
+df <- pp_rates %>%
+  filter(water_mass == "ST")
+hist(log10(df$npp))
+qqnorm(log10(df$npp))
+shapiro.test(log10(df$npp)) # not normally distributed. 
+
+# checking diagnostic plots of lm. Not fitted to assumptions of linear model. Use non-parametric test
+lm <- lm(log10(npp) ~ population, data=df)
+plot(lm)
+print(Anova(lm, type = "3"))
+lm_emm <- ggemmeans(lm,
+                    terms = c("population"),
+                    type = "fixed")
+lm_emm
+plot(lm_emm)
+
+# skewed data, run non parametric test
+print(kruskal.test(npp~population, data = df)) # significantly different between the three groups.p =0.02
+print(
+dunnTest(npp~population, data = df, #perform Dunn's Test with Bonferroni correction for p-values
+       method="bonferroni")
+)
+
+
+
+
+df <- pp_rates %>%
+  filter(water_mass == "SA")
+hist(log10(df$npp))
+qqnorm(log10(df$npp))
+print(shapiro.test(log10(df$npp)))
+
+lm <- lm(log10(npp) ~ population, data=df)
+plot(lm)
+print(Anova(lm, type = "3"))
+
+# Calculate model estimated means and CIs
+lm_emm <- ggemmeans(lm, 
+                    terms = c("population"),
+                    type = "fixed")
+
+lm_emm
+
+# Plot 
+plot(lm_emm) 
+
+
+
+```
 
 ### within each group - ST vs SA
-#### plot
+#### ignore- plot
 ```{r}
 for (i in c("Syn", "Pico", "Nano")) {
   p <- pp_rates %>%
@@ -528,16 +923,37 @@ for (i in c("Syn", "Pico", "Nano")) {
 }
 
 ```
+
 #### t test to check if ST is different from SA
 ST is different from SA for pico. 
-```{r}
-library("ggpubr")
 
-#within each group, ST VS SA.
-for (i in c("Syn", "Pico", "Nano")) {
+Syn:t-test, different. t = 2.4056, df = 40, p-value = 0.02086
+wilcox test, not different. W = 276, p-value = 0.1064
+water_mass | Predicted |       95% CI
+-------------------------------------
+ST         |      1.18 | [0.66, 2.10]
+SA         |      0.48 | [0.30, 0.78]
+
+Pico:t-test, t = 3.1731, df = 41, p-value = 0.002857
+W = 349, p-value = 0.00154
+water_mass | Predicted |       95% CI
+ST         |      0.92 | [0.56, 1.51]
+SA         |      0.34 | [0.22, 0.50]
+
+Nano:t-test, not different t = 0.52716, df = 42, p-value = 0.6009
+water_mass | Predicted |       95% CI
+-------------------------------------
+ST         |      2.24 | [1.33, 3.76]
+SA         |      1.89 | [1.27, 2.79]
+```{r}
+
+i = "Syn"
+# i = "Pico"
+# i = "Nano"
+
 t_test_df<- pp_rates %>%
   filter(population == i) %>%
-  select(water_mass, npp)
+  select(water_mass, npp, population,cycle_name)
 
 summary <- t_test_df %>%
   group_by(water_mass) %>%
@@ -545,18 +961,144 @@ summary <- t_test_df %>%
     mean = mean(npp, na.rm = TRUE),
     sd = sd(npp, na.rm = TRUE))
 print(summary)
- p <- t_test_df %>%
-   ggplot(aes(x=water_mass, y=npp)) + geom_point() +geom_boxplot()+ scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
- print(p)
 
-#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
-p<-with(t_test_df, shapiro.test(npp[water_mass == "ST"]))
-print(p)
-p<-with(t_test_df, shapiro.test(npp[water_mass == "SA"]))
-print(p)
+ p <- t_test_df %>%
+   ggplot(aes(x=water_mass, y=npp)) +geom_boxplot()+ geom_point() +scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  
+ print(p)
+ 
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$npp))
+qqnorm(log10(t_test_df$npp))
+shapiro.test(log10(t_test_df$npp))
+# p<-with(t_test_df, shapiro.test(log10(npp[water_mass == "ST"])))
+# print(p)
+# p<-with(t_test_df, shapiro.test(log10(npp[water_mass == "SA"])))
+# print(p)
+
+lm <- lm(log10(npp) ~ water_mass, data=t_test_df)
+plot(lm) 
+
+#  variance equal for all.
+var.test(log10(npp) ~ water_mass, t_test_df)
+
+res <- t.test(log10(npp) ~ water_mass, data =  t_test_df, var.equal = TRUE)
+print(res)
+
+lm_emm <- ggemmeans(lm, 
+                    terms = c("water_mass"),
+                    type = "fixed")
+lm_emm
+
+plot(lm_emm) 
+#non-parametric- wilcox test = mann-whitney test, wilcoxon rank sum test (independednt samples)
 res <- wilcox.test(npp ~ water_mass, data = t_test_df,
                    exact = FALSE)
 print(res)
-}
+
+######### Plot #######
+library(gghalves)
+npp_syn <- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = water_mass,
+                            y = npp,
+                            colour = water_mass,
+                            shape = cycle_name),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = t_test_df) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = x),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 1),
+                        data = lm_emm) +
+        labs(x = "Water mass",
+             y = "NPP",
+             colour = "Water mass",
+             shape = "Cycle",
+             title = i) +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+npp_syn
+
+npp_pico <- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = water_mass,
+                            y = npp,
+                            colour = water_mass,
+                            shape = cycle_name),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = t_test_df) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = x),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(0.25),
+                        data = lm_emm) +
+        labs(x = "Water mass",
+             y = "NPP",
+             colour = "Water mass",
+             shape = "Cycle",
+             title = i) +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+npp_pico
+
+npp_nano<- ggplot() +
+        # Raw data
+        geom_half_point_panel(aes(x = water_mass,
+                            y = npp,
+                            colour = water_mass,
+                            shape = cycle_name),
+                        side = 'l', alpha = 0.6,
+                        size = 2, range_scale = 0.5,
+                        data = t_test_df) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = x),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(0.25),
+                        data = lm_emm) +
+        labs(x = "Water mass",
+             y = "NPP",
+             colour = "Water mass",
+             shape = "Cycle",
+             title = i) +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_colour_manual(values = c("#C62828", "#1565C0")) +
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l")
+  
+npp_nano
+
+# layout <- '
+# AA#
+# BCD
+# '
+# 
+# p<- pp_all+pp_syn+pp_pico+pp_nano + plot_annotation(tag_levels = 'A') + plot_layout(design = layout)+ plot_layout(guides = 'collect')  & theme(legend.position='top')
+p <- ((npp_all+ plot_spacer())/(npp_syn|npp_pico|npp_nano)) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
+  theme(legend.position='right')
+p
+pdf("npp_mean and CI.pdf", height=7, width=8) ; plot(p) ; dev.off()
+
+
 ```
 
