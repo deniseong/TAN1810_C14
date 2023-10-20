@@ -10,13 +10,14 @@ Community analysis - alpha diversity, NMDS, PERMANOVA, beta-disper
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
 library(vegan)
-source(here("phyloseq", "init_files", "init.R")) #for libraries
-source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
-source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
-source(here("phyloseq", "trophic_mode", "trophic_function.R"))  #function to assign trophic level for phyloseq objects
+source(here("3_Phyloseq output and figures", "init_files", "init.R")) #for libraries
+source(here("3_Phyloseq output and figures", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("3_Phyloseq output and figures", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source(here("3_Phyloseq output and figures", "trophic_mode", "trophic_function.R"))  # Function to assign trophic function for phyloseq objects.
 
 #Colours for cycle
-colours_cycle <- readxl::read_excel(here("phyloseq", "init_files", "colours_cycle.xlsx"))
+source(here("3_Phyloseq output and figures", "init_files", "colours_petb.R")) #colours
+colours_cycle <- readxl::read_excel(here("3_Phyloseq output and figures", "init_files", "colours_cycle.xlsx"))
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 
 set.seed(1)
@@ -110,12 +111,15 @@ nmds_sub$stress
 
 #plot overall
 nmds_euks <- nmds_sample_sub %>%
-    mutate(cycle_name = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    mutate(cycle_name = dplyr::recode(cycle_name, "SA1" = "SA-Sc")) %>%
+      mutate(cycle_name = dplyr::recode(cycle_name, "SA2" = "SA1")) %>%
+      mutate(cycle_name = dplyr::recode(cycle_name, "SA3" = "SA2")) %>%
+      mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
     mutate(water_mass = recode(cycle_name, "ST1" = "ST",
                                            "ST2" = "ST",
+                                           "SA-Sc" = "SA",
                                            "SA1" = "SA",
-                                           "SA2" = "SA",
-                                           "SA3" = "SA")) %>%
+                                           "SA2" = "SA")) %>%
     ggplot(aes(x=NMDS1, y= NMDS2, shape = sample_type)) +
     geom_point(aes(colour = cycle_name)) +
     stat_ellipse(aes(colour = water_mass))+
@@ -366,7 +370,10 @@ nmds_sub$stress
 
 #plot overall
 nmds_syn <- nmds_sample_sub %>%
-    mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1","SA2","SA3" )) %>%
+    mutate(cycle_name = dplyr::recode(cycle_name, "SA1" = "SA-Sc")) %>%
+      mutate(cycle_name = dplyr::recode(cycle_name, "SA2" = "SA1")) %>%
+      mutate(cycle_name = dplyr::recode(cycle_name, "SA3" = "SA2")) %>%
+      mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2"))%>%
     ggplot(aes(x=NMDS1, y= NMDS2)) +
     geom_point(aes(colour = cycle_name), shape=15) +
   stat_ellipse(aes(colour = water_mass))+

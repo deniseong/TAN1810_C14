@@ -15,7 +15,7 @@ source(here("3_Phyloseq output and figures", "init_files", "define_functions.R")
 source(here("3_Phyloseq output and figures", "trophic_mode", "trophic_function.R"))  #function to assign trophic level for phyloseq objects
 source(here("3_Phyloseq output and figures", "init_files", "colours_18sv4.R")) # predetermined colours
 source(here("3_Phyloseq output and figures", "init_files", "colours_petb.R")) # predetermined colours
-source(here("3_Phyloseq output and figures", "init_files", "colours_random.R")) #random colours
+# source(here("3_Phyloseq output and figures", "init_files", "colours_random.R")) #random colours
 ```
 
 # Eukaryotes 18SV4 
@@ -27,14 +27,17 @@ filt_samples_list <- junk %>%
   filter(sample_type == "filt") %>%
   filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
   filter(station != "108")
-writexl::write_xlsx(filt_samples_list, "filt_samples_list.xlsx")
+# writexl::write_xlsx(filt_samples_list, "filt_samples_list.xlsx")
 
 ps_filt_sort <- phyloseq_assign_trophic(ps_filt_sort) %>%
     subset_taxa(trophic_mode_2 != "heterotrophic") #remove heterotrophs
 # Do normalizations and transformation
 ps_filt_sort <- phyloseq_normalize_median(ps_filt_sort)
 long_filt_sort <- phyloseq_transform_to_long(ps_filt_sort) %>%
-  mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(cycle_name_2 = dplyr::recode(cycle_name_2, "SA1" = "SA-Sc")) %>%
+  mutate(cycle_name_2 = dplyr::recode(cycle_name_2, "SA2" = "SA1")) %>%
+  mutate(cycle_name_2 = dplyr::recode(cycle_name_2, "SA3" = "SA2")) %>%
+  mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
   mutate(sample = fct_relevel(sample, "SUR", "DCM"))
 ```
 
@@ -152,10 +155,7 @@ summary
 ```{r}
 # sorted pico at each station to check against filtered samples.
 p <- long_pico %>%
-  # mutate(class = fct_infreq(taxa))%>%
   mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
-#  ps_top(class, 8) %>%
-  #mutate(class = fct_infreq(class)) %>%
   ggplot(aes(x=station, y=n_reads, fill=class, colour = class)) + 
         geom_bar(position="fill", stat="identity", size=0.5) + 
         theme(text=element_text(size=10),
@@ -220,8 +220,6 @@ p <- filt_pico_merge %>%
   filter(station != "108") %>% # remove station 108 because it is in SA1-b
   unite("cycle_station", cycle_name_2, station, sep = "_") %>%
   mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
-#  ps_top(class, 8) %>%
-  #mutate(class = fct_infreq(class)) %>%
   ggplot(aes(x=sample_type, y=n_reads, fill=class, colour = class)) + 
         geom_bar(position="fill", stat="identity", size=0.5) + 
         theme(text=element_text(size=10),
@@ -286,7 +284,6 @@ summary
 ```{r}
 # Sorted nano at each station to check against filtered samples.
 p <- long_nano %>%
-  # mutate(class = fct_infreq(taxa))%>%
   mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
   ggplot(aes(x=station, y=n_reads, fill=class, colour = class)) + 
         geom_bar(position="fill", stat="identity", size=0.5) + 
@@ -397,12 +394,12 @@ p1 <- long_filt_ong %>%
   mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
                                  depth_category == "5" ~ "DCM",
                                  TRUE ~ depth_category)) %>%
-  mutate(cycle_name = recode(cycle, "1" = "SA1",
-                                    "2" = "SA2",
+  mutate(cycle_name = recode(cycle, "1" = "SA-Sc",
+                                    "2" = "SA1",
                                     "3" = "ST1",
                                     "4" = "ST2",
-                                    "5" = "SA3")) %>%
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+                                    "5" = "SA2")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
   mutate(depth_cat_2 = fct_relevel(depth_cat_2, "SUR", "DCM")) %>%
   mutate(Subclade = recode(Subclade, "VIc"= "Others", "II-WPC2"= "Others", "V"= "Others", "VIb"= "Others", "Ic"= "Others", "UC-A"= "Others", "IIe"= "Others", "IIh"= "Others", "WPC1" = "Others",  "EnvA"= "Others", "EnvB"= "Others", "IIb" = "Others")) %>%
   ggplot(aes(x=station, y=n_reads, fill=Subclade, colour = Subclade))+
@@ -447,7 +444,7 @@ taxon_rel_abund <- otu_rel_abund %>%
 ## summary for results
 summary <- taxon_rel_abund %>%
   filter(taxon %in% c("Ia", "Ib","IVa","IVb", "CRD1")) %>%
-  filter(cycle_name %in% c("SA2", "SA3")) %>%
+  filter(cycle_name %in% c("SA1", "SA2")) %>%
   group_by(taxon) %>%
   summarise(median = median(rel_abund),
             mean = mean(rel_abund))

@@ -19,8 +19,8 @@ source(here("3_Phyloseq output and figures", "trophic_mode", "trophic_function.R
 # source(here("3_Phyloseq output and figures", "init_files", "top_taxa_func.R")) #Function to select top taxa
 library(ggtext)
 # Colours
-colours_cycle <- readxl::read_excel(here("phyloseq", "init_files","colours_cycle.xlsx"))
-colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+# colours_cycle <- readxl::read_excel(here("phyloseq", "init_files","colours_cycle.xlsx"))
+# colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 ```
 
 # Sorted pico
