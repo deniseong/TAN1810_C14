@@ -11,28 +11,31 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 ### 0_data_used
 - raw data used for analysis and figures
 
-### 1_Map, CTD, nutrients, CHEMTAX
+### 0_init_files
+- libraries and colours used for analysis
+
+### 1_Map, CTD, nutrients
 - Map (Map_temp_2.0.Rmd)
 - CTD and nutrients (CTD_nutrients_data_2.0.Rmd)
-- CHEMTAX chemotaxonomic pigments (CHEMTAX_2.0.Rmd)
 
 ### 2_Chl a and NPP
 - calculate small volume NPP rates (NPP rates calculation 2.0.Rmd)
 - compare small and standard volume NPP rates (NPP_small_standard_compare_2.0.Rmd)
 - figures and tables for Chlorophyll a and NPP (Chla_npp_3.0.Rmd)
 
-### 3_Group rates
-- calculate group-specific CO2 fixation rates (Group rates calculation_2.0.Rmd)
-- compile group-specific rates with cell concentration and group-specific NPP (Group rates compile_2.0.Rmd)
-- figures, tables and statistical analysis for group-specific rates (Group rates figures_3.0.Rmd)
-- Compare group-specific CO2 fixation rates against other studies (Rates_studies compare_2.0.Rmd)
+### 3_Cell rates
+- calculate cell-specific CO2 fixation rates (Group rates calculation_2.0.Rmd)
+- compile cell-specific rates with cell concentration and NPP (Group rates compile_2.0.Rmd)
+- figures, tables and statistical analysis for cell-specific rates (Group rates figures_4.0.Rmd)
+- Compare cell-specific CO2 fixation rates against other studies (Rates_studies compare_2.0.Rmd)
 
 ### 4_Growth rates
 - calculate biomass based on forward scatter data (Group-specific biomass calculations.Rmd)
-- calculate growth rates, figures and statistical analysis (Growth rates figures.Rmd)
+- calculate growth rates, figures and statistical analysis (Growth rates figures_2.0.Rmd)
 
 ### Output
-- Files generated
+- Tables and figures: files generated
+- Raw data: raw data generated from rates calculations, used in above Rmds for plots and analysis
 
 ## R_C14_DADA2
 
