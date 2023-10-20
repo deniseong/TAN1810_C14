@@ -10,15 +10,14 @@ Only using light incubated samples. Initials and dark are controls. already chec
 # Initialize
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("phyloseq", "init_files", "init.R")) #for libraries
-source(here("phyloseq", "init_files", "init_markdown.R")) #for markdown libraries
-source(here("phyloseq", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
-source(here("phyloseq", "init_files", "colours_18sv4.R")) # predetermined colours
+source(here("3_Phyloseq output and figures", "init_files", "init.R")) #for libraries
+source(here("3_Phyloseq output and figures", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("3_Phyloseq output and figures", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps 
+source(here("3_Phyloseq output and figures", "init_files", "colours_18sv4.R")) # predetermined colours
 #source(here("phyloseq", "init_files", "colours_random.R")) #random colours
-source(here("phyloseq", "trophic_mode", "trophic_function.R"))  # Function to assign trophic function for phyloseq objects. 2 
-source(here("phyloseq", "init_files", "top_taxa_func.R")) #Function to select top taxa
+source(here("3_Phyloseq output and figures", "trophic_mode", "trophic_function.R"))  # Function to assign trophic function for phyloseq objects. 2 
+# source(here("3_Phyloseq output and figures", "init_files", "top_taxa_func.R")) #Function to select top taxa
 library(ggtext)
-library(ggforestplot)
 # Colours
 colours_cycle <- readxl::read_excel(here("phyloseq", "init_files","colours_cycle.xlsx"))
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
@@ -27,9 +26,9 @@ colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 # Sorted pico
 ## Read data
 remove heterotrophs and 2 samples 
-also removing 
+only include light incubated samples
 ```{r}
-source(here("phyloseq", "init_files", "read_pico.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_pico.R"))
 
 #Assign trophic mode and remove heterotrophics that are not dinophyceae
 ps_pico <- phyloseq_assign_trophic(ps_pico) %>%
@@ -44,9 +43,9 @@ long_pico <- phyloseq_transform_to_long(ps_pico) %>%
 
 #create levels for factors
 long_pico <- long_pico %>%
-    mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+    mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA-Sc_1", "SA-Sc_2", "SA1_3", "SA1_4", "SA1_5", "SA1_6", "SA2_11")) %>%
     mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic", "dinophyceae")) %>%
-    mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+    mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
     mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark")) %>%
     mutate(depth_cat = fct_relevel(SAMPLE, "SUR", "DCM"))
 
@@ -69,11 +68,11 @@ otu_rel_abund <- long_pico_1 %>%
                  names_to = "level",
                  values_to = "taxon") 
 # for log scale
-nseqs_per_sample <- otu_rel_abund %>%
-    group_by(file_code) %>%
-    summarise(N=sum(rel_abund)) %>%
-    count(N) %>%
-    pull(N)
+# nseqs_per_sample <- otu_rel_abund %>%
+#     group_by(file_code) %>%
+#     summarise(N=sum(rel_abund)) %>%
+#     count(N) %>%
+#     pull(N)
 # 
 # lod <- 1/nseqs_per_sample
 
@@ -254,10 +253,136 @@ sample_no
 ```
 
 
+##order 
+```{r}
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "order") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
+    replace(., is.na(.), 0) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+## summary for results
+# summary <- taxon_rel_abund %>%
+#   filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae", "Chloropicophyceae")) %>%
+#   filter(cycle_name_2 != "SA1") %>%
+#   group_by(taxon, water_mass) %>%
+#   summarise(median = median(rel_abund),
+#             mean = mean(rel_abund))
+# summary
+```
+
+```{r}
+taxon_pool <- taxon_rel_abund %>%
+    group_by(cycle_name_2, taxon) %>%
+    summarise(median = median(rel_abund)) %>% #calculate median proportion of reads per sp per cycle
+    group_by(taxon) %>%
+    summarise(pool = max(median) <= 5, #species with a max median proportion of reads in any cycle < 5% is under Others
+              median = max(median),
+              .groups = "drop")
+#get class name for facet grid grouping with class
+class_df <- long_pico_1 %>%
+    select(class, order) %>%
+    distinct()
+ #heatmap
+ p1 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
+     mutate(taxon=if_else(pool, "Other", taxon)) %>%
+     group_by(file_code, cycle_name_2, taxon) %>%
+     summarise(rel_abund = sum(rel_abund), 
+                  .groups = "drop") %>%
+     group_by(cycle_name_2, taxon) %>%
+     summarise(rel_abund = median(rel_abund)) %>% # for median reads per taxon per cycle
+     left_join(class_df , by=c("taxon" = "order")) %>% # get class levels for sp.
+     filter(taxon != "Other") %>%
+     mutate(class=fct_relevel(class,
+                            "Mamiellophyceae",
+                             "Prymnesiophyceae",
+                             "Pelagophyceae",
+                             "Chrysophyceae")) %>%
+     ggplot(aes(x=cycle_name_2, y = taxon, fill =rel_abund)) +
+     geom_tile() +
+    # geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+ # for number labels
+    scale_fill_distiller(type = "seq", 
+                        palette = "BuGn",
+                        name = "Median<br>Relative<br>Abund (%)",
+                       expand = c(0,0),
+                       # trans = "log",
+                        # na.value = "#F7FCFD",
+                        direction = 1,
+                        # breaks = c(0, 0.1, 1, 10, 100),
+                        limits = c(NA,100))+
+     theme_minimal() +
+     theme(text=element_text(size=10),
+          strip.text.y.left = element_text(angle = 0),
+          panel.spacing.x = unit(0,"lines"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          legend.title = element_markdown()) +
+      scale_x_discrete(position = "top") +
+      xlab(NULL)+
+      ylab(NULL) +
+     facet_grid(class~., scales = "free_y", space = "free", switch = "y") +
+     ggtitle("Picoeukaryotes - order level (not log scale)")
+
+p1
+# pdf("pico_order_heatmap.pdf", height=5, width=5) ; plot(p) ; dev.off()
+
+ #heatmap
+ p2 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
+     mutate(taxon=if_else(pool, "Other", taxon)) %>%
+     group_by(file_code, cycle_name_2, taxon) %>%
+     summarise(rel_abund = sum(rel_abund), 
+                  .groups = "drop") %>%
+     group_by(cycle_name_2, taxon) %>%
+     summarise(rel_abund = median(rel_abund)) %>% # for median reads per taxon per cycle
+     left_join(class_df , by=c("taxon" = "order")) %>% # get class levels for sp.
+     filter(taxon != "Other") %>%
+     mutate(class=fct_relevel(class,
+                            "Mamiellophyceae",
+                             "Prymnesiophyceae",
+                             "Pelagophyceae",
+                             "Chrysophyceae")) %>%
+     ggplot(aes(x=cycle_name_2, y = taxon, fill =rel_abund)) +
+     geom_tile() +
+    # geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+ # for number labels
+    scale_fill_distiller(type = "seq", 
+                        palette = "BuGn",
+                        name = "Median<br>Relative<br>Abund (%)",
+                       expand = c(0,0),
+                       trans = "log",
+                       na.value = "#F7FCFD",
+                        direction = 1,
+                        breaks = c(0, 0.1, 1, 10, 100),
+                        limits = c(NA,100))+
+     theme_minimal() +
+     theme(text=element_text(size=10),
+          strip.text.y.left = element_text(angle = 0),
+          panel.spacing.x = unit(0,"lines"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          legend.title = element_markdown()) +
+      scale_x_discrete(position = "top") +
+      xlab(NULL)+
+      ylab(NULL) +
+     facet_grid(class~., scales = "free_y", space = "free", switch = "y") +
+     ggtitle("Picoeukaryotes - order level (log scale)")
+
+p2
+```
+
 # Sorted nano
 ## Read data
 ```{r}
-source(here("phyloseq", "init_files", "read_nano.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_nano.R"))
 
 #assign trophic mode and remove heterotrophics that are not dinophyceae
 ps_nano <- phyloseq_assign_trophic(ps_nano)%>%
@@ -270,10 +395,10 @@ long_nano <- phyloseq_transform_to_long(ps_nano) %>%
 
 #order all the factors
 long_nano <- long_nano %>%
-  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA1_1", "SA1_2", "SA2_3", "SA2_4", "SA2_5", "SA2_6", "SA3_11")) %>%
+  mutate(cycle_exp = fct_relevel(cycle_exp, "ST1_7", "ST1_8", "ST2_9", "ST2_10", "SA-Sc_1", "SA-Sc_2", "SA1_3", "SA1_4", "SA1_5", "SA1_6", "SA2_11")) %>%
   mutate(trophic_mode = fct_relevel(trophic_mode, "photosynthetic", "mixotrophic"))  %>%
   mutate(trophic_mode_2 = fct_relevel(trophic_mode_2, "photosynthetic", "mixotrophic",  "dinophyceae"))  %>%
-  mutate(cycle_name_2 =  fct_relevel(cycle_name_2,"ST1", "ST2", "SA1", "SA2", "SA3"))  %>%
+  mutate(cycle_name_2 =  fct_relevel(cycle_name_2,"ST1", "ST2", "SA-Sc", "SA1", "SA2"))  %>%
   mutate(vial_type = fct_relevel(vial_type, "initial", "light", "dark"))
 ```
 ## prepare data frame
@@ -300,7 +425,7 @@ otu_rel_abund <- long_nano_1 %>%
 ## Order - select above 5%
 ```{r}
 taxon_rel_abund <- otu_rel_abund %>%
-    filter(level == "order") %>% #choose level here 
+    filter(level == "class") %>% #choose level here 
     group_by(water_mass, cycle_name_2, file_code, taxon) %>%
     summarise(rel_abund = 100*sum(rel_abund)) %>%
     pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
@@ -310,8 +435,8 @@ taxon_rel_abund <- otu_rel_abund %>%
                  values_to = "rel_abund")
 
 summary <- taxon_rel_abund %>%
-  filter(taxon %in% c("Bacillariophyta_X", "Cryptomonadales",  "Haptophyta_Clade_HAP3_X")) %>%
-  group_by(taxon, cycle_name_2) %>%
+  # filter(taxon %in% c("Bacillariophyta_X", "Cryptomonadales",  "Haptophyta_Clade_HAP3_X")) %>%
+  group_by(taxon, water_mass) %>%
   summarise(median = median(rel_abund),
             mean = mean(rel_abund))
 summary
@@ -341,30 +466,35 @@ p3 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
     group_by(cycle_name_2, taxon) %>%
    summarise(rel_abund = median(rel_abund)) %>% # for median reads per taxon per cycle
    left_join(class_df , by=c("taxon" = "order")) %>% # get class levels for sp.
+       filter(taxon != "Other") %>%
      ggplot(aes(x=cycle_name_2, y = taxon, fill =rel_abund)) +
     geom_tile() +
-  geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+ # for number labels
+  # geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+ # for number labels
   scale_fill_distiller(palette = "Purples",
-                        name = "Median<br>Relative<br>Abund (%)",
+                       name = "Median<br>Relative<br>Abund (%)",
                        expand = c(0,0),
-      #  breaks = c(0, 0.1, 1, 10, 50),
-        na.value = "white",
-       direction = 1)+
-  theme_classic()+
+                       breaks = c(0, 0.1, 1, 10,100),
+                       na.value = "white",
+                       direction = 1,
+                       trans = "log",
+                       # breaks = c(0, 0.1, 1, 10, 100),
+                       # limits = c(NA,100)
+                       )+
+    theme_classic()+
     theme(text=element_text(size=10),
-              strip.text.y.left = element_text(angle = 0),
-              panel.spacing = unit(0,"lines"),
-              panel.grid.major = element_blank(),
-              panel.grid.minor = element_blank(),
-              strip.background = element_blank(),
+          strip.text.y.left = element_text(angle = 0),
+          panel.spacing = unit(0,"lines"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          strip.background = element_blank(),
           axis.line = element_blank(),
           axis.ticks = element_blank(),
           legend.title = element_markdown(),
           strip.placement = "outside") +
-  scale_x_discrete(position = "top") +
-  xlab(NULL)+
-  ylab(NULL) +
-    facet_grid(class~., scales = "free_y", space = "free", switch = "y") 
+    scale_x_discrete(position = "top") +
+    xlab(NULL)+
+    ylab(NULL) +
+    facet_grid(class~., scales = "free_y", space = "free", switch = "y") +ggtitle("Nanoeukaryotes - order (log scale)")
     
 p3
 # pdf("nano order_heatmap.pdf", height=4, width=7) ; plot(p3) ; dev.off()
@@ -410,7 +540,8 @@ p4 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
                        palette = "Purples",
                        expand = c(0,0),
                       na.value = "white",
-                      direction = 1)+
+                      direction = 1,
+                      trans = "log")+
   theme_classic()+
     theme(text=element_text(size=10),
               strip.text.y.left = element_text(angle = 0),
@@ -434,16 +565,16 @@ p4
 # Sorted syn
 ## Read data
 ```{r}
-source(here("phyloseq", "init_files", "read_petb_2.0.R"))
+source(here("3_Phyloseq output and figures", "init_files", "read_petb_2.0.R"))
 
 
 long_sorted <- long_sorted %>%
-  mutate(cycle_name = recode(Cycle., "1" = "SA1",
-                                    "2" = "SA2",
+  mutate(cycle_name = recode(Cycle., "1" = "SA-Sc",
+                                    "2" = "SA1",
                                     "3" = "ST1",
                                     "4" = "ST2",
-                                    "5" = "SA3")) %>%
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3"))
+                                    "5" = "SA2")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2"))
 ```
 ## prepare data frame
 ```{r}
@@ -476,14 +607,14 @@ taxon_rel_abund <- otu_rel_abund %>%
                  values_to = "rel_abund")
 
 
-summary <- taxon_rel_abund %>%
-  # filter(cycle_name %in% c("SA2", "SA3")) %>%
-  group_by(taxon) %>%
-  summarise(median = median(rel_abund),
-            mean = mean(rel_abund),
-            max = mean(rel_abund),
-            min = min(rel_abund))
-summary
+# summary <- taxon_rel_abund %>%
+#   # filter(cycle_name %in% c("SA2", "SA3")) %>%
+#   group_by(taxon) %>%
+#   summarise(median = median(rel_abund),
+#             mean = mean(rel_abund),
+#             max = mean(rel_abund),
+#             min = min(rel_abund))
+# summary
 ```
 
 
@@ -500,11 +631,11 @@ taxon_rel_abund <- otu_rel_abund %>%
                  values_to = "rel_abund")
 
 ## summary for results
-summary <- taxon_rel_abund %>%
-  group_by(taxon, water_mass) %>%
-  summarise(median = median(rel_abund),
-            mean = mean(rel_abund))
-summary
+# summary <- taxon_rel_abund %>%
+#   group_by(taxon, water_mass) %>%
+#   summarise(median = median(rel_abund),
+#             mean = mean(rel_abund))
+# summary
 
 taxon_pool <- taxon_rel_abund %>%
     group_by(cycle_name, taxon) %>%
@@ -529,14 +660,18 @@ p5 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
     group_by(cycle_name, taxon) %>%
    summarise(rel_abund = median(rel_abund)) %>% # for median reads per taxon per cycle
    left_join(df , by=c("taxon" = "Subclade")) %>% # get class levels for sp.
-     ggplot(aes(x=cycle_name, y = taxon, fill =rel_abund)) +
+   filter(taxon != "Other") %>%
+    ggplot(aes(x=cycle_name, y = taxon, fill =rel_abund)) +
     geom_tile() +
-    geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=2)+
+    # geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=2)+
     scale_fill_distiller(palette = "Oranges",
                         name = "Median<br>Relative<br>Abund (%)",
                        expand = c(0,0),
-        na.value = "white",
-       direction = 1)+
+                       na.value = "white",
+                       direction = 1,
+                       trans = "log",
+                       breaks = c(0, 0.1, 1, 10, 100),
+                       limits = c(NA,100))+
     theme_classic()+
     theme(text=element_text(size=10),
               strip.text.y.left = element_text(angle = 0),
@@ -544,14 +679,15 @@ p5 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
               panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
               strip.background = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          legend.title = element_markdown(),
-          strip.placement = "outside") +
-  scale_x_discrete(position = "top") +
-  xlab(NULL)+
-  ylab(NULL) +
-    facet_grid(Clade~., scales = "free_y", space = "free", switch = "y") 
+              axis.line = element_blank(),
+              axis.ticks = element_blank(),
+              legend.title = element_markdown(),
+              strip.placement = "outside") +
+    scale_x_discrete(position = "top") +
+    xlab(NULL)+
+    ylab(NULL) +
+    facet_grid(Clade~., scales = "free_y", space = "free", switch = "y") +
+    ggtitle("Syn - subclade (log scale)")
     
 p5
 # pdf("syn_heatmap.pdf", height=2, width=5) ; plot(p) ; dev.off()
@@ -574,5 +710,12 @@ library(patchwork)
 plot <- (p1 |p5) / (p2|p3) + plot_annotation(tag_levels = 'A') + plot_layout( heights = c(1, 1.75))
 
 plot
-pdf("heatmap_text.pdf", height=6, width=12) ; plot(plot) ; dev.off()
+pdf("heatmap.pdf", height=6, width=12) ; plot(plot) ; dev.off()
+
+library(patchwork)
+plot <- (p1 |p2) / (p3|p5) + plot_annotation(tag_levels = 'A')# + plot_layout( heights = c(1, 1.75))
+
+plot
+pdf("heatmap_tests.pdf", height=6, width=12) ; plot(plot) ; dev.off()
+
 ```

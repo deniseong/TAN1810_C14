@@ -6,7 +6,7 @@ output: pdf_document
 ---
 Plots and tables for CTD and nutrients. 
 - all obtained from morning CTD- 9-12pm
-- remove all SA1-b cycles
+- remove all SA-sc-b cycles
 - select only days that correspond to incubation experiments
 
 ```{r knitr_init, echo=FALSE, cache=FALSE}
@@ -103,22 +103,22 @@ CTD$cycle[grep("317", CTD$julian_day)] = "4"
 CTD$cycle[grep("319", CTD$julian_day)] = "5"
 CTD$cycle[grep("320", CTD$julian_day)] = "5"
 
-CTD <- CTD %>% mutate(cycle_name = recode(cycle, "1" = "SA1",
-                                    "2" = "SA2",
+CTD <- CTD %>% mutate(cycle_name = recode(cycle, "1" = "SA-Sc",
+                                    "2" = "SA1",
                                     "3" = "ST1",
                                     "4" = "ST2",
-                                    "5" = "SA3")) %>%
+                                    "5" = "SA2")) %>%
   mutate(CTD = as.character(CTD)) %>%
-  mutate(cycle_name_2 = case_when(julian_day == "297" ~ "SA1-A",
-                                  julian_day == "298" ~ "SA1-A",
-                                  julian_day == "299" ~ "SA1-A",
-                                  julian_day == "300" ~ "SA1-B",
-                                  julian_day == "301" ~ "SA1-B",
-                                  julian_day == "302" ~ "SA1-B",
+  mutate(cycle_name_2 = case_when(julian_day == "297" ~ "SA-Sc-A",
+                                  julian_day == "298" ~ "SA-Sc-A",
+                                  julian_day == "299" ~ "SA-Sc-A",
+                                  julian_day == "300" ~ "SA-Sc-B",
+                                  julian_day == "301" ~ "SA-Sc-B",
+                                  julian_day == "302" ~ "SA-Sc-B",
                                   TRUE ~ as.character(cycle_name))) %>%
-  filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A. remve SA1-B
+  filter(cycle_name_2 != "SA-Sc-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA-Sc-A. remove SA-Sc-B
   filter(!is.na(cycle)) %>% #remove rows without cycle number
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
   filter(julian_day %in% c("297", "298", "305", "306", "307", "311", "312", "315", "316", "319")) # only days corresponding to exp, except 5th and 6th nov, without afternoon CTD.
 
 #check the dates
@@ -294,21 +294,21 @@ nutrients$cycle[grep("320", nutrients$julian_day)] = "5"
 
 nutrients <- nutrients %>%
   filter(!is.na(cycle)) %>%
-  mutate(cycle_name = recode(cycle, "1" = "SA1",
-                                    "2" = "SA2",
+  mutate(cycle_name = recode(cycle, "1" = "SA-Sc",
+                                    "2" = "SA1",
                                     "3" = "ST1",
                                     "4" = "ST2",
-                                    "5" = "SA3"))  %>%
-  mutate(cycle_name_2 = case_when(julian_day == "296" ~ "SA1-A",
-                                  julian_day == "297" ~ "SA1-A",
-                                  julian_day == "298" ~ "SA1-A",
-                                  julian_day == "299" ~ "SA1-A",
-                                  julian_day == "300" ~ "SA1-B",
-                                  julian_day == "301" ~ "SA1-B",
-                                  julian_day == "302" ~ "SA1-B",
+                                    "5" = "SA2"))  %>%
+  mutate(cycle_name_2 = case_when(julian_day == "296" ~ "SA-Sc-A",
+                                  julian_day == "297" ~ "SA-Sc-A",
+                                  julian_day == "298" ~ "SA-Sc-A",
+                                  julian_day == "299" ~ "SA-Sc-A",
+                                  julian_day == "300" ~ "SA-Sc-B",
+                                  julian_day == "301" ~ "SA-Sc-B",
+                                  julian_day == "302" ~ "SA-Sc-B",
                                   TRUE ~ as.character(cycle_name))) %>%
-  filter(cycle_name_2 != "SA1-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  filter(cycle_name_2 != "SA-Sc-B") %>% #  SA1 separated into two sub cycles. C14 exp only includes SA1-A.
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
   filter(time %in% (10:12) ) %>% # only afternoon CTD
   filter(julian_day %in% c("297", "298", "305", "306", "307", "311", "312", "315", "316", "319"))
 
@@ -350,9 +350,9 @@ nutrients_sub <- nutrients %>%
                               (depth == "40" & cycle_name == "ST1" & CTD == "9145") ~ "DCM",
                                (depth == "30" & cycle_name == "ST2" & CTD == "9150") ~ "DCM",
                                (depth == "40" & cycle_name == "ST2" & CTD == "9153") ~ "DCM",
+                               (depth == "40" & cycle_name == "SA-Sc") ~ "DCM",
                                (depth == "40" & cycle_name == "SA1") ~ "DCM",
-                               (depth == "40" & cycle_name == "SA2") ~ "DCM",
-                               (depth == "70" & cycle_name == "SA3") ~ "DCM",
+                               (depth == "70" & cycle_name == "SA2") ~ "DCM",
                                   TRUE ~as.character(cycle_name))) %>%
   filter(depth_cat %in% c("SUR", "DCM"))
 summary <-   nutrients_sub %>%
@@ -401,7 +401,6 @@ ammonia_plot <- nutrients %>%
   group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
   ggplot(aes(x=NH4_uM, y=depth, colour=cycle_name)) + 
   geom_point(size=0.1, alpha = 0.6) +
-  # geom_path(size=0.2)+
   geom_smooth(orientation = "y",
              se = FALSE
               ) +
@@ -435,7 +434,6 @@ p_plot
 si_plot <- nutrients %>%
   ggplot(aes(x=DRSi_uM, y=depth, colour=cycle_name)) + 
   geom_point(size=0.1, alpha = 0.6) +
-  # geom_path(size=0.2) +
   geom_smooth(orientation = "y",
               se = FALSE,
               fill = "lightgrey"

@@ -24,20 +24,21 @@ library(cowplot)
 
 #Colours for water mass
 ```{r}
-colours_water <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet =  "Sheet3")
+colours_water <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"), sheet =  "Sheet3")
 colours_water <- structure(colours_water$colour,.Names=colours_water$water)
 ```
 
 # Figure 9 - compare rates obtained between studies
 ```{r}
-studies <- readxl::read_excel("data_used/C14_studies.xlsx", sheet = "Sheet1")  #updated one study
+studies <- readxl::read_excel(here("0_data_used", "C14_studies.xlsx"), sheet = "for_R") %>%
+  filter(Group != "Pico 1 + Pico 2")
 
 studies$Group<-factor(studies$Group, levels = c("Synechococcus", "Pico 1", "Pico 2", "Nano"))
-studies$cat<-factor(studies$cat, levels = c("tropical", "ST", "SA", "antarctic"))
+studies$`Lat band`<-factor(studies$`Lat band`, levels = c("Tropical", "Subtropical", "Subantarctic", "Antarctic"))
 
 
 p <- studies %>% 
-  ggplot(aes(fct_reorder(Study, Year), ymin = Lower, ymax = Upper, color = cat)) +
+  ggplot(aes(fct_reorder(Study, Year), ymin = Lower, ymax = Upper, color = `Lat band`)) +
   geom_linerange(position = position_dodge(width = 1), size = 2) +
   facet_grid(.~ Group, scales = "free", space = "free") +
    scale_y_continuous(trans='log10') +

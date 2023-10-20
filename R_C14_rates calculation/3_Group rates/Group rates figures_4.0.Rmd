@@ -1,0 +1,623 @@
+---
+title: "Group rates figures 4.0"
+author: "Denise Ong"
+date: "2023-09-26"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for markdown libraries
+library(FSA)
+library(ggeffects)
+library(gghalves)
+#Colours
+colours_cycle <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "cycle")
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+
+colours_exp <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
+
+# For consistency between scatterplot
+set.seed(1)
+```
+
+# Read data
+
+```{r}
+cold_standard <- readxl::read_excel("Output/Raw data/NPP_cold_standard.xlsx") %>% 
+  rename(depth_m = `depth`,
+         depth = `sample`)
+cold_standard$exp <- as.character(cold_standard$exp)
+
+pp_rates <- readxl::read_excel("Output/Raw data/Rates_cell_npp_method2.xlsx") %>%
+  mutate(cycle_name = dplyr::recode(cycle_name, "SA1" = "SA-Sc")) %>%
+  mutate(cycle_name = dplyr::recode(cycle_name, "SA2" = "SA1")) %>%
+  mutate(cycle_name = dplyr::recode(cycle_name, "SA3" = "SA2"))
+
+#set factor levels
+pp_rates$water_mass <- factor(pp_rates$water_mass, levels = c("ST", "SA"))
+pp_rates$cycle_name <- factor(pp_rates$cycle_name, levels = c("ST1", "ST2", "SA-Sc", "SA1", "SA2"))
+pp_rates$population <- factor(pp_rates$population, levels = c("Syn", "Pico", "Nano"))
+pp_rates$depth <- factor(pp_rates$depth, levels = c("SUR", "DCM"))
+```
+
+# PP
+
+## surface and DCM - t test to check
+
+surface is not different from DCM for all groups not significantly
+different, from here on combine surface and DCM
+
+Syn: t-test t = -1.9885, df = 40, p-value = 0.05363
+
+Pico: t = -1.3297, df = 41, p-value = 0.191
+
+Nano: t = -0.28573, df = 21.247, p-value = 0.7778
+
+```{r}
+library("ggpubr")
+
+# For syn and pico, t.test var.equal=TRUE. For nano, var.equal = FALSE
+i = "Syn"
+# i = "Pico"
+# i = "Nano"
+
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(depth, water_mass, pp)
+
+# option to subsample to account for unbalanced sampling 
+# set.seed(345)
+# t_test_df<- pp_rates %>%
+#   filter(population == i) %>%
+#   select(depth, water_mass, pp) %>%
+#   group_by(depth) %>%
+#   sample_n(14)
+
+summary <- t_test_df %>%
+  group_by(depth) %>%
+  summarise(count = n(),
+    mean = mean(pp, na.rm = TRUE),
+    sd = sd(pp, na.rm = TRUE))
+print(summary)
+
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=pp))  +geom_boxplot() + geom_point() +
+    facet_grid(~depth, scales = "free") +
+    scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
+ print(p)
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$pp))
+qqnorm(log10(t_test_df$pp))
+p<-with(t_test_df, shapiro.test(log10(pp[depth == "SUR"])))
+print(p)
+p<-with(t_test_df, shapiro.test(log10(pp[depth == "DCM"])))
+print(p)
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(pp) ~ depth, t_test_df)
+
+res <- t.test(log10(pp) ~ depth, data =  t_test_df, var.equal = TRUE)
+print(res)
+
+# create lm and check residuals
+lm <- lm(log10(pp) ~ depth, data=pp_rates)
+plot(lm) 
+
+
+# Calculate model estimated means and CIs
+library(ggeffects)
+lm_emm <- ggemmeans(lm, 
+                    terms = c("depth"),
+                    type = "fixed")
+
+lm_emm
+plot(lm_emm)
+
+```
+
+## ANOVA - population\*water mass
+
+```{r}
+# check between groups, not normally distributed.
+hist(pp_rates$pp)
+qqnorm(pp_rates$pp)
+shapiro.test(pp_rates$pp)
+
+# transform the data and check again. Use log transformed data.
+hist(log10(pp_rates$pp))
+qqnorm(log10(pp_rates$pp))
+shapiro.test(log10(pp_rates$pp)) 
+```
+
+```{r, eval=FALSE}
+# because of unbalanced design, subset 16 samples randomly for each group first 
+# no difference when subset. Use all samples.
+set.seed(74657)
+# interaction plot population and water mass?
+sub <- pp_rates %>%
+  group_by(population, water_mass) %>%
+  sample_n(16)
+
+summary <- sub %>%
+  group_by(population, water_mass) %>%
+  summarize(#median = round(median(npp), 2),
+            mean = round(mean(npp), 2),
+            sd = round(sd(npp),2),
+            n = n()) #%>%
+   # unite("mean_sd", mean:sd, sep = " ± ") 
+# print(summary)
+
+lm1 <- lm(log10(pp) ~ population*water_mass, data=sub)
+lm2 <- lm(log10(pp) ~ population+water_mass, data=sub)
+# lm3 <- lm(log10(pp) ~ population, data=sub)
+print(anova(lm1, lm2))
+# plot(lm1)
+# print(Anova(lm1, type = "3")) # p< 0.0001
+# print(summary(lm1))
+
+lm_emm <- ggemmeans(lm1,
+                    terms = c("population", "water_mass"),
+                    type = "fixed")
+
+# print(lm_emm)
+print(plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE))
+
+#post-hoc test
+# library(emmeans)
+lm.emm <- emmeans(lm1, ~ population*water_mass)
+print(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"))
+
+
+```
+
+## test and plot
+
+```{r}
+
+lm1 <- lm(log10(pp) ~ population*water_mass, data=pp_rates)
+# lm2 <- lm(log10(pp) ~ population+water_mass, data=pp_rates)
+# lm3 <- lm(log10(pp) ~ population, data=pp_rates)
+# anova(lm1, lm2) # significant difference between lm1 and lm2. Use lm1.
+plot(lm1)
+Anova(lm1, type = "3") # p< 0.0001
+summary(lm1)
+
+#post-hoc test
+library(emmeans)
+lm.emm <- emmeans(lm1, ~ population*water_mass)
+emm_df <- as.data.frame(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt", type = "response"))
+
+lm_emm <- ggemmeans(lm1,
+                    terms = c("population", "water_mass"),
+                    type = "fixed",
+                    # back.transform = "FALSE"
+                    )
+
+lm_emm
+
+emm.pp.df <- as.data.frame(lm_emm)
+
+plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)
+
+pp_mixed <- ggplot() +
+        # Raw data
+        geom_half_violin(aes(x = population,
+                            y = pp, split = water_mass, fill=water_mass),
+                        nudge = 0.001,
+                        alpha=0.5,
+                        data = pp_rates) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = group),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 0.25),
+                        data = lm_emm) +
+        labs(x = "Population",
+             y = "Cell-specific carbon fixation rate (fgC cell-1 hr-1)",
+             colour = "Water mass",
+             shape = "Cycle") +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_fill_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l") +
+  annotate("text", x = 1.5, y = 100, label = "ANOVA, R2=0.83,\n Population X Water mass: F(2,123) = 5.91,\n p = 0.004", size= 3)
+      # annotate("text", x = 1.7, y = 10, label = "t-test; R2=0.48,\n t40=6.22, p<0.0001")
+pp_mixed
+```
+
+# NPP
+
+## surface and DCM - t test
+
+not using wilcoxon test output, but all not significant.
+
+syn: t-test t = -1.5679, df = 40, p-value = 0.1248 wilcoxon test W =
+136, p-value = 0.1124
+
+pico t = -1.4587, df = 41, p-value = 0.1523 W = 148, p-value = 0.1171
+
+nano t = 0.92363, df = 19.711, p-value = 0.3668 W = 255, p-value =
+0.4568
+
+```{r}
+library("ggpubr")
+# For syn and pico, t.test var.equal=TRUE. For nano, var.equal = FALSE
+
+# i = "Syn"
+# i = "Pico"
+i = "Nano"
+
+t_test_df<- pp_rates %>%
+  filter(population == i) %>%
+  select(depth, water_mass, npp) 
+
+# option to subsample to account for unbalanced sampling 
+# set.seed(3245)
+# t_test_df<- pp_rates %>%
+#   filter(population == i) %>%
+#   select(depth, water_mass, npp) %>%
+#   group_by(depth) %>%
+#   sample_n(14)
+
+summary <- t_test_df %>%
+  group_by(depth) %>%
+  summarise(count = n(),
+    mean = mean(npp, na.rm = TRUE),
+    sd = sd(npp, na.rm = TRUE))
+print(summary)
+
+ p <- t_test_df %>%
+   ggplot(aes(x=depth, y=npp))  +geom_boxplot() + geom_point() +
+    facet_grid(~depth, scales = "free") +
+    scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
+ print(p)
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$npp))
+qqnorm(log10(t_test_df$npp))
+p<-with(t_test_df, shapiro.test(log10(npp[depth == "SUR"])))
+print(p)
+p<-with(t_test_df, shapiro.test(log10(npp[depth == "DCM"])))
+print(p)
+
+lm <- lm(log10(npp) ~ depth, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(npp) ~ depth, t_test_df)
+
+# parametric
+res <- t.test(log10(npp) ~ depth, data =  t_test_df, var.equal = FALSE)
+print(res)
+```
+
+## ANOVA- population + water mass
+
+```{r}
+hist(pp_rates$npp)
+qqnorm(pp_rates$npp)
+shapiro.test(pp_rates$npp)
+
+hist(log10(pp_rates$npp))
+qqnorm(log10(pp_rates$npp))
+shapiro.test(log10(pp_rates$npp)) # significant. Meet assumptions, using ANOVA
+```
+
+```{r, eval=FALSE}
+# because of unbalanced design, subset 16 samples randomly for each group first 
+# no difference when subset. Use all samples.
+set.seed(76876)
+  sub <- pp_rates %>%
+  group_by(population, water_mass) %>%
+  sample_n(16)
+
+# interaction plot population and water mass?
+lm1 <- lm(log10(npp) ~ population*water_mass, data=sub)
+lm2 <- lm(log10(npp) ~ population+water_mass, data=sub) # choose this model
+# lm3 <- lm(log10(npp) ~ population, data=sub)
+# lm4 <- lm(log10(npp) ~ water_mass, data=sub)
+
+anova(lm1, lm2)
+# choose lm2
+# plot(lm2)
+Anova(lm2, type = "2") # p< 0.0001
+summary(lm2)
+
+lm_emm <- ggemmeans(lm2,
+                    terms = c("population", "water_mass"),
+                    type = "fixed")
+
+lm_emm
+print(plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE))
+
+#post-hoc test
+# library(emmeans)
+lm.emm <- emmeans(lm2, ~ population+water_mass)
+print(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"))
+```
+
+## test and plot
+
+```{r}
+# test interaction factors
+# lm1 <- lm(log10(npp) ~ population*water_mass, data=pp_rates)
+lm2 <- lm(log10(npp) ~ population+water_mass, data=pp_rates) # choose this model
+# lm3 <- lm(log10(npp) ~ population, data=pp_rates)
+# lm4 <- lm(log10(npp) ~ water_mass, data=pp_rates)
+
+# anova(lm1, lm2)
+# choose lm2
+
+# plot(lm2)
+Anova(lm2, type = "2") # because no interaction, use type 2
+summary(lm2)
+
+#post-hoc test
+# library(emmeans)
+lm.emm <- emmeans(lm2, ~ population+water_mass)
+contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt")
+
+#plot predicted means and CI
+lm_emm <- ggemmeans(lm2,
+                    terms = c("population", "water_mass"),
+                    type = "fixed")
+
+lm_emm
+
+emm.npp.df <- as.data.frame(lm_emm)
+
+plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)
+
+npp_mixed <- ggplot() +
+        # Raw data
+        geom_half_violin(aes(x = population,
+                            y = npp, split = water_mass, fill=water_mass),
+                        nudge = 0.001,
+                        alpha=0.5,
+                        data = pp_rates) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = group),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 0.25),
+                        data = lm_emm) +
+        labs(x = "Population",
+             y = "Group-specific production (mgC m-3 day-1)",
+             colour = "Water mass",
+             shape = "Cycle") +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_fill_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l") +
+      annotate("text", x = 2.75, y = 25, label = "ANOVA, R2=0.28;\n Population: F(2,125) = 20.32, p < 0.0001; \n Water mass: F(1,125) = 12.39, p < 0.0001", size= 3)
+npp_mixed
+
+p <- (pp_mixed|npp_mixed) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
+  theme(legend.position='right')  & theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), legend.title = element_text(size = 12), axis.title = element_text(size = 12))
+p
+pdf("pp npp interactions_mean and CI.pdf", height=5, width=10) ; plot(p) ; dev.off()
+```
+
+# Table 2 - summary for paper - pp, npp, cell conc
+
+```{r}
+# General summary
+summary <- pp_rates %>%
+  select(population, cycle_name, pp, npp, conc_ml) %>%
+  pivot_longer(pp:conc_ml, names_to = "data", values_to = "value") %>%
+  group_by(data, population, cycle_name) %>%
+  summarize(mean = round(mean(value), 2),
+            sd = round(sd(value),2), 
+             # n = n()
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd") %>%
+  arrange(factor(data, levels = c('pp', 'npp', 'conc_ml')))
+summary
+
+# writexl::write_xlsx(summary, path = "group_summary.xlsx")
+
+# cell conc summary - only change for SA2
+summary <- pp_rates %>%
+  filter(exp != "5") %>%
+  select(water_mass, population, cycle_name, conc_ml) %>%
+  distinct() %>%
+  pivot_longer(conc_ml, names_to = "data", values_to = "value") %>%
+  group_by(data, population, water_mass) %>%
+  summarize(mean = round(mean(value), 0),
+            sd = round(sd(value),0), 
+            n = n(),
+            min = round(min(value), 0),
+            max = round(max(value), 0)
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  unite("range", min:max, sep = "-")
+
+summary
+
+# Small phyto NPP
+summary <- pp_rates %>%
+  select(population, cycle_name, npp, exp, depth) %>%
+  group_by(population, cycle_name, exp, depth) %>%
+  summarize(mean = round(mean(npp), 2)) %>%
+  group_by(cycle_name, exp,depth) %>%
+  summarise(sum = sum(mean)) %>%
+  group_by(cycle_name) %>%
+  summarise(mean = round(mean(sum), 2),
+             sd = round(sd(sum),2)
+            ) %>%
+   unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+summary
+```
+
+Mean of pp and npp between water mass and depth
+
+```{r}
+summary <- pp_rates %>%
+  group_by(population, water_mass) %>%
+  summarize(mean = round(mean(pp), 2),
+            sd = round(sd(pp),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = "±") 
+summary
+
+summary <- pp_rates %>%
+  group_by(population, water_mass) %>%
+  summarize(#median = round(median(npp), 2),
+            mean = round(mean(npp), 2),
+            sd = round(sd(npp),2),
+            n = n()) #%>%
+   # unite("mean_sd", mean:sd, sep = " ± ") 
+summary
+
+
+summary <- pp_rates %>%
+  group_by(population, depth) %>%
+  summarize(mean = round(mean(pp), 2),
+            sd = round(sd(pp),2), n = n()) %>%
+   unite("mean_sd", mean:sd, sep = "±") 
+summary
+```
+
+# Figure 4 - initial pp and npp boxplot included in  main text. I will probably remove from figures
+
+```{r}
+
+
+# water mass by population
+p1 <- pp_rates %>%
+    ggplot() +
+      geom_jitter(aes(x=cycle_name, y=pp, colour = depth), width = 0.2, alpha = 0.5, size = 1.5)+
+      geom_boxplot(aes(x=water_mass, y= pp, fill=water_mass))+
+      scale_colour_manual(values =  c("#009292", "#DB6D00"))+
+      scale_fill_manual(values = c("#C62828", "#1565C0")) +
+      facet_grid(population~water_mass, scales = "free", space = "free_x") +
+      theme(strip.text.y.right = element_blank(),
+            legend.position = "none",
+            panel.spacing = unit(1, "lines"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)+
+      coord_cartesian(clip = "off")+
+      ylab("Carbon fixation rate (fgC/cell/hr)") +
+      xlab("Cycle")
+p1
+
+p2 <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=cycle_name, y=npp, colour = depth), width = 0.2, alpha = 0.5, size = 1.5)+
+    geom_boxplot(aes(x=water_mass, y= npp, fill=water_mass))+
+    scale_colour_manual(values =  c("#009292", "#DB6D00"))+
+    scale_fill_manual(values = c("#C62828", "#1565C0")) +
+    facet_grid(population~water_mass, scales = "free", space = "free_x") +
+    theme(panel.spacing = unit(1,"lines"),
+          legend.position = "top",
+          strip.text.y.right = element_text(angle = 0))+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l", outside = TRUE)+
+    coord_cartesian(clip = "off") +
+    ylab("NPP (mgC/m3/day)")+
+    xlab("Cycle")
+p2
+
+library(patchwork)
+plot <- p1 + p2 +  plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
+  theme(legend.position='top')
+plot
+# pdf("pp_npp v2.pdf", height=7, width=8) ; plot(plot) ; dev.off()
+
+```
+
+# Supplementary figures - Figures S6, S7, S8.
+
+```{r}
+
+# Figure S6 - PP by experiment
+  p <- pp_rates %>%
+  ggplot() +
+    geom_jitter(aes(x=exp, y=pp, shape = depth), width = 0.2, alpha = 0.5) +
+    scale_fill_manual (values = colours_cycle)+
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("Carbon fixation rate (fgC/cell/hr)")
+p
+pdf("figures/1_group rates/202231130_pp_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+
+# Figure S7 - cell conc by experiment
+  p <- pp_rates %>%
+  select(cycle_name, exp, conc_ml, population, depth) %>%
+  filter(exp!="5") %>%
+  distinct() %>%
+  ggplot() +
+    # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    geom_jitter(aes(x=exp, y=conc_ml, shape = depth), width = 0.2, alpha = 0.5) +
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme_minimal()+
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("Cell concentration (mL)") +
+  xlab("Experiment") +
+  labs(shape = "Depth")
+p
+pdf("figures/1_group rates/supp_cell conc_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+# Figure S8- npp by experiment
+  p <- pp_rates %>%
+  ggplot() +
+    # geom_point(aes(x=exp, y=npp), alpha = 0.5)+
+    geom_jitter(aes(x=exp, y=npp, shape = depth), width = 0.2, alpha = 0.5) +
+    facet_grid(population~cycle_name, scales = "free", space = "free_x") +
+        theme_minimal()+
+        theme(panel.spacing.x = unit(0,"lines"),
+              panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              strip.background = element_blank(),
+              strip.text.y.right = element_text(angle = 0),
+              panel.border = element_rect(colour = "black", fill = NA),
+              legend.position = "top")+
+    scale_y_continuous(trans='log10') +
+    annotation_logticks(sides = "l")+
+    ylab("NPP (mgC/m3/day)")
+p
+pdf("figures/1_group rates/202231130_npp_group_exp.pdf", height=6, width=6) ; plot(p) ; dev.off()
+
+
+```

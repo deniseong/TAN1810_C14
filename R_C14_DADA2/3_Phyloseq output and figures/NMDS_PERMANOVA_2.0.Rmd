@@ -151,6 +151,7 @@ anova(bd)
 permutest(bd)
 meta_dist %>% count(sample_type)
 
+
 ```
 
 ## Alpha diversity

@@ -17,20 +17,20 @@ MD8 does not have readings. U9128 for initials
 # Initialise
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("init_files", "init.R")) #for libraries
-source(here("init_files", "init_markdown.R")) #for markdown libraries
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for markdown libraries
 
-colours_cycle <- readxl::read_excel("init_files/colours_cycle.xlsx")
+colours_cycle <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"), sheet = "cycle")
 colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
 
-colours_exp <- readxl::read_excel("init_files/colours_cycle.xlsx", sheet = "exp")
+colours_exp <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"), sheet = "exp")
 colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
 ```
 
 # Read data
 ```{r, message=FALSE}
 #use the "complete data TAN1810" sheet for the experiment number
-C14_hot <- readxl::read_excel("data_used/TAN1810_14C-Pico_25052020_QA_1.2.xlsx", sheet = "Complete data TAN1810", skip = 11) %>%
+C14_hot <- readxl::read_excel(here("0_data_used", "TAN1810_14C-Pico_25052020_QA_1.2.xlsx"), sheet = "Complete data TAN1810", skip = 11) %>%
   dplyr::select (`Cycle#`, `EXP#`, `CTD#`, `STN`, `SAMPLE`, `DEPTH`) %>%   
      dplyr::rename(cycle = `Cycle#`,
             exp = `EXP#`,
@@ -43,7 +43,7 @@ C14_hot <- readxl::read_excel("data_used/TAN1810_14C-Pico_25052020_QA_1.2.xlsx",
 
 # For live shipboard samples - syn, pico, nano
 # match CTD number to MD number
-md_meta <- readxl::read_excel("data_used/MD_PhotoAdapt_Biomass_Rates_17MAR20.xlsx", sheet = "Summary of PhotoAdaption ", skip = 3) %>% 
+md_meta <- readxl::read_excel(here("0_data_used", "MD_PhotoAdapt_Biomass_Rates_17MAR20.xlsx"), sheet = "Summary of PhotoAdaption ", skip = 3) %>% 
   select(Station, Cast, Cycle, MD) %>%
   rename(station = Station,
          CTD = Cast,
@@ -55,13 +55,13 @@ md_meta$CTD <- sub("^", "U", md_meta$CTD) # add U before CTD number
 #loop to read all sheets except md1. missing MD8. Reading only initials for FSC of Syn, pico, nano
 md_comb<- data.frame()
 for (i in c(2:7, 9:18)) {
-md <- readxl::read_excel("data_used/MD_PhotoAdapt_Biomass_Rates_17MAR20.xlsx", sheet = (str_c("MD", i)), skip = 2, n_max = 8) %>%
+md <- readxl::read_excel(here("0_data_used", "MD_PhotoAdapt_Biomass_Rates_17MAR20.xlsx"), sheet = (str_c("MD", i)), skip = 2, n_max = 8) %>%
   select('Depth','SYN MEAN FS':'NANO MEAN FS') %>%
   mutate(MD = i) %>%
   rename(depth_m = 'Depth')
  md_comb <- bind_rows(md_comb, md)
 }
-md1 <- readxl::read_excel("data_used/MD_PhotoAdapt_Biomass_Rates_17MAR20.xlsx", sheet = "MD1", skip = 2, n_max = 8) %>%
+md1 <- readxl::read_excel(here("0_data_used", "MD_PhotoAdapt_Biomass_Rates_17MAR20.xlsx"), sheet = "MD1", skip = 2, n_max = 8) %>%
   select('Depth...2','SYN MEAN FS':'NANO MEAN FS') %>%
   mutate(MD = 1) %>%
   rename(depth_m = 'Depth...2')
@@ -92,11 +92,11 @@ md_all <- md_lv %>%
                              TRUE ~ cycle)) %>%
   mutate(exp = case_when (CTD == "U9128" ~ 4,
                           TRUE ~ exp)) %>%
-  mutate(cycle_name = dplyr::recode(cycle, "1" = "SA1", # add cycle name
-                                    "2" = "SA2",
+  mutate(cycle_name = dplyr::recode(cycle, "1" = "SA-Sc", # add cycle name
+                                    "2" = "SA1",
                                     "3" = "ST1",
                                     "4" = "ST2",
-                                    "5" = "SA3")) %>%
+                                    "5" = "SA2")) %>%
   mutate(water_mass = dplyr::recode(cycle, "1" = "SA", # water mass assignment
                                     "2" = "SA",
                                     "3" = "ST",
@@ -160,7 +160,7 @@ cell_size <- md_all %>%
   mutate(biomass = case_when(population == "pico" ~ (0.216*(vol^(0.939))),
                              population == "nano" ~ (0.216*(vol^(0.939))),
                              population == "syn_LV" ~ vol*265/1000)) 
-# writexl::write_xlsx(cell_size, path = "group_rates_output/fsc_cell size.xlsx")
+writexl::write_xlsx(cell_size, path = here("Output", "Raw data", "fsc_cell size.xlsx"))
 ```
 
 

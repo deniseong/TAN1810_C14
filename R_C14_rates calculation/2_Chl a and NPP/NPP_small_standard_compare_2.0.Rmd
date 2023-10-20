@@ -13,23 +13,20 @@ Group rates: NPP from summation of Syn, Pico and Nano NPP.
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
-source(here("init_files", "init.R")) #for libraries
-source(here("init_files", "init_markdown.R")) #for markdown libraries
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for markdown libraries
 ```
 
 # Read data
 ```{r}
-cold_standard <- readxl::read_excel("group_rates_output/NPP_cold_standard.xlsx") %>% 
+cold_standard <- readxl::read_excel(here("Output", "Raw data", "NPP_cold_standard.xlsx")) %>% 
   rename(depth_m = `depth`,
          depth = `sample`)
 cold_standard$exp <- as.character(cold_standard$exp)
-group_rates <- readxl::read_excel("group_rates_output/Rates_cell_npp_method2.xlsx")
+group_rates <- readxl::read_excel(here("Output", "Raw data","Rates_cell_npp_method2.xlsx"))
 ```
 
-#Compute NPP for EACH vial by adding the NPP values of the groups - from group-specific rates to compare.
-some of the rows have NA. leave for now.
-how about average the NPP across the vials before adding?
-
+#Compute NPP for EACH vial by adding the NPP values of group-specific rates.
 ```{r}
 group_npp <- group_rates %>%
   select(cycle, exp, depth, vial, population, cycle_name, station, depth_m, ctd, npp) %>%
@@ -45,9 +42,8 @@ For column replicates, the replicates for cold, standard and group are not from 
 cold_group <- full_join(cold_standard, group_npp) %>%
   unite(cycle_exp, c(cycle_name, exp), sep = "_", remove = FALSE)
 
-# writexl::write_xlsx(cold_group, path = "group_rates_output/NPP_cold_standard_group.xlsx")
-
-summary<- cold_group %>%
+#checks
+check<- cold_group %>%
   group_by(cycle, cycle_name, station, exp, cycle_exp, depth) %>%
   dplyr::summarise(cold_mean = mean(cold_corrected, na.rm = TRUE),
                    cold_sd = sd(cold_corrected, na.rm = TRUE),
@@ -60,7 +56,7 @@ summary<- cold_group %>%
   mutate(standard_cold_ratio = standard_mean/cold_mean) %>%
   ungroup() %>%
   arrange(cycle_exp)
-# writexl::write_xlsx(summary, "group_rates_output/NPP_cold_standard_group_summary.xlsx")
+check
 ```
 
 #summary for cold rates
@@ -121,7 +117,7 @@ cold_group_long <- cold_group %>%
                values_to = "NPP",
                names_to = "type") %>%
   mutate(depth = fct_relevel(depth, "SUR", "DCM")) %>%
-  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA1", "SA2", "SA3")) %>%
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
   filter(type!= "group") %>%
   filter(exp!="1")
 ```
@@ -145,9 +141,13 @@ p <- cold_group_long %>%
               strip.text.y.right = element_text(angle = 0),
               panel.border = element_rect(colour = "black", fill = NA),
               legend.position = "top")+
-  scale_color_brewer(palette = "Dark2")
+  scale_color_brewer(palette = "Dark2")+
+  xlab("Experiment/Station")
   
 p
+
+pdf("cold_standard_compare.pdf", height=7, width=8) ; plot(plot) ; dev.off()
+
 
 ```
 
