@@ -16,11 +16,11 @@ library(FSA)
 library(ggeffects)
 library(gghalves)
 #Colours
-colours_cycle <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "cycle")
-colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
-
-colours_exp <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "exp")
-colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
+# colours_cycle <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "cycle")
+# colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+# 
+# colours_exp <- readxl::read_excel("0_init_files/colours_cycle.xlsx", sheet = "exp")
+# colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
 
 # For consistency between scatterplot
 set.seed(1)
@@ -29,15 +29,12 @@ set.seed(1)
 # Read data
 
 ```{r}
-cold_standard <- readxl::read_excel("Output/Raw data/NPP_cold_standard.xlsx") %>% 
+cold_standard <- readxl::read_excel(here("Output", "Raw data", "NPP_cold_standard.xlsx")) %>% 
   rename(depth_m = `depth`,
          depth = `sample`)
 cold_standard$exp <- as.character(cold_standard$exp)
 
-pp_rates <- readxl::read_excel("Output/Raw data/Rates_cell_npp_method2.xlsx") %>%
-  mutate(cycle_name = dplyr::recode(cycle_name, "SA1" = "SA-Sc")) %>%
-  mutate(cycle_name = dplyr::recode(cycle_name, "SA2" = "SA1")) %>%
-  mutate(cycle_name = dplyr::recode(cycle_name, "SA3" = "SA2"))
+pp_rates <- readxl::read_excel(here("Output", "Raw data", "Rates_cell_npp_method2.xlsx")) 
 
 #set factor levels
 pp_rates$water_mass <- factor(pp_rates$water_mass, levels = c("ST", "SA"))
@@ -243,15 +240,16 @@ pp_mixed
 
 ## surface and DCM - t test
 
-not using wilcoxon test output, but all not significant.
+Both wilcoxon test (non-parametric) and t-test (parametric) are not significant. not using wilcoxon test output.
 
-syn: t-test t = -1.5679, df = 40, p-value = 0.1248 wilcoxon test W =
-136, p-value = 0.1124
+syn: t-test t = -1.5679, df = 40, p-value = 0.1248 
+wilcoxon test W = 136, p-value = 0.1124
 
-pico t = -1.4587, df = 41, p-value = 0.1523 W = 148, p-value = 0.1171
+pico t = -1.4587, df = 41, p-value = 0.1523 
+W = 148, p-value = 0.1171
 
-nano t = 0.92363, df = 19.711, p-value = 0.3668 W = 255, p-value =
-0.4568
+nano t = 0.92363, df = 19.711, p-value = 0.3668 
+W = 255, p-value = 0.4568
 
 ```{r}
 library("ggpubr")
@@ -303,6 +301,11 @@ var.test(log10(npp) ~ depth, t_test_df)
 # parametric
 res <- t.test(log10(npp) ~ depth, data =  t_test_df, var.equal = FALSE)
 print(res)
+
+#non-parametric - not using.
+# res <- wilcox.test(npp ~ depth, data = t_test_df,
+#                    exact = FALSE)
+# print(res)
 ```
 
 ## ANOVA- population + water mass
@@ -556,7 +559,6 @@ plot
   p <- pp_rates %>%
   ggplot() +
     geom_jitter(aes(x=exp, y=pp, shape = depth), width = 0.2, alpha = 0.5) +
-    scale_fill_manual (values = colours_cycle)+
     facet_grid(population~cycle_name, scales = "free", space = "free_x") +
         theme(panel.spacing.x = unit(0,"lines"),
               panel.grid.major = element_blank(),
