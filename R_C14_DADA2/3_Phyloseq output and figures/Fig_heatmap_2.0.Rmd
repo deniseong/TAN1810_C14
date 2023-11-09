@@ -56,7 +56,9 @@ long_pico <- long_pico %>%
 
 long_pico_1 <- long_pico %>%
      filter(vial_type=="light")
-
+check <- long_pico_1 %>%
+    select(asv_code:species) %>%
+    unique()
 
 # pivot longer dataframe
 otu_rel_abund <- long_pico_1 %>%
@@ -209,9 +211,10 @@ p2 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
                                "Chrysophyceae",
                               # "Chloropicophyceae",
                                "NA")) %>%
+    filter(taxon!="Other") %>%
      ggplot(aes(x=cycle_name_2, y = taxon, fill =rel_abund)) +
     geom_tile() +
-  geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+
+  # geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+
    scale_fill_distiller(type = "seq", 
                         palette = "BuGn",
                         name = "Median<br>Relative<br>Abund (%)",
@@ -235,7 +238,8 @@ p2 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
   scale_x_discrete(position = "top") +
   xlab(NULL)+
   ylab(NULL) +
-    facet_grid(class~., scales = "free_y", space = "free", switch = "y") 
+    facet_grid(class~., scales = "free_y", space = "free", switch = "y") +
+    ggtitle("Picoeukaryotes - species level")
     
 p2
 # pdf("20221130_pico_species_heatmap.pdf", height=5, width=7) ; plot(p) ; dev.off()
@@ -334,7 +338,7 @@ p1
 # pdf("pico_order_heatmap.pdf", height=5, width=5) ; plot(p) ; dev.off()
 
  #heatmap
- p2 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
+ p1 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
      mutate(taxon=if_else(pool, "Other", taxon)) %>%
      group_by(file_code, cycle_name_2, taxon) %>%
      summarise(rel_abund = sum(rel_abund), 
@@ -374,9 +378,9 @@ p1
       xlab(NULL)+
       ylab(NULL) +
      facet_grid(class~., scales = "free_y", space = "free", switch = "y") +
-     ggtitle("Picoeukaryotes - order level (log scale)")
+     ggtitle("Picoeukaryotes - order level")
 
-p2
+p1
 ```
 
 # Sorted nano
@@ -408,6 +412,9 @@ long_nano_1 <- long_nano %>%
    #  ps_top_asv(10) %>% #subset top 10 ASVs per sample
      filter(vial_type=="light")
 
+check <- long_nano_1 %>%
+    select(asv_code:species) %>%
+    unique()
 
 # pivot longer dataframe
 otu_rel_abund <- long_nano_1 %>%
@@ -425,7 +432,7 @@ otu_rel_abund <- long_nano_1 %>%
 ## Order - select above 5%
 ```{r}
 taxon_rel_abund <- otu_rel_abund %>%
-    filter(level == "class") %>% #choose level here 
+    filter(level == "order") %>% #choose level here 
     group_by(water_mass, cycle_name_2, file_code, taxon) %>%
     summarise(rel_abund = 100*sum(rel_abund)) %>%
     pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
@@ -707,10 +714,10 @@ sample_no
 # Figure 8 - Heatmap
 ```{r}
 library(patchwork)
-plot <- (p1 |p5) / (p2|p3) + plot_annotation(tag_levels = 'A') + plot_layout( heights = c(1, 1.75))
+plot <- (p1 |plot_spacer() | p5) / (p2|p3) + plot_annotation(tag_levels = 'A') + plot_layout( heights = c(1, 1.75))
 
 plot
-pdf("heatmap.pdf", height=6, width=12) ; plot(plot) ; dev.off()
+pdf("heatmap_test v2.pdf", height=6, width=12) ; plot(plot) ; dev.off()
 
 library(patchwork)
 plot <- (p1 |p2) / (p3|p5) + plot_annotation(tag_levels = 'A')# + plot_layout( heights = c(1, 1.75))

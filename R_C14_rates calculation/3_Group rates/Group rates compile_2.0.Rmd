@@ -14,6 +14,12 @@ npp units mgC/m3/day
 library(here)
 source(here("0_init_files", "init.R")) #for libraries
 source(here("0_init_files", "init_markdown.R")) #for markdown libraries
+
+# colours
+colours_cycle <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"))
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+colours_exp <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"), sheet = "exp")
+colours_exp <- structure(colours_exp$colour,.Names=colours_exp$exp)
 ```
 
 
