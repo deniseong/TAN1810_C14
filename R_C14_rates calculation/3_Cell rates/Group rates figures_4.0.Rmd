@@ -419,7 +419,7 @@ npp_mixed
 p <- (pp_mixed|npp_mixed) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
   theme(legend.position='right')  & theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), legend.title = element_text(size = 12), axis.title = element_text(size = 12))
 p
-pdf("pp npp interactions_mean and CI.pdf", height=5, width=10) ; plot(p) ; dev.off()
+# pdf("pp npp interactions_mean and CI.pdf", height=5, width=10) ; plot(p) ; dev.off()
 ```
 
 # Table 2 - summary for paper - pp, npp, cell conc

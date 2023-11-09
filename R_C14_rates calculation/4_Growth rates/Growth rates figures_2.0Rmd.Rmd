@@ -403,6 +403,8 @@ st <- ggplot() +
                             y = growth_rate),
                         side = 'l',
                         nudge = 0.05,
+                        fill = "#C62828",
+                        alpha = 0.5,
                         data = df) +
         # geom_half_point_panel(aes(x = population,
         #                     y = npp),
@@ -417,16 +419,19 @@ st <- ggplot() +
                         size = 0.6,
                         lwd = 1.3, 
                         position = position_dodge(width = 1),
+                        colour = "#C62828",
                         data = lm_emm) +
         labs(x = "Population",
              y = "Growth rate (day-1)",
              # colour = "Water mass",
              # shape = "Cycle",
-             title = "Subtropical"
+             # title = "Subtropical"
              ) +
       # scale_shape_manual(values=c(0,1, 15, 17, 19)) +
       # scale_colour_manual(values = c("#C62828", "#1565C0"))+ 
-      scale_y_continuous(trans='log10') +
+      scale_y_continuous(trans='log10',
+                         limits = c(0.01, 3.5)
+                         ) +
       annotation_logticks(sides = "l") +
   annotate("text", x = 3, y = 0.015, label = "ANOVA; R2=-0.03,\n  F{2, 47} = 0.14, p = 0.87")
 
@@ -460,12 +465,12 @@ contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt")
 ```{r}
 sa <- ggplot() +
         # Raw data
-  # geom_dotplot(aes(x = population,
-  #                           y = growth_rate), binaxis = "y", method="histodot", stackdir="up", position = PositionDodge,data = df, size=1)+
        geom_half_violin(aes(x = population,
                             y = growth_rate),
                         side = 'l',
                         nudge = 0.05,
+                        fill = "#1565C0",
+                        alpha = 0.5,
                         data = df) +
        #  geom_half_point_panel(aes(x = population,
        #                      y = growth_rate),
@@ -480,24 +485,33 @@ sa <- ggplot() +
                         size = 0.6,
                         lwd = 1.3, 
                         position = position_dodge(width = 1),
+                        colour = "#1565C0",
                         data = lm_emm) +
         labs(x = "Population",
              y = "Growth rate (day-1)",
-             # colour = "Water mass",
-             # shape = "Cycle",
-             title = "Subantarctic"
+             # title = "Subantarctic"
              ) +
-      # scale_shape_manual(values=c(0,1, 15, 17, 19)) +
-      # scale_colour_manual(values = c("#C62828", "#1565C0"))+ 
-      scale_y_continuous(trans='log10') +
+      scale_y_continuous(trans='log10',
+                         limits = c(0.01, 3.5)
+                         ) +
       annotation_logticks(sides = "l") +
   annotate("text", x = 3, y = 0.015, label = "ANOVA; R2=0.35,\n F{2, 76} = 21.73, p < 0.0001")
 
 sa
-p <- (st|sa) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
-  theme(legend.position='right')  & theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), legend.title = element_text(size = 12), axis.title = element_text(size = 12))
+
+#load pp and npp plots from group rates figures_4.0.Rmd file
+p <- ((pp_mixed|npp_mixed)/ (st|sa)) + 
+  plot_annotation(tag_levels = 'A') +  
+  plot_layout(guides = 'collect')  &
+  theme(legend.position='top')  & 
+  theme(axis.text = element_text(size = 12), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(size = 12), 
+        axis.title = element_text(size = 12)
+        )
 p
-pdf("growth rate_mean and CI.pdf", height=5, width=10) ; plot(p) ; dev.off()
+
+pdf("pp_npp_growth rate_mean and CI.pdf", height=9.5, width=9) ; plot(p) ; dev.off()
 ```
 
 
