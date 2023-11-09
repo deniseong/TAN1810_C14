@@ -2,7 +2,7 @@
 
 Script and data for:
 
-All bioinformatics data have been deposited in NCBI Sequence Read Archive (petB (filtered and sorted)-PRJNA885274, 18SV4 (filtered)-PRJNA670061 and XXX, 18SV4 (sorted)-XXX).
+All bioinformatics data have been deposited in NCBI Sequence Read Archive (petB (filtered and sorted)-PRJNA885274, 18SV4 (filtered)-PRJNA670061 and PRJNA1033349, 18SV4 (sorted)-PRJNA1033349).
 
 Flow cytometry data is available on ([flowrepository.org](https://http://flowrepository.org/experiments/1773)) (Repository ID: FR-FCM-Z5P8). Metadata for files are found on Github at ([deniseong/marine-Synechococcus-metaB](https://github.com/deniseong/marine-Synechococcus-metaB/tree/main/7_FCM%20files%20metadata)). 
 
@@ -14,9 +14,9 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 ### 0_init_files
 - libraries and colours used for analysis
 
-### 1_Map, CTD, nutrients
+### 1_Map, CTD, nutrients, cell abundance
 - Map (Map_temp_2.0.Rmd)
-- CTD and nutrients (CTD_nutrients_data_2.0.Rmd)
+- CTD, nutrients and cell abundance profiles (CTD_nutrients_data_2.0.Rmd)
 
 ### 2_Chl a and NPP
 - calculate small volume NPP rates (NPP rates calculation 2.0.Rmd)
