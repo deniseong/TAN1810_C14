@@ -1,0 +1,526 @@
+---
+title: "18S filt vs sort"
+author: "Denise Ong"
+date: "10/27/2022"
+output: html_document
+---
+Supplementary figure S14 for filtered samples.
+
+# Initialize
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+library(here)
+here()
+source(here("3_Phyloseq output and figures", "init_files", "init.R")) #for libraries
+source(here("3_Phyloseq output and figures", "init_files", "init_markdown.R")) #for markdown libraries
+source(here("3_Phyloseq output and figures", "init_files", "define_functions.R")) #functions to 1.transform to dataframe, 2.normalise and 3.create treemaps
+source(here("3_Phyloseq output and figures", "trophic_mode", "trophic_function.R"))  #function to assign trophic level for phyloseq objects
+source(here("3_Phyloseq output and figures", "init_files", "colours_18sv4.R")) # predetermined colours
+source(here("3_Phyloseq output and figures", "init_files", "colours_petb.R")) # predetermined colours
+# source(here("3_Phyloseq output and figures", "init_files", "colours_random.R")) #random colours
+```
+
+# Eukaryotes 18SV4 
+## read data
+```{r}
+source(here("3_Phyloseq output and figures", "init_files", "read_18s_filt_sort.R"))
+
+filt_samples_list <- junk %>%
+  filter(sample_type == "filt") %>%
+  filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+  filter(station != "108")
+# writexl::write_xlsx(filt_samples_list, "filt_samples_list.xlsx")
+
+ps_filt_sort <- phyloseq_assign_trophic(ps_filt_sort) %>%
+    subset_taxa(trophic_mode_2 != "heterotrophic") #remove heterotrophs
+# Do normalizations and transformation
+ps_filt_sort <- phyloseq_normalize_median(ps_filt_sort)
+long_filt_sort <- phyloseq_transform_to_long(ps_filt_sort) %>%
+  mutate(cycle_name_2 = dplyr::recode(cycle_name_2, "SA1" = "SA-Sc")) %>%
+  mutate(cycle_name_2 = dplyr::recode(cycle_name_2, "SA2" = "SA1")) %>%
+  mutate(cycle_name_2 = dplyr::recode(cycle_name_2, "SA3" = "SA2")) %>%
+  mutate(cycle_name_2 = fct_relevel(cycle_name_2, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
+  mutate(sample = fct_relevel(sample, "SUR", "DCM"))
+```
+
+
+check overlapping samples
+```{r}
+sample <- data.frame(ps_filt_sort@sam_data) %>%
+    select(ctd_cast, station, depth, sample_type, cycle_name_2) %>%
+    distinct() %>%
+    pivot_wider(names_from = depth, values_from = sample_type)
+sample
+```
+
+## check photosynthetic in filt not included in sorted
+```{r, eval=FALSE}
+long_sorted_asvhash <- long_filt_sort %>%
+    filter(sample_type != "filt") %>%
+    select(asv_code) 
+
+long_filt<- long_filt_sort %>%
+    filter(sample_type == "filt")
+
+long_filt_anti <- anti_join(long_filt, long_sorted_asvhash) %>%
+  distinct() %>%
+  # mutate(in_sorted = "no") %>%
+    mutate(in_sorted = case_when(class == "Dinophyceae" ~ "dinophyceae",
+                               TRUE~ "no"))  %>%
+  filter(class != "Syndiniales") %>%
+  filter(species != "Dinophyceae_XXX_sp.") %>%
+  filter(trophic_mode == "photosynthetic") 
+
+long_filt_sort <- inner_join(long_filt, long_sorted_asvhash) %>%
+    distinct() %>%
+  mutate(in_sorted = "yes")
+
+
+long_filt_sort_join <- full_join(long_filt_anti, long_filt_sort) %>%
+  filter(class != "Syndiniales") %>%
+  filter(species != "Dinophyceae_XXX_sp.") %>%
+  filter(trophic_mode == "photosynthetic") 
+
+# check proportion of photosynthetic not in sorted
+p  <- long_filt_sort_join %>%
+  ggplot(aes(x=station, y=n_reads, fill=in_sorted, colour = in_sorted)) +
+  geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") 
+p
+
+# check proportion of dinophyceae
+p  <- long_filt_anti %>%
+  ggplot(aes(x=station, y=n_reads, fill=trophic_mode_2, colour = trophic_mode_2)) +
+  geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 45, hjust = 1))+
+        facet_grid(.~cycle_name_2, scales = "free_x") 
+p
+
+```
+
+## Pico vs filt
+```{r}
+# select only ASVs which are in sorted light incubated Pico samples 
+long_pico_asvhash <- long_filt_sort %>%
+    filter(sample_type == "Pico") %>%
+    filter(vial %in% c("A", "B", "C")) %>%
+    select(asv_code)
+
+long_pico <- long_filt_sort %>%
+    filter(sample_type == "Pico") %>%
+    filter(class != "Dinophyceae") #remove Dinophyceae
+
+long_filt<- long_filt_sort %>%
+    filter(sample_type == "filt") %>%
+    filter(class != "Dinophyceae")
+
+long_filt_pico <- inner_join(long_filt, long_pico_asvhash) %>%
+    distinct()
+```
+
+to calculate relative abundance in filtered sample
+```{r}
+# pivot longer dataframe
+otu_rel_abund <- long_filt_pico %>%
+    filter(class != "Dinophyceae")  %>% # remove dinophyceae reads
+    filter(species != "Gephyrocapsa_oceanica") %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon")  %>%
+    filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+    filter(station != "108") %>% # remove station 108 because it is in SA1-b
+    filter(station != "371")  %>% # remove because SA2 only has one incubation in the same filt sample
+    mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
+                                    depth_category == "5" ~ "DCM",
+                                    TRUE ~ depth_category)) 
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, station, depth_cat_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0\
+    # select(water_mass:file_code, Bacillariophyta:Trebouxiophyceae) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, station, depth_cat_2, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0\
+    # select(water_mass:file_code, Bacillariophyta:Trebouxiophyceae) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+check <- taxon_rel_abund %>%
+    group_by(taxon) %>%
+    summarise(median= median(rel_abund))
+#summary for supplementary
+summary_filt_pico <- taxon_rel_abund %>%
+    group_by(taxon, cycle_name_2) %>%
+    summarise(median = round(median(rel_abund),2),
+              IQR = round(IQR(rel_abund),2)) %>%
+    unite("median_IQR", median:IQR, sep = " (") %>%
+    mutate(edit = ")") %>%
+    unite("median_IQR", median_IQR:edit, sep = "") %>%
+    mutate(type = "filt") %>%
+    select(taxon, cycle_name_2, type, median_IQR) %>%
+    unite("cycle_name_2", cycle_name_2:type, sep="_") %>%
+    pivot_wider(names_from = taxon, values_from = median_IQR) %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "Class")
+```
+to calculate relative abundance in sorted sample
+```{r}
+otu_rel_abund <- long_pico %>%
+    filter(class != "Dinophyceae") %>% #remove Dinophyceae
+    filter(species != "Gephyrocapsa_oceanica") %>%
+    filter(vial %in% c("A", "B", "C")) %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, station,file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0\
+    # select(water_mass:file_code, Chryspophyceae:`MOCH-2`) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+check <- taxon_rel_abund %>%
+    group_by(taxon) %>%
+    summarise(median= median(rel_abund))
+
+#summary for supplementary
+summary_sort_pico <- taxon_rel_abund %>%
+    group_by(taxon, cycle_name_2) %>%
+    summarise(median = round(median(rel_abund),2),
+              IQR = round(IQR(rel_abund),2)) %>%
+    unite("median_IQR", median:IQR, sep = " (") %>%
+    mutate(edit = ")") %>%
+    unite("median_IQR", median_IQR:edit, sep = "") %>%
+    mutate(type = "sort") %>%
+    select(taxon, cycle_name_2, type, median_IQR) %>%
+    unite("cycle_name_2", cycle_name_2:type, sep="_") %>%
+    pivot_wider(names_from = taxon, values_from = median_IQR) %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "Class") %>%
+    full_join(check, by = join_by(Class == taxon)) #order by median abundance
+
+
+summary_pico <- full_join(summary_sort_pico, summary_filt_pico, by = join_by(Class))
+writexl::write_xlsx(summary_pico, "summary_pico.xlsx")
+```
+
+
+additional checks
+```{r}
+filt_pico_merge <-full_join(long_pico,long_filt_pico) %>%
+  distinct() %>%
+    filter(class != "Dinophyceae")
+
+# compare directly sorted vs filtered. 
+p <- filt_pico_merge %>%
+  filter(sample %in% c("SUR", "DCM")) %>%
+  filter(station != "108") %>% 
+    filter(station != "371") %>%# remove station 108 because it is in SA1-b
+  # unite("cycle_station", cycle_name_2, station, sep = "_") %>%
+  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+  ggplot(aes(x=sample_type, y=n_reads, fill=class, colour = class)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 90, hjust = 1))+
+        facet_grid(sample~cycle_name_2, scales = "free_x", space = "free") +
+        ggtitle("Sorted pico - class level") +
+        scale_color_manual(values=colours_18s_class, limits = force) +
+        scale_fill_manual(values=colours_18s_class, limits = force) +
+  ylab("Proportion of reads")
+p
+```
+
+## Nano vs filt
+```{r}
+long_nano_asvhash <- long_filt_sort %>%
+    filter(sample_type == "Nano") %>%
+    filter(vial %in% c("A", "B", "C")) %>%
+    select(asv_code)
+
+long_nano <- long_filt_sort %>%
+    filter(sample_type == "Nano") 
+
+long_filt<- long_filt_sort %>%
+    filter(sample_type == "filt")
+
+long_filt_nano <- inner_join(long_filt, long_nano_asvhash) %>%
+    distinct()
+```
+
+to calculate relative abundance and summary for results
+```{r}
+# pivot longer dataframe
+otu_rel_abund <- long_filt_nano %>%
+    filter(class!= "Mamiellophyceae") %>%
+    filter(class!= "Chloropicophyceae") %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") %>%
+    filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+    filter(station != "108") %>% # remove station 108 because it is in SA1-b
+    filter(station != "371")  %>% # remove because SA2 only has one incubation in the same filt sample
+    mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
+                                    depth_category == "5" ~ "DCM",
+                                    TRUE ~ depth_category))
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, station, depth_category, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0
+    # select(water_mass:file_code, Bacillariophyta:`Prasino-Clade-VIII`) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+
+check <- taxon_rel_abund %>%
+    group_by(taxon) %>%
+    summarise(median= median(rel_abund))
+#summary for supplementary
+summary_filt_nano <- taxon_rel_abund %>%
+    group_by(taxon, cycle_name_2) %>%
+    summarise(median = round(median(rel_abund),2),
+              IQR = round(IQR(rel_abund),2)) %>%
+    unite("median_IQR", median:IQR, sep = " (") %>%
+    mutate(edit = ")") %>%
+    unite("median_IQR", median_IQR:edit, sep = "") %>%
+    mutate(type = "filt") %>%
+    select(taxon, cycle_name_2, type, median_IQR) %>%
+    unite("cycle_name_2", cycle_name_2:type, sep="_") %>%
+    pivot_wider(names_from = taxon, values_from = median_IQR) %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "Class")
+```
+
+```{r}
+otu_rel_abund <- long_nano %>%
+    filter(class!= "Mamiellophyceae") %>%
+    filter(class!= "Chloropicophyceae") %>%
+    filter(vial %in% c("A", "B", "C")) %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:species,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "class") %>% #choose level here 
+    group_by(water_mass, cycle_name_2, station,file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+check <- taxon_rel_abund %>%
+    group_by(taxon) %>%
+    summarise(median= median(rel_abund))
+
+#summary for supplementary
+summary_sort_nano <- taxon_rel_abund %>%
+    group_by(taxon, cycle_name_2) %>%
+    summarise(median = round(median(rel_abund),2),
+              IQR = round(IQR(rel_abund),2)) %>%
+    unite("median_IQR", median:IQR, sep = " (") %>%
+    mutate(edit = ")") %>%
+    unite("median_IQR", median_IQR:edit, sep = "") %>%
+    mutate(type = "sort") %>%
+    select(taxon, cycle_name_2, type, median_IQR) %>%
+    unite("cycle_name_2", cycle_name_2:type, sep="_") %>%
+    pivot_wider(names_from = taxon, values_from = median_IQR) %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "Class") %>%
+    full_join(check, by = join_by(Class == taxon))
+
+
+summary_nano <- full_join(summary_sort_nano, summary_filt_nano, by = join_by(Class))
+writexl::write_xlsx(summary_nano, "summary_nano.xlsx")
+```
+
+additional checks
+```{r}
+filt_nano_merge <-full_join(long_nano,long_filt_nano) %>%
+  distinct() %>%
+  filter(class!= "Mamiellophyceae") %>%
+  filter(class!= "Chloropicophyceae")
+
+# compare directly sorted vs filtered. 
+p <- filt_nano_merge %>%
+  filter(sample %in% c("SUR", "DCM")) %>%
+  filter(station != "108") %>% # remove station 108 because it is in SA1-b
+  filter(station != "371") %>%
+  # unite("cycle_station", cycle_name_2, station, sep = "_") %>%
+  mutate(class = fct_lump_n(class, 10, other_level = "Others")) %>%
+  ggplot(aes(x=sample_type, y=n_reads, fill=class, colour = class)) + 
+        geom_bar(position="fill", stat="identity", size=0.5) + 
+        theme(text=element_text(size=10),
+              axis.text.x = element_text(angle = 90, hjust = 1))+
+        facet_grid(sample~cycle_name_2, scales = "free_x", space = "free") +
+        ggtitle("Sorted nano - class level") +
+        scale_color_manual(values=colours_18s_class, limits = force) +
+        scale_fill_manual(values=colours_18s_class, limits = force) +
+  ylab("Proportion of reads")
+p
+```
+
+
+#Syn - petB
+## read data
+```{r}
+source(here("3_Phyloseq output and figures", "init_files", "read_petb_2.0.R"))
+
+filt_samples_list <- data.frame(ps_filt_sort@sam_data) %>%
+  filter(sample_type == "filt") %>%
+  # filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+  filter(station != "108") %>%
+  select(station, depth, depth_category)
+long_filt_ong <-  full_join(long_filt_ong, filt_samples_list, by = join_by(station, depth)) %>%
+    filter(!(is.na(file_code))) 
+```
+
+```{r}
+long_syn_asvhash <- long_sorted %>%
+    filter(vial %in% c("A", "B", "C")) %>%
+    select(asv_code)
+
+long_filt_syn <- inner_join(long_filt_ong, long_syn_asvhash) %>%
+    distinct()
+```
+
+to calculate relative abundance
+```{r}
+# pivot longer dataframe
+otu_rel_abund <- long_filt_syn %>%
+  mutate(cycle_name = recode(cycle, "1" = "SA-Sc",
+                                    "2" = "SA1",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA2")) %>%
+    mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:Subclade,
+                 names_to = "level",
+                 values_to = "taxon") %>%
+    filter(depth_category %in% c("2", "5")) %>% # select surface and DCM depths only.
+    filter(station != "108") %>% # remove station 108 because it is in SA1-b
+    filter(station != "371")  %>% # remove because SA2 only has one incubation in the same filt sample
+    mutate(depth_cat_2 = case_when(depth_category == '2' ~ "SUR",
+                                    depth_category == "5" ~ "DCM",
+                                    TRUE ~ depth_category)) 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "Subclade") %>% #choose level here 
+    group_by(water_mass, cycle_name, station, depth_category, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0
+    # select(water_mass:file_code, CRD1:IIf) %>%
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund") %>%
+    arrange(desc(rel_abund))
+
+check <- taxon_rel_abund %>%
+    group_by(taxon) %>%
+    summarise(median= median(rel_abund))
+
+#summary for supplementary
+summary_filt_syn <- taxon_rel_abund %>%
+    group_by(taxon, cycle_name) %>%
+    summarise(median = round(median(rel_abund),2),
+              IQR = round(IQR(rel_abund),2)) %>%
+    unite("median_IQR", median:IQR, sep = " (") %>%
+    mutate(edit = ")") %>%
+    unite("median_IQR", median_IQR:edit, sep = "") %>%
+    mutate(type = "filt") %>%
+    select(taxon, cycle_name, type, median_IQR) %>%
+    unite("cycle_name", cycle_name:type, sep="_") %>%
+    pivot_wider(names_from = taxon, values_from = median_IQR) %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "Subclade")
+
+```
+
+```{r}
+otu_rel_abund <- long_sorted %>%
+    filter(vial %in% c("A", "B", "C")) %>%
+    group_by(file_code) %>%
+    mutate(rel_abund = n_reads / sum(n_reads)) %>%
+    ungroup() %>%
+    select(-n_reads) %>%
+    pivot_longer(cols = asv_code:Subclade,
+                 names_to = "level",
+                 values_to = "taxon") 
+
+taxon_rel_abund <- otu_rel_abund %>%
+    filter(level == "Subclade") %>% #choose level here 
+    group_by(water_mass, cycle_name, file_code, taxon) %>%
+    summarise(rel_abund = 100*sum(rel_abund)) %>%
+    pivot_wider(names_from = taxon, values_from = rel_abund, values_fill = 0) %>% #from here is to replace any file_code with NA as 0
+    pivot_longer(cols= !water_mass:file_code,
+                 names_to = "taxon",
+                 values_to = "rel_abund")
+
+check <- taxon_rel_abund %>%
+    group_by(taxon) %>%
+    summarise(median= median(rel_abund))
+
+#summary for supplementary
+summary_sort_syn <- taxon_rel_abund %>%
+    group_by(taxon, cycle_name) %>%
+    summarise(median = round(median(rel_abund),2),
+              IQR = round(IQR(rel_abund),2)) %>%
+    unite("median_IQR", median:IQR, sep = " (") %>%
+    mutate(edit = ")") %>%
+    unite("median_IQR", median_IQR:edit, sep = "") %>%
+    mutate(type = "sort") %>%
+    select(taxon, cycle_name, type, median_IQR) %>%
+    unite("cycle_name", cycle_name:type, sep="_") %>%
+    pivot_wider(names_from = taxon, values_from = median_IQR) %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "Subclade") %>%
+    full_join(check, by = join_by(Subclade == taxon))
+
+
+summary_syn <- full_join(summary_sort_syn, summary_filt_syn, by = join_by(Subclade))
+writexl::write_xlsx(summary_syn, "summary_syn.xlsx")
+```
+

@@ -18,7 +18,8 @@ ps_filt_sort<- ps_filt_sort %>%
     subset_taxa(!(division %in% c("Metazoa", "Fungi"))) %>%
     subset_taxa(!(class == "Embryophyceae")) %>% # to remove the plants.Likely from contamination. Checked with Adriana and Daniel, ok to remove.
     subset_taxa(!(species == "Padina_australis")) %>%
-    subset_taxa(!(class %in% c("Syndiniales")))
+    subset_taxa(!(class %in% c("Syndiniales"))) %>%
+    subset_taxa(!(class %in% c("Spirotrichea")))
 
 junk <- data.frame(ps_filt_sort@sam_data)
 # junk <- data.frame(ps_filt_sort@otu_table)    

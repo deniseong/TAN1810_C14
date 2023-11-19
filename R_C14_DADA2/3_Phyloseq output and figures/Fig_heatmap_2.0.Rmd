@@ -529,7 +529,9 @@ taxon_pool <- taxon_rel_abund %>%
 #get class name for facet grid grouping with class
 class_df <- long_nano_1 %>%
     select(class, order, species) %>%
-    distinct()
+    distinct() %>%
+    unite("class_order", class:order, sep = "_") 
+    
 
 #heatmap
 p4 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
@@ -537,36 +539,41 @@ p4 <- inner_join(taxon_rel_abund, taxon_pool, by="taxon") %>%
     group_by(cycle_name_2, file_code, taxon) %>%
     summarise(rel_abund = sum(rel_abund), #add Others taxon together
               .groups = "drop") %>%
+    mutate(taxon = case_when(taxon == "Heterocapsa_nei/rotundata" ~ "Dinophyceae_XXX_sp.", #reclassify 2 species
+                             taxon == "Gyrodinium_spirale" ~ "Dinophyceae_XXX_sp.",
+                             TRUE~ as.character(taxon))) %>%
     group_by(cycle_name_2, taxon) %>%
-   summarise(rel_abund = mean(rel_abund)) %>% # for median reads per taxon per cycle
-   left_join(class_df , by=c("taxon" = "species")) %>% # get class levels for sp.
-     ggplot(aes(x=cycle_name_2, y = taxon, fill =rel_abund)) +
+    summarise(rel_abund = mean(rel_abund)) %>% # for median reads per taxon per cycle
+    left_join(class_df , by=c("taxon" = "species")) %>% # get class levels for sp.
+    filter(taxon != "Other") %>%
+    ggplot(aes(x=cycle_name_2, y = taxon, fill =rel_abund)) +
     geom_tile() +
-  geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+
+  # geom_text(aes(label=format(round(rel_abund,1), nsmall = 1)), size=3)+
   scale_fill_distiller(name = "Median<br>Relative<br>Abund (%)",
                        palette = "Purples",
                        expand = c(0,0),
-                      na.value = "white",
-                      direction = 1,
-                      trans = "log")+
-  theme_classic()+
+                       breaks = c(0, 0.1, 1, 10,100),
+                       na.value = "white",
+                       direction = 1,
+                       trans = "log")+
+    theme_classic()+
     theme(text=element_text(size=10),
               strip.text.y.left = element_text(angle = 0),
               panel.spacing.x = unit(0,"lines"),
               panel.grid.major = element_blank(),
               panel.grid.minor = element_blank(),
               strip.background = element_blank(),
-          axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          legend.title = element_markdown(),
-          strip.placement = "outside") +
+              axis.line = element_blank(),
+              axis.ticks = element_blank(),
+              legend.title = element_markdown(),
+              strip.placement = "outside") +
   scale_x_discrete(position = "top") +
   xlab(NULL)+
   ylab(NULL) +
-    facet_grid(order~., scales = "free_y", space = "free", switch = "y") 
+    facet_grid(class_order~., scales = "free_y", space = "free", switch = "y") 
     
 p4
-# pdf("nano_species_heatmap.pdf", height=7, width=8) ; plot(p4) ; dev.off()
+pdf("nano_species_heatmap.pdf", height=6, width=9) ; plot(p4) ; dev.off()
 ```
 
 # Sorted syn
