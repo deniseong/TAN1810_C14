@@ -136,7 +136,12 @@ shapiro.test(log10(pp_rates$pp))
 ```{r, eval=FALSE}
 # because of unbalanced design, subset 16 samples randomly for each group first 
 # no difference when subset. Use all samples.
-set.seed(74657)
+# set.seed(1)
+# set.seed(78674)
+# set.seed(234154)
+# set.seed(3413)
+set.seed(76876)
+
 # interaction plot population and water mass?
 sub <- pp_rates %>%
   group_by(population, water_mass) %>%
@@ -323,8 +328,13 @@ shapiro.test(log10(pp_rates$npp)) # significant. Meet assumptions, using ANOVA
 ```{r, eval=FALSE}
 # because of unbalanced design, subset 16 samples randomly for each group first 
 # no difference when subset. Use all samples.
+# set.seed(1)
+# set.seed(78674)
+# set.seed(234154)
+# set.seed(3413)
 set.seed(76876)
-  sub <- pp_rates %>%
+
+sub <- pp_rates %>%
   group_by(population, water_mass) %>%
   sample_n(16)
 
