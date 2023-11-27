@@ -67,4 +67,4 @@ Flow cytometry data is available on ([flowrepository.org](https://http://flowrep
 - Heatmap (Fig_heatmap_2.0.Rmd)
 - NMDS figure and statistical tests (NMDS_PERMANOVA_2.0.Rmd)
 - Compare incubation vials of initials, light incubation and dark incubation (Fig_incubation vials.Rmd)
-- Compare filtered and sorted samples (Fig_filt vs sort.Rmd)
+- Compare filtered and sorted samples (Table_filt vs sort.Rmd)
