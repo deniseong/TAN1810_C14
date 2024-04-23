@@ -95,8 +95,8 @@ taxon_rel_abund <- otu_rel_abund %>%
 
 ## summary for results
 summary <- taxon_rel_abund %>%
-  filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae", "Chloropicophyceae")) %>%
-  filter(cycle_name_2 != "SA1") %>%
+  # filter(taxon %in% c("Mamiellophyceae", "Chrysophyceae","Pelagophyceae","Prymnesiophyceae", "Chloropicophyceae")) %>%
+  # filter(cycle_name_2 != "SA-Sc") %>%
   group_by(taxon, water_mass) %>%
   summarise(median = median(rel_abund),
             mean = mean(rel_abund))

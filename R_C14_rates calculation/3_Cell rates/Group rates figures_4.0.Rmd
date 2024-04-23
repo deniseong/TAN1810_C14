@@ -8,6 +8,9 @@ editor_options:
     wrap: 72
 ---
 
+Plot cell-specific carbon fixation, group-sp producitivity. 
+Statistical tests.
+Remove ST1 experiment 7 from statistical tests and main figs.
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(here)
 source(here("0_init_files", "init.R")) #for libraries
@@ -34,7 +37,8 @@ cold_standard <- readxl::read_excel(here("Output", "Raw data", "NPP_cold_standar
          depth = `sample`)
 cold_standard$exp <- as.character(cold_standard$exp)
 
-pp_rates <- readxl::read_excel(here("Output", "Raw data", "Rates_cell_npp_method2.xlsx")) 
+pp_rates <- readxl::read_excel(here("Output", "Raw data", "Rates_cell_npp_method2.xlsx")) %>%
+  filter(exp!=7)
 
 #set factor levels
 pp_rates$water_mass <- factor(pp_rates$water_mass, levels = c("ST", "SA"))
@@ -50,11 +54,11 @@ pp_rates$depth <- factor(pp_rates$depth, levels = c("SUR", "DCM"))
 surface is not different from DCM for all groups not significantly
 different, from here on combine surface and DCM
 
-Syn: t-test t = -1.9885, df = 40, p-value = 0.05363
+Syn: t = -1.5574, df = 37, p-value = 0.1279
 
-Pico: t = -1.3297, df = 41, p-value = 0.191
+Pico: t = -0.83081, df = 38, p-value = 0.4113
 
-Nano: t = -0.28573, df = 21.247, p-value = 0.7778
+Nano: t = 0.75534, df = 40, p-value = 0.4545
 
 ```{r}
 library("ggpubr")
@@ -75,27 +79,27 @@ t_test_df<- pp_rates %>%
 #   select(depth, water_mass, pp) %>%
 #   group_by(depth) %>%
 #   sample_n(14)
+# 
+# summary <- t_test_df %>%
+#   group_by(depth) %>%
+#   summarise(count = n(),
+#     mean = mean(pp, na.rm = TRUE),
+#     sd = sd(pp, na.rm = TRUE))
+# print(summary)
 
-summary <- t_test_df %>%
-  group_by(depth) %>%
-  summarise(count = n(),
-    mean = mean(pp, na.rm = TRUE),
-    sd = sd(pp, na.rm = TRUE))
-print(summary)
-
- p <- t_test_df %>%
-   ggplot(aes(x=depth, y=pp))  +geom_boxplot() + geom_point() +
-    facet_grid(~depth, scales = "free") +
-    scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
- print(p)
+#  p <- t_test_df %>%
+#    ggplot(aes(x=depth, y=pp))  +geom_boxplot() + geom_point() +
+#     facet_grid(~depth, scales = "free") +
+#     scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
+#  print(p)
 
 # checks, all groups meet assumptions of normality and homoskedasticity
-hist(log10(t_test_df$pp))
-qqnorm(log10(t_test_df$pp))
-p<-with(t_test_df, shapiro.test(log10(pp[depth == "SUR"])))
-print(p)
-p<-with(t_test_df, shapiro.test(log10(pp[depth == "DCM"])))
-print(p)
+# hist(log10(t_test_df$pp))
+# qqnorm(log10(t_test_df$pp))
+# p<-with(t_test_df, shapiro.test(log10(pp[depth == "SUR"])))
+# print(p)
+# p<-with(t_test_df, shapiro.test(log10(pp[depth == "DCM"])))
+# print(p)
 
 # check for variance. If variance sig different, use var.equal = FALSE
 var.test(log10(pp) ~ depth, t_test_df)
@@ -105,17 +109,17 @@ print(res)
 
 # create lm and check residuals
 lm <- lm(log10(pp) ~ depth, data=pp_rates)
-plot(lm) 
+# plot(lm) 
 
 
 # Calculate model estimated means and CIs
 library(ggeffects)
-lm_emm <- ggemmeans(lm, 
-                    terms = c("depth"),
-                    type = "fixed")
-
-lm_emm
-plot(lm_emm)
+# lm_emm <- ggemmeans(lm, 
+#                     terms = c("depth"),
+#                     type = "fixed")
+# 
+# lm_emm
+# plot(lm_emm)
 
 ```
 
@@ -145,7 +149,7 @@ set.seed(76876)
 # interaction plot population and water mass?
 sub <- pp_rates %>%
   group_by(population, water_mass) %>%
-  sample_n(16)
+  sample_n(14)
 
 summary <- sub %>%
   group_by(population, water_mass) %>%
@@ -181,10 +185,26 @@ print(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"
 ```
 
 ## test and plot
+# water_mass = ST
 
+population | Predicted |         95% CI
+Syn        |      1.23 | [ 0.82,  1.83]
+Pico       |      1.96 | [ 1.31,  2.93]
+Nano       |     41.62 | [27.84, 62.20]
+
+# water_mass = SA
+
+population | Predicted |         95% CI
+Syn        |      0.39 | [ 0.29,  0.53]
+Pico       |      1.26 | [ 0.94,  1.70]
+Nano       |     44.28 | [33.33, 58.84]
+
+Multiple R-squared:  0.8674,	Adjusted R-squared:  0.8616 
+                       Sum Sq  Df F value    Pr(>F)   
+population:water_mass  1.2618   2  5.8044  0.003967 ** 
 ```{r}
 
-lm1 <- lm(log10(pp) ~ population*water_mass, data=pp_rates)
+lm1 <- lm(log10(pp) ~ population*water_mass, data=pp_rates) #use this model
 # lm2 <- lm(log10(pp) ~ population+water_mass, data=pp_rates)
 # lm3 <- lm(log10(pp) ~ population, data=pp_rates)
 # anova(lm1, lm2) # significant difference between lm1 and lm2. Use lm1.
@@ -236,8 +256,7 @@ pp_mixed <- ggplot() +
       scale_colour_manual(values = c("#C62828", "#1565C0"))+
       scale_y_continuous(trans='log10') +
       annotation_logticks(sides = "l") +
-  annotate("text", x = 1.5, y = 100, label = "ANOVA, R2=0.83,\n Population X Water mass: F(2,123) = 5.91,\n p = 0.004", size= 3)
-      # annotate("text", x = 1.7, y = 10, label = "t-test; R2=0.48,\n t40=6.22, p<0.0001")
+      annotate("text", x = 1.5, y = 100, label = "ANOVA, R2=0.86,\n Population X Water mass: F(2,115) = 5.80,\n p = 0.004", size= 3)
 pp_mixed
 ```
 
@@ -245,24 +264,24 @@ pp_mixed
 
 ## surface and DCM - t test
 
-Both wilcoxon test (non-parametric) and t-test (parametric) are not significant. not using wilcoxon test output.
+wilcoxon test (non-parametric) and t-test (parametric) 
+all groups are not significant
 
-syn: t-test t = -1.5679, df = 40, p-value = 0.1248 
-wilcoxon test W = 136, p-value = 0.1124
+syn: W = 122, p-value = 0.2294
+t = -1.1051, df = 37, p-value = 0.2763
 
-pico t = -1.4587, df = 41, p-value = 0.1523 
-W = 148, p-value = 0.1171
+pico W = 133, p-value = 0.2252
+t = -1.1191, df = 38, p-value = 0.2701
 
-nano t = 0.92363, df = 19.711, p-value = 0.3668 
-W = 255, p-value = 0.4568
+nano W = 255, p-value = 0.1186
 
 ```{r}
 library("ggpubr")
 # For syn and pico, t.test var.equal=TRUE. For nano, var.equal = FALSE
 
 # i = "Syn"
-# i = "Pico"
-i = "Nano"
+i = "Pico"
+# i = "Nano"
 
 t_test_df<- pp_rates %>%
   filter(population == i) %>%
@@ -304,16 +323,16 @@ plot(lm)
 var.test(log10(npp) ~ depth, t_test_df)
 
 # parametric
-res <- t.test(log10(npp) ~ depth, data =  t_test_df, var.equal = FALSE)
+res <- t.test(log10(npp) ~ depth, data =  t_test_df, var.equal = TRUE)
 print(res)
 
 #non-parametric - not using.
-# res <- wilcox.test(npp ~ depth, data = t_test_df,
-#                    exact = FALSE)
-# print(res)
+res <- wilcox.test(npp ~ depth, data = t_test_df,
+                   exact = FALSE)
+print(res)
 ```
 
-## ANOVA- population + water mass
+## ANOVA- population
 
 ```{r}
 hist(pp_rates$npp)
@@ -336,22 +355,22 @@ set.seed(76876)
 
 sub <- pp_rates %>%
   group_by(population, water_mass) %>%
-  sample_n(16)
+  sample_n(14)
 
 # interaction plot population and water mass?
-lm1 <- lm(log10(npp) ~ population*water_mass, data=sub)
+# lm1 <- lm(log10(npp) ~ population*water_mass, data=sub)
 lm2 <- lm(log10(npp) ~ population+water_mass, data=sub) # choose this model
-# lm3 <- lm(log10(npp) ~ population, data=sub)
+lm3 <- lm(log10(npp) ~ population, data=sub)
 # lm4 <- lm(log10(npp) ~ water_mass, data=sub)
 
-anova(lm1, lm2)
+anova(lm3, lm2)
 # choose lm2
 # plot(lm2)
-Anova(lm2, type = "2") # p< 0.0001
-summary(lm2)
+Anova(lm3, type = "2") # p< 0.0001
+summary(lm3)
 
-lm_emm <- ggemmeans(lm2,
-                    terms = c("population", "water_mass"),
+lm_emm <- ggemmeans(lm3,
+                    terms = c("population"),
                     type = "fixed")
 
 lm_emm
@@ -360,34 +379,40 @@ print(plot(lm_emm) + scale_y_continuous(trans='log10') +
 
 #post-hoc test
 # library(emmeans)
-lm.emm <- emmeans(lm2, ~ population+water_mass)
+lm.emm <- emmeans(lm3, ~ population)
 print(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"))
 ```
 
 ## test and plot
 
+population | Predicted |       95% CI
+Syn        |      0.54 | [0.40, 0.72]
+Pico       |      0.42 | [0.31, 0.55]
+Nano       |      1.83 | [1.38, 2.42]
+
 ```{r}
 # test interaction factors
-# lm1 <- lm(log10(npp) ~ population*water_mass, data=pp_rates)
+lm1 <- lm(log10(npp) ~ population*water_mass, data=pp_rates)
 lm2 <- lm(log10(npp) ~ population+water_mass, data=pp_rates) # choose this model
-# lm3 <- lm(log10(npp) ~ population, data=pp_rates)
-# lm4 <- lm(log10(npp) ~ water_mass, data=pp_rates)
+lm3 <- lm(log10(npp) ~ population, data=pp_rates)
+lm4 <- lm(log10(npp) ~ water_mass, data=pp_rates)
 
 # anova(lm1, lm2)
 # choose lm2
 
-# plot(lm2)
-Anova(lm2, type = "2") # because no interaction, use type 2
-summary(lm2)
+# plot(lm3)
+Anova(lm3, type = "2") # because no interaction, use type 2
+summary(lm3)
 
 #post-hoc test
 # library(emmeans)
-lm.emm <- emmeans(lm2, ~ population+water_mass)
-contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt")
+lm.emm <- emmeans(lm3, ~ population)
+print(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"))
+
 
 #plot predicted means and CI
-lm_emm <- ggemmeans(lm2,
-                    terms = c("population", "water_mass"),
+lm_emm <- ggemmeans(lm3,
+                    terms = c("population"),
                     type = "fixed")
 
 lm_emm
@@ -400,7 +425,9 @@ plot(lm_emm) + scale_y_continuous(trans='log10') +
 npp_mixed <- ggplot() +
         # Raw data
         geom_half_violin(aes(x = population,
-                            y = npp, split = water_mass, fill=water_mass),
+                            y = npp, 
+                            split = water_mass, fill=water_mass
+                            ),
                         nudge = 0.001,
                         alpha=0.5,
                         data = pp_rates) +
@@ -408,27 +435,31 @@ npp_mixed <- ggplot() +
         geom_pointrange(aes(x = x,
                             y = predicted,
                             ymin = conf.low,
-                            ymax = conf.high,
-                            colour = group),
+                            ymax = conf.high#,
+                            # colour = group
+                            ),
                         size = 0.6,
                         lwd = 1.3, 
                         position = position_dodge(width = 0.25),
                         data = lm_emm) +
         labs(x = "Population",
-             y = "Group-specific production (mgC m-3 day-1)",
+             y = "Group-specific productivity (mgC m-3 day-1)",
              colour = "Water mass",
              shape = "Cycle") +
       scale_shape_manual(values=c(0,1, 15, 17, 19)) +
-      scale_fill_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_fill_manual(values = c("#C62828", "#1565C0"))+
       scale_colour_manual(values = c("#C62828", "#1565C0"))+
       scale_y_continuous(trans='log10') +
       annotation_logticks(sides = "l") +
-      annotate("text", x = 2.75, y = 25, label = "ANOVA, R2=0.28;\n Population: F(2,125) = 20.32, p < 0.0001; \n Water mass: F(1,125) = 12.39, p < 0.0001", size= 3)
+      annotate("text", x = 2, y = 10, label = "ANOVA, R2=0.33;\n Population: F(2,118) = 30.88, p < 0.0001", size= 3)
 npp_mixed
+```
 
-p <- (pp_mixed|npp_mixed) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
-  theme(legend.position='right')  & theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), legend.title = element_text(size = 12), axis.title = element_text(size = 12))
-p
+```{r}
+
+# p <- (pp_mixed|npp_mixed) + plot_annotation(tag_levels = 'A') +  plot_layout(guides = 'collect')  &
+#   theme(legend.position='right')  & theme(axis.text = element_text(size = 12), legend.text = element_text(size = 12), legend.title = element_text(size = 12), axis.title = element_text(size = 12))
+# p
 # pdf("pp npp interactions_mean and CI.pdf", height=5, width=10) ; plot(p) ; dev.off()
 ```
 
@@ -441,7 +472,7 @@ summary <- pp_rates %>%
   pivot_longer(pp:conc_ml, names_to = "data", values_to = "value") %>%
   group_by(data, population, cycle_name) %>%
   summarize(mean = round(mean(value), 2),
-            sd = round(sd(value),2), 
+            sd = round(sd(value),2)#, 
              # n = n()
             ) %>%
    unite("mean_sd", mean:sd, sep = " ± ") %>%
@@ -470,45 +501,46 @@ summary <- pp_rates %>%
 summary
 
 # Small phyto NPP
-summary <- pp_rates %>%
-  select(population, cycle_name, npp, exp, depth) %>%
-  group_by(population, cycle_name, exp, depth) %>%
-  summarize(mean = round(mean(npp), 2)) %>%
-  group_by(cycle_name, exp,depth) %>%
-  summarise(sum = sum(mean)) %>%
-  group_by(cycle_name) %>%
-  summarise(mean = round(mean(sum), 2),
-             sd = round(sd(sum),2)
-            ) %>%
-   unite("mean_sd", mean:sd, sep = " ± ") %>%
-  pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
-summary
+# summary <- pp_rates %>%
+#   select(population, cycle_name, npp, exp, depth) %>%
+#   group_by(population, cycle_name, exp, depth) %>%
+#   summarize(mean = round(mean(npp), 2)) %>%
+#   group_by(cycle_name, exp,depth) %>%
+#   summarise(sum = sum(mean)) %>%
+#   group_by(cycle_name) %>%
+#   summarise(mean = round(mean(sum), 2),
+#              sd = round(sd(sum),2)
+#             ) %>%
+#    unite("mean_sd", mean:sd, sep = " ± ") %>%
+#   pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+# summary
 ```
 
 Mean of pp and npp between water mass and depth
 
 ```{r}
 summary <- pp_rates %>%
-  group_by(population, water_mass) %>%
+  group_by(population) %>%
   summarize(mean = round(mean(pp), 2),
-            sd = round(sd(pp),2), n = n()) %>%
+            sd = round(sd(pp),2), 
+            n = n()) %>%
    unite("mean_sd", mean:sd, sep = "±") 
 summary
 
 summary <- pp_rates %>%
-  group_by(population, water_mass) %>%
+  group_by(population, cycle_name) %>%
   summarize(#median = round(median(npp), 2),
             mean = round(mean(npp), 2),
             sd = round(sd(npp),2),
-            n = n()) #%>%
-   # unite("mean_sd", mean:sd, sep = " ± ") 
+            n = n()) %>%
+   unite("mean_sd", mean:sd, sep = " ± ")
 summary
 
 
 summary <- pp_rates %>%
   group_by(population, depth) %>%
-  summarize(mean = round(mean(pp), 2),
-            sd = round(sd(pp),2), n = n()) %>%
+  summarize(mean = round(mean(npp), 2),
+            sd = round(sd(npp),2), n = n()) %>%
    unite("mean_sd", mean:sd, sep = "±") 
 summary
 ```

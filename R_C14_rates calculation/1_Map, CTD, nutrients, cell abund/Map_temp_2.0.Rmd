@@ -27,18 +27,6 @@ library(lattice)
 library(RColorBrewer)
 ```
 
-#import as raster - trying to raster ignore
-```{r,eval=FALSE}
-# set path and filename
-ncpath <- "data_used/AQUA_MODIS.20181101_20181130.L3m.MO.NSST.sst.4km.nc"
-dname <- "sst"  # note: tmp means temperature (not temporary)
-tmp_raster <- brick(ncpath, varname="sst")
-tmp_raster; class(tmp_raster)
-
-#subset data for NZ area (coordinates lat -46 to -41, lon 172 to -176)
-e <- extent(-46, -42, 172, 180)
-fc
-```
 
 #Plot SST
 ```{r}

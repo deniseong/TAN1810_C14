@@ -86,11 +86,57 @@ convert biomass to fgC/cell
 join_rates <- join_rates %>%
   mutate(biomass_fg = 1000*biomass) %>%
   mutate(growth_rate = (pp*24)/(biomass_fg)) %>% # multiply by 24 to change from per hour to per day. 
-  select(-MD, -pico1, -pico2)
+  select(-MD, -pico1, -pico2) 
+# writexl::write_xlsx(join_rates, path = here("Output", "Raw data", "Growth rates all.xlsx"))
+```
 
-writexl::write_xlsx(join_rates, path = here("Output", "Raw data", "Growth rates all.xlsx"))
+## supplementary plot
+by water mass and depth
+```{r}
+
+p <- join_rates %>%
+  ggplot() +
+  geom_jitter(aes(x=fct_relevel(exp,"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"), y=growth_rate, shape = depth_cat), width = 0.2, alpha = 0.5) +
+  facet_grid(population~fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2"), scales = "free", space = "free_x") +
+      theme(panel.spacing.x = unit(0,"lines"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            strip.background = element_blank(),
+            strip.text.y.right = element_text(angle = 0),
+            panel.border = element_rect(colour = "black", fill = NA),
+            legend.position = "top")+
+  # scale_y_continuous(trans='log10') +
+  # annotation_logticks(sides = "l")+
+  ylab("Growth rate (day-1)") +
+  xlab("Cycle")
+p
+pdf("growth rate by cycle and depth_not log_v2.pdf", height=6, width=6) ; plot(p) ; dev.off()
 
 
+# p <- join_rates %>%
+#     ggplot() +
+#       geom_jitter(aes(x=cycle_name, y=growth_rate, colour = depth_cat), width = 0.2, alpha = 0.5, size = 1.5)+
+#       geom_boxplot(aes(x=water_mass, y= growth_rate, fill=water_mass))+
+#       scale_colour_manual(values =  c("#009292", "#DB6D00"))+
+#       scale_fill_manual(values = c("#C62828", "#1565C0")) +
+#       facet_grid(population~water_mass, scales = "free", space = "free_x") +
+#   theme_bw()+
+#       # theme_linedraw() +
+#       theme(legend.position = "top",
+#             panel.spacing = unit(1, "lines"))+
+#       # scale_y_continuous(trans='log10') +
+#       # annotation_logticks(sides = "l", outside = TRUE)+
+#       # coord_cartesian(clip = "off")+
+#       ylab("Growth rate (day-1)") +
+#       xlab("Cycle")
+# p
+
+
+```
+
+```{r}
+join_rates <- join_rates %>%
+  filter(exp!=7)
 ```
 
 
@@ -128,7 +174,7 @@ summary
 
 
 summary <- join_rates %>%
-  group_by(population, water_mass) %>%
+  group_by(population, cycle_name) %>%
   summarize(median = round(median(npp), 2),
             mean = round(mean(growth_rate), 2),
             sd = round(sd(growth_rate),2), n = n()) %>%
@@ -189,12 +235,15 @@ for(i in c("Syn_LV", "Pico_NA", "Nano_NA")){
 ## Statistical tests
 ###Surface vs DCM
 Not significantly different between surface and DCM.
+syn: W = 32, p-value = 0.4256
+pico: W = 25, p-value = 1
+nano: W = 45, p-value = 0.1155
 ```{r}
 library("ggpubr")
 
 # i = "Syn"
-# i = "Pico"
-i = "Nano"
+i = "Pico"
+# i = "Nano"
 t_test_df<- join_rates %>%
   filter(population == i) %>%
   dplyr::select(water_mass,exp, depth_cat, diam) %>%
@@ -227,6 +276,10 @@ print(res)
 
 ### ST vs SA
 Not significantly different between ST and SA
+
+syn: W = 36, p-value = 0.198
+pico:W = 15, p-value = 0.2442
+nano: W = 40, p-value = 0.1737
 ```{r}
 library("ggpubr")
  
@@ -262,74 +315,77 @@ print(res)
 ```
 
 # Growth rate
-plots for checking
-```{r}
-#Plot all
-p <- join_rates %>%
-  ggplot()+
-  geom_boxplot(aes(x=pop_fsc, y=growth_rate))+
-  #geom_jitter(aes(x=pop_fsc, y=growth_rate), width = 0.2) +
-  # facet_grid(.~water_mass, scales = "free") +
-  theme_minimal() +
-  scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")
-p
-
-
-
-
-```
-
-
-## Extra plots - maybe supplementary
-by water mass
-```{r}
-p <- join_rates %>%
-  # filter(growth_rate <2)%>%
-  ggplot(aes(x=population, y=growth_rate, fill = water_mass))+
-  # geom_violin(aes(x=population, y=growth_rate))+
-  geom_boxplot(outlier.shape = NA, alpha = 0.8)+
-  geom_point(colour = "black",  alpha = 0.5, size = 1, position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2))+
-  # geom_jitter(, width = 0.1, alpha =  0.3, position=position_dodge(1)) +
-  # scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
-  ylab("Growth rate (day-1)") +
-  xlab(NULL)+
-  theme(strip.background = element_blank(),
-        legend.position="top") +
-  scale_fill_manual(values = c("#C62828", "#1565C0"))
-
-p
-
-# pdf("growth rate_not log.pdf", height=6, width=6) ; plot(p) ; dev.off()
-
-
-```
-
-by water mass and depth
-```{r}
-p <- join_rates %>%
-    ggplot() +
-      geom_jitter(aes(x=cycle_name, y=growth_rate, colour = depth_cat), width = 0.2, alpha = 0.5, size = 1.5)+
-      geom_boxplot(aes(x=water_mass, y= growth_rate, fill=water_mass))+
-      scale_colour_manual(values =  c("#009292", "#DB6D00"))+
-      scale_fill_manual(values = c("#C62828", "#1565C0")) +
-      facet_grid(population~water_mass, scales = "free", space = "free_x") +
-  theme_bw()+
-      # theme_linedraw() +
-      theme(legend.position = "top",
-            panel.spacing = unit(1, "lines"))+
-      # scale_y_continuous(trans='log10') +
-      # annotation_logticks(sides = "l", outside = TRUE)+
-      # coord_cartesian(clip = "off")+
-      ylab("Growth rate (day-1)") +
-      xlab("Cycle")
-p
-
-# pdf("growth rate by cycle and depth_not log.pdf", height=6, width=6) ; plot(p) ; dev.off()
-
-```
-
-
 ## Statistical tests
+### SUR vs DCM
+syn: W = 101, p-value = 0.06563
+t = -2.0221, df = 37, p-value = 0.05044
+depth_cat | Predicted |       95% CI
+SUR       |      0.08 | [0.06, 0.11]
+DCM       |      0.14 | [0.09, 0.21]
+
+pico: W = 155, p-value = 0.5636
+t = -0.81659, df = 38, p-value = 0.4193
+depth_cat | Predicted |       95% CI
+SUR       |      0.16 | [0.11, 0.23]
+DCM       |      0.20 | [0.12, 0.34]
+
+nano: W = 171, p-value = 0.5133
+t = -0.35411, df = 40, p-value = 0.7251
+depth_cat | Predicted |       95% CI
+SUR       |      0.23 | [0.17, 0.30]
+DCM       |      0.25 | [0.16, 0.38]
+
+```{r}
+library("ggpubr")
+
+# i = "Syn"
+# i = "Pico"
+i = "Nano"
+
+t_test_df<- join_rates %>%
+  filter(population == i) %>%
+  dplyr::select(water_mass, exp, depth_cat, growth_rate)
+
+summary <- t_test_df %>%
+  group_by(depth_cat) %>%
+  summarise(count = n(),
+    mean = mean(growth_rate, na.rm = TRUE),
+    sd = sd(growth_rate, na.rm = TRUE),
+    median =  median(growth_rate, na.rm = TRUE))
+print(summary)
+ p <- t_test_df %>%
+   ggplot(aes(x=depth_cat, y=growth_rate)) + geom_point() +geom_violin(alpha = 0.1)#+ facet_grid(.~water_mass) +
+   # scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
+   ggtitle(i) 
+ print(p)
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$growth_rate))
+qqnorm(log10(t_test_df$growth_rate))
+shapiro.test(log10(t_test_df$growth_rate))
+
+lm <- lm(log10(growth_rate) ~ depth_cat, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(growth_rate) ~ depth_cat, t_test_df)
+
+# parametric
+t.test(log10(growth_rate) ~ depth_cat, data =  t_test_df, var.equal = TRUE)
+
+lm_emm <- ggemmeans(lm, 
+                    terms = c("depth_cat"),
+                    type = "fixed")
+lm_emm
+plot(lm_emm)
+
+res <- wilcox.test(growth_rate ~ depth_cat, data = t_test_df, paired = FALSE,exact = FALSE)
+print(res)
+
+
+```
+
+
 ### Overall between groups
 Anova Table (Type III tests)
 
@@ -370,8 +426,158 @@ library(emmeans)
 lm.emm <- emmeans(lm, ~ population)
 contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt")
 ```
+```{r, eval=FALSE}
+# because of unbalanced design, subset 16 samples randomly for each group first 
+# no difference when subset. Use all samples.
+# set.seed(1)
+# set.seed(78674)
+# set.seed(234154)
+# set.seed(3413)
+# set.seed(76876)
+set.seed(53888)
+sub <- join_rates %>%
+  group_by(population, water_mass) %>%
+  sample_n(14)
 
+# interaction plot population and water mass?
+lm1 <- lm(log10(growth_rate) ~ population*water_mass, data=sub)
+lm2 <- lm(log10(growth_rate) ~ population+water_mass, data=sub) # choose this model
+lm3 <- lm(log10(npp) ~ population, data=sub)
+# lm4 <- lm(log10(npp) ~ water_mass, data=sub)
+
+anova(lm3, lm2)
+# choose lm2
+# plot(lm2)
+Anova(lm1, type = "3") # p< 0.0001
+summary(lm1)
+
+lm_emm <- ggemmeans(lm1,
+                    terms = c("population", "water_mass"),
+                    type = "fixed")
+
+lm_emm
+print(plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE))
+
+#post-hoc test
+# library(emmeans)
+lm.emm <- emmeans(lm1, ~ population*water_mass)
+print(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"))
+```
+
+Multiple R-squared:  0.3106,	Adjusted R-squared:  0.2806 
+F-statistic: 10.36 on 5 and 115 DF,  p-value: 3.203e-08
+
+water_mass = ST
+
+population | Predicted |       95% CI
+Syn        |      0.19 | [0.13, 0.28]
+Pico       |      0.24 | [0.16, 0.36]
+Nano       |      0.20 | [0.13, 0.29]
+
+ water_mass = SA
+
+population | Predicted |       95% CI
+Syn        |      0.07 | [0.05, 0.09]
+Pico       |      0.15 | [0.11, 0.20]
+Nano       |      0.25 | [0.19, 0.34]
+
+
+```{r}
+# test interaction factors
+lm1 <- lm(log10(growth_rate) ~ population*water_mass, data=join_rates) # choose this model
+# lm2 <- lm(log10(growth_rate) ~ population+water_mass, data=join_rates) 
+
+# anova(lm1, lm2) # choose lm1
+
+# plot(lm1)
+Anova(lm1, type = "3") # because no interaction, use type 2
+summary(lm1)
+
+#post-hoc test
+# library(emmeans)
+lm.emm <- emmeans(lm1, ~ population*water_mass)
+emm_df<-as.data.frame(contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt"))
+
+#plot predicted means and CI
+lm_emm <- ggemmeans(lm1,
+                    terms = c("population", "water_mass"),
+                    type = "fixed")
+
+lm_emm
+
+emm.npp.df <- as.data.frame(lm_emm)
+
+plot(lm_emm) + scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l", outside = TRUE)
+
+
+growth_mixed <- ggplot() +
+        # Raw data
+        geom_half_violin(aes(x = population,
+                            y = growth_rate, 
+                            split = water_mass, 
+                            fill=water_mass),
+                        nudge = 0.001,
+                        alpha=0.5,
+                        data = join_rates) +
+        # Line of model predicted means
+        geom_pointrange(aes(x = x,
+                            y = predicted,
+                            ymin = conf.low,
+                            ymax = conf.high,
+                            colour = group),
+                        size = 0.6,
+                        lwd = 1.3, 
+                        position = position_dodge(width = 0.25),
+                        data = lm_emm) +
+        labs(x = "Population",
+             y = "Growth rate (day-1)",
+             colour = "Water mass",
+             shape = "Cycle") +
+      scale_shape_manual(values=c(0,1, 15, 17, 19)) +
+      scale_fill_manual(values = c("#C62828", "#1565C0"))+ 
+      scale_colour_manual(values = c("#C62828", "#1565C0"))+
+      scale_y_continuous(trans='log10') +
+      annotation_logticks(sides = "l") +
+      annotate("text", x = 2.75, y = 1, label = "ANOVA, R2=0.28,\n Population X Water mass: F(5,115) = 10.36,\n p = 0.001", size= 3)
+growth_mixed
+```
+
+```{r}
+#load pp and npp plots from group rates figures_4.0.Rmd file
+# p <- ((pp_mixed|npp_mixed)/ (st|sa)) + 
+#   plot_annotation(tag_levels = 'A') +  
+#   plot_layout(guides = 'collect')  &
+#   theme(legend.position='top')  & 
+#   theme(axis.text = element_text(size = 12), 
+#         legend.text = element_text(size = 12), 
+#         legend.title = element_text(size = 12), 
+#         axis.title = element_text(size = 12)
+#         )
+# p
+
+# pdf("pp_npp_growth rate_mean and CI.pdf", height=9.5, width=9) ; plot(p) ; dev.off()
+
+p <- (pp_mixed|npp_mixed)/(growth_mixed|plot_spacer())+ 
+  plot_annotation(tag_levels = 'A') +  
+  plot_layout(guides = 'collect')  &
+  theme(legend.position='top')  & 
+  theme(axis.text = element_text(size = 12), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(size = 12), 
+        axis.title = element_text(size = 12)
+        )
+p
+
+pdf("pp_npp_growth rate_mean and CI_V2.pdf", height=9.5, width=9) ; plot(p) ; dev.off()
+
+```
+
+
+<!--
 ### Main figure and stats - In each water mass, compare between groups
+
 ```{r}
 # ST
 df <- join_rates %>%
@@ -394,7 +600,6 @@ lm.emm <- emmeans(lm, ~ population)
 contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt")
 
 ```
-
 ```{r}
 library(gghalves)
 st <- ggplot() +
@@ -461,7 +666,6 @@ plot(lm_emm)
 lm.emm <- emmeans(lm, ~ population)
 contrast(lm.emm, "consec", simple = "each", combine = TRUE, adjust = "mvt")
 ```
-
 ```{r}
 sa <- ggplot() +
         # Raw data
@@ -498,125 +702,6 @@ sa <- ggplot() +
   annotate("text", x = 3, y = 0.015, label = "ANOVA; R2=0.35,\n F{2, 76} = 21.73, p < 0.0001")
 
 sa
-
-#load pp and npp plots from group rates figures_4.0.Rmd file
-p <- ((pp_mixed|npp_mixed)/ (st|sa)) + 
-  plot_annotation(tag_levels = 'A') +  
-  plot_layout(guides = 'collect')  &
-  theme(legend.position='top')  & 
-  theme(axis.text = element_text(size = 12), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(size = 12), 
-        axis.title = element_text(size = 12)
-        )
-p
-
-pdf("pp_npp_growth rate_mean and CI.pdf", height=9.5, width=9) ; plot(p) ; dev.off()
-```
-
-
-### SUR vs DCM
-syn: t = -2.3232, df = 40, p-value = 0.02534
-depth_cat | Predicted |       95% CI
-SUR       |      0.09 | [0.06, 0.13]
-DCM       |      0.19 | [0.11, 0.33]
-
-pico: t = -1.3527, df = 41, p-value = 0.1836
-depth_cat | Predicted |       95% CI
-SUR       |      0.17 | [0.12, 0.25]
-DCM       |      0.27 | [0.16, 0.46]
-
-nano: t = -1.2219, df = 20.184, p-value = 0.2358
-
-```{r}
-library("ggpubr")
-
-i = "Syn"
-# i = "Pico"
-# i = "Nano"
-
-t_test_df<- join_rates %>%
-  filter(population == i) %>%
-  dplyr::select(water_mass, exp, depth_cat, growth_rate)
-
-summary <- t_test_df %>%
-  group_by(depth_cat) %>%
-  summarise(count = n(),
-    mean = mean(growth_rate, na.rm = TRUE),
-    sd = sd(growth_rate, na.rm = TRUE),
-    median =  median(growth_rate, na.rm = TRUE))
-print(summary)
- p <- t_test_df %>%
-   ggplot(aes(x=depth_cat, y=growth_rate)) + geom_point() +geom_violin(alpha = 0.1)+ facet_grid(.~water_mass) +
-   scale_y_continuous(trans='log10') + annotation_logticks(sides = "l") +
-   ggtitle(i) 
- print(p)
-
-# checks, all groups meet assumptions of normality and homoskedasticity
-hist(log10(t_test_df$growth_rate))
-qqnorm(log10(t_test_df$growth_rate))
-shapiro.test(log10(t_test_df$growth_rate))
-
-lm <- lm(log10(growth_rate) ~ depth_cat, data=t_test_df)
-plot(lm) 
-
-# check for variance. If variance sig different, use var.equal = FALSE
-var.test(log10(growth_rate) ~ depth_cat, t_test_df)
-
-# parametric
-t.test(log10(growth_rate) ~ depth_cat, data =  t_test_df, var.equal = TRUE)
-
-lm_emm <- ggemmeans(lm, 
-                    terms = c("depth_cat"),
-                    type = "fixed")
-lm_emm
-plot(lm_emm)
-
-# res <- wilcox.test(growth_rate ~ depth_cat, data = t_test_df,
-#                    paired = FALSE,exact = FALSE)
-# print(res)
-
-
-```
-
-Although for Syn surface is different from DCM, based on the raw data it is driven by low values from exp 2 and 5 where there are no DCM measurements available.
-```{r}
-# by depth
-for (i in c("Syn", "Pico", "Nano")) {
-  p <- join_rates %>%
-  filter(pop_fsc!="Syn_SV") %>%
-  filter(population == i) %>%
-    ungroup() %>%
-    complete(exp, depth_cat) %>%
-  ggplot() +
-    geom_point(aes(x=depth_cat, y=growth_rate))+
-    facet_grid(.~exp, scales = "free_x", space = "free") +
-    scale_y_continuous(trans='log10') +
-    annotation_logticks(sides = "l")+
-    ylab("Growth rate (day-1)") +
-    ggtitle(i)
-  print(p)
-  # pdf(here(str_c("pp_depth_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
-}
-
-for (i in c("Syn", "Pico", "Nano")) {
-  p <- join_rates %>%
-  filter(pop_fsc!="Syn_SV") %>%
-  filter(population == i) %>%
-    ungroup() %>%
-    complete(exp, depth_cat) %>%
-  ggplot() +
-    geom_point(aes(x=depth_cat, y=growth_rate))+
-    geom_boxplot(aes(x=depth_cat, y=growth_rate))+
-    # facet_grid(.~exp, scales = "free_x", space = "free") +
-    scale_y_continuous(trans='log10') +
-    annotation_logticks(sides = "l")+
-    ylab("Growth rate (day-1)") +
-    ggtitle(i)
-  print(p)
-  # pdf(here(str_c("pp_depth_", i, ".pdf")), height=5, width=8) ; plot(p) ; dev.off()
-}
-
 ```
 
 ### ST vs SA
@@ -639,8 +724,8 @@ ST         |      0.28 | [0.17, 0.45]
 SA         |      0.25 | [0.18, 0.36]
 ```{r}
 # i = "Syn"
-# i = "Pico"
-i = "Nano"
+i = "Pico"
+# i = "Nano"
 
 t_test_df<- join_rates %>%
   filter(population == i) %>%
@@ -676,5 +761,5 @@ lm_emm <- ggemmeans(lm,
 lm_emm
 plot(lm_emm)
 ```
-
+-->
 

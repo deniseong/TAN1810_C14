@@ -40,6 +40,7 @@ studies$`Lat band`<-factor(studies$`Lat band`, levels = c("Tropical", "Subtropic
 p <- studies %>% 
   ggplot(aes(fct_reorder(Study, Year), ymin = Lower, ymax = Upper, color = `Lat band`)) +
   geom_linerange(position = position_dodge(width = 1), size = 2) +
+  geom_point(aes(y=outlier))+
   facet_grid(.~ Group, scales = "free", space = "free") +
    scale_y_continuous(trans='log10') +
   annotation_logticks(sides = "l", 
@@ -56,6 +57,6 @@ p <- studies %>%
   scale_color_manual(values = colours_water, name = "Water mass") +
   theme(legend.position="top")
 p
-# pdf("figures/pp_rates_pico1_2.pdf", height=5, width=8) ; plot(p) ; dev.off()
+pdf("pp_rates_pico1_2_v2.pdf", height=5, width=8) ; plot(p) ; dev.off()
 
 ```
