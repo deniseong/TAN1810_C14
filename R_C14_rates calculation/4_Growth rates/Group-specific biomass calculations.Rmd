@@ -62,9 +62,9 @@ md <- readxl::read_excel(here("0_data_used", "MD_PhotoAdapt_Biomass_Rates_17MAR2
  md_comb <- bind_rows(md_comb, md)
 }
 md1 <- readxl::read_excel(here("0_data_used", "MD_PhotoAdapt_Biomass_Rates_17MAR20_v1.1.xlsx"), sheet = "MD1", skip = 2, n_max = 8) %>%
-  select('Depth...2','SYN MEAN FS':'NANO MEAN FS') %>%
+  select('Depth','SYN MEAN FS':'NANO MEAN FS') %>%
   mutate(MD = 1) %>%
-  rename(depth_m = 'Depth...2')
+  rename(depth_m = 'Depth')
 
 md_lv <- full_join(md_comb, md1) %>%
   arrange(MD) %>%
