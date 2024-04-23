@@ -30,7 +30,7 @@ colours_water <- structure(colours_water$colour,.Names=colours_water$water)
 
 # Figure 9 - compare rates obtained between studies
 ```{r}
-studies <- readxl::read_excel(here("0_data_used", "C14_studies.xlsx"), sheet = "for_R") %>%
+studies <- readxl::read_excel(here("0_data_used", "C14_studies_v1.1.xlsx"), sheet = "for_R") %>%
   filter(Group != "Pico 1 + Pico 2")
 
 studies$Group<-factor(studies$Group, levels = c("Synechococcus", "Pico 1", "Pico 2", "Nano"))
