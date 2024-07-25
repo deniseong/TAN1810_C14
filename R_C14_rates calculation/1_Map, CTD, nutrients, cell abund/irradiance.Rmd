@@ -1,0 +1,63 @@
+---
+title: "Irradiance"
+output: html_document
+date: "2024-07-22"
+---
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               tidy = FALSE,
+               fig.height=8, 
+               fig.width=8,
+               results = 'asis')
+opts_knit$set(width=75)
+```
+
+# Load libraries
+
+```{r, message=FALSE, warning=FALSE}
+library(here)
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for maerkdown libraries
+library(hms)
+colours_cycle <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"))
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+```
+
+##Read table
+```{r}
+irr_raw <- readxl::read_excel(here("0_data_used", "irradiance_solcast.xlsx")) %>%
+  mutate(time =  as_datetime(time)) %>%
+  mutate(time = as_hms(ymd_hms(time))) %>%
+  filter(!is.na(time)) %>%
+  filter(exp!=7)
+```
+```{r}
+p <- irr_raw %>%
+  mutate(cycle = fct_relevel(cycle, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
+  group_by(cycle, exp) %>%
+  group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  ggplot(aes(x=time, y=ghi, colour=cycle)) + 
+  geom_path(size=0.5) +
+  geom_point(size=0.5, alpha = 0.6) +
+  # geom_smooth(orientation = "y", se = FALSE, method = "loess") +
+  labs(y=Global~horizontal~irradiance~(W/m^2))+
+  # ylab("Global horizontal irradiance (W/m2)")+
+  xlab("Time UTC +13 h") +
+  labs(colour = "Cycle") +
+  scale_colour_manual(values = colours_cycle) 
+p
+
+pdf("irradiance_solcast.pdf", height=3.5, width=7) ; plot(p) ; dev.off()
+```
+

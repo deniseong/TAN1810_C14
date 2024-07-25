@@ -60,8 +60,8 @@ CTD_raw <- readxl::read_excel(here("0_data_used", "TK_CTD Downcasts.xlsx")) %>%
   mutate(date = date(datetime)) %>%
   mutate(time = hour(datetime)) %>%
   mutate(julian_day = julian(date, origin = date("2018-01-01"))) %>%
-  # filter(time %in% (0:3)) %>% 
-  filter(time %in% (9:12) ) %>%# only morning CTD
+  filter(time %in% (7:19)) %>%
+  # filter(time %in% (9:12) ) %>%# only morning CTD
   mutate(t_mean = (t+t2)/2) %>% # each CTD has 2 readings. use the average of the two readings.
   mutate(s_mean = (s+s2)/2) %>%
   mutate(os_mean = (os+os2)/2) %>%
@@ -148,6 +148,41 @@ ts_plot <- CTD %>%
 
 ts_plot
 
+pdf("intro_TS.pdf", height=4, width=4) ; plot(ts_plot) ; dev.off()
+
+```
+
+#For thesis introduction
+```{r}
+# subset to only the dates that the sediment traps are deployed - show the path of the sed traps deployment
+SA1_a <- CTD_raw %>%
+  filter(between(as_date(date), as_date("2018-10-24"), as_date("2018-10-28"))) %>%
+  mutate(cycle_name =  "SA-Sc")
+
+SA2 <- CTD_raw %>%
+  filter(between(as_date(date), as_date("2018-11-02"), as_date("2018-11-06")))%>%
+  mutate(cycle_name = "SA1")
+
+ST1 <- CTD_raw %>%
+  filter(between(as_date(date), as_date("2018-11-07"), as_date("2018-11-10")))%>%
+  mutate(cycle_name = "ST1")
+
+ST2 <- CTD_raw %>%
+  filter(between(as_date(date), as_date("2018-11-12"), as_date("2018-11-14")))%>%
+  mutate(cycle_name = "ST2")
+
+SA3 <- CTD_raw %>%
+  filter(between(as_date(date), as_date("2018-11-16"), as_date("2018-11-19")))%>%
+  mutate(cycle_name = "SA2")
+
+CTD <- list(SA1_a, SA2, SA3, ST1, ST2) 
+CTD <- Reduce(
+  function(x, y, ...) merge(x, y, all = TRUE, ...),
+  CTD
+)
+
+CTD <- CTD %>% 
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) 
 ```
 
 ## Supplementary
@@ -187,10 +222,12 @@ s_plot
 
 #PAR
 par_plot <- CTD %>%
+  filter(time %in% (11:15)) %>%
+  filter(p <= 70) %>%
   group_by(cycle_name, CTD) %>%
   group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
   # filter(p <= 100) %>%
-  filter(par <=1500) %>%
+  # filter(par <=1500) %>%
   ggplot(aes(x=par, y=p, colour=cycle_name)) + 
    # geom_path(size=0.1) +
  geom_point(size=0.02, alpha = 0.6) +
@@ -199,7 +236,8 @@ par_plot <- CTD %>%
   ylab(NULL)+
   xlab("PAR") +
   labs(colour = "Cycle") +
-  scale_colour_manual(values = colours_cycle)
+  scale_colour_manual(values = colours_cycle) 
+  # facet_grid (.~cycle_name) 
 
 par_plot
 ```

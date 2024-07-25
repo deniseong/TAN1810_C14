@@ -83,27 +83,80 @@ t_test_df<- cold_group %>%
   select(cycle_name, exp, depth, cold_corrected, standard_corrected) %>%
   filter(!(is.na(cold_corrected))) %>%
   filter(!(is.na(standard_corrected))) %>%
-  filter(standard_corrected >0) 
-hist(t_test_df$standard_corrected)
+  filter(standard_corrected >0)   %>%
+  pivot_longer(cols = cold_corrected:standard_corrected, names_to = "type", values_to = "npp")%>%
+  mutate(water_mass = dplyr::recode(cycle_name, 
+                             "SA-Sc" = "SA",
+                             "SA1" = "SA",
+                             "SA2" = "SA",
+                             "ST1" = "ST",
+                             "ST2" = "ST"
+                             )) 
+```
 
- p <- t_test_df %>%
-   ggplot(aes(x=type, y=npp)) + geom_point() +geom_boxplot()
+```{r}
+#analysis without subsetting water mass and depth
+hist(log10(t_test_df$npp))
+
+#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
+p<-with(t_test_df, shapiro.test(log10(npp[type == "cold_corrected"])))
+print(p)
+p<-with(t_test_df, shapiro.test(log10(npp[type == "standard_corrected"])))
+print(p)
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(npp) ~ type, t_test_df)
+
+res <- t.test(log10(npp) ~ type, data =  t_test_df, var.equal = TRUE)
+print(res)
+
+# create lm and check residuals
+lm <- lm(log10(npp) ~ type, data=t_test_df)
+plot(lm)
+
+```
+
+```{r}
+p <- t_test_df %>%
+  unite(col = "cycle_exp", c('cycle_name', 'exp'), sep = "_") %>%
+   ggplot(aes(x=type, y=npp)) + geom_point() +geom_boxplot() +
+  facet_grid(depth~cycle_exp)
  print(p)
  
-#Because p value <0.05, data is not normally distributed. Use the wilcoxon test
-p<-with(t_test_df, shapiro.test(cold_corrected))
-print(p)
-p<-with(t_test_df, shapiro.test(standard_corrected))
-print(p)
+summary <- t_test_df %>%
+  group_by(water_mass, depth,type) %>%
+  summarise(mean=mean(npp),
+            n = n())
 
+# W = 60, p-value = 0.5067
+sub <- t_test_df %>%
+  filter(water_mass == "ST") %>%
+  filter(depth == "SUR")
+
+
+# W = 64, p-value = 0.0009391
+sub <- t_test_df %>%
+  filter(water_mass == "ST") %>%
+  filter(depth == "DCM")
+
+# W = 138, p-value = 0.2201
+sub <- t_test_df %>%
+  filter(water_mass == "SA") %>%
+  filter(depth == "SUR")
+
+# W = 100, p-value = 0.945
+sub <- t_test_df %>%
+  filter(water_mass == "SA") %>%
+  filter(depth == "DCM")
+
+# test for each water mass and depth
 # wilcoxon test
-t_test_df <- t_test_df %>%
-  pivot_longer(cold_corrected:standard_corrected, names_to = "type", values_to = "npp")
-res <- wilcox.test(npp ~ type, data = t_test_df,
+res <- wilcox.test(npp ~ type, data = sub,
                    exact = FALSE)
 print(res)
 
 ```
+
 
 
 #prepare dataframe

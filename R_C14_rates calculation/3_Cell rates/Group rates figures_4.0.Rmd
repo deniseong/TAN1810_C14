@@ -463,6 +463,133 @@ npp_mixed
 # pdf("pp npp interactions_mean and CI.pdf", height=5, width=10) ; plot(p) ; dev.off()
 ```
 
+# Cell concentration stats
+```{r}
+sub <- pp_rates %>%
+  filter(exp != "5") %>%
+  select(water_mass, population, cycle_name, depth, conc_ml) %>%
+  distinct()
+
+```
+
+pico: t = 0.31232, df = 12, p-value = 0.7602
+nano: t = 0.11985, df = 13, p-value = 0.9064
+```{r}
+
+# library("ggpubr")
+# For syn and pico, t.test var.equal=TRUE. For nano, var.equal = FALSE
+
+i = "Pico"
+# i = "Nano"
+
+t_test_df<- sub %>%
+  filter(population == i) %>%
+  select(depth, water_mass, conc_ml) 
+
+# for water mass
+# summary <- t_test_df %>%
+#   group_by(water_mass) %>%
+#   summarise(count = n(),
+#     mean = mean(conc_ml, na.rm = TRUE),
+#     sd = sd(conc_ml, na.rm = TRUE))
+# print(summary)
+# 
+#  p <- t_test_df %>%
+#    ggplot(aes(x=water_mass, y=conc_ml))  +geom_boxplot() + geom_point() +
+#     facet_grid(~water_mass, scales = "free") +
+#     scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
+#  print(p)
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(t_test_df$conc_ml)
+qqnorm(t_test_df$conc_ml)
+p<-with(t_test_df, shapiro.test(conc_ml[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(conc_ml[water_mass == "SA"]))
+print(p)
+
+lm <- lm(conc_ml ~ water_mass, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(conc_ml ~ water_mass, t_test_df)
+
+# parametric
+res <- t.test(conc_ml ~ water_mass, data =  t_test_df, var.equal = TRUE)
+print(res)
+```
+Syn: t = -2.2072, df = 12, p-value = 0.04752
+```{r}
+t_test_df<- sub %>%
+  filter(population == "Syn") %>%
+  select(depth, water_mass, conc_ml) 
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(log10(t_test_df$conc_ml))
+qqnorm(log10(t_test_df$conc_ml))
+p<-with(t_test_df, shapiro.test(log10(conc_ml[water_mass == "ST"])))
+print(p)
+p<-with(t_test_df, shapiro.test(log10(conc_ml[water_mass == "SA"])))
+print(p)
+
+lm <- lm(log10(conc_ml) ~ water_mass, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(log10(conc_ml) ~ water_mass, t_test_df)
+
+# parametric
+res <- t.test(log10(conc_ml) ~ water_mass, data =  t_test_df, var.equal = TRUE)
+print(res)
+```
+syn: t = -0.50939, df = 12, p-value = 0.6197
+pico: t = 0.36742, df = 12, p-value = 0.7197
+nano: t = 1.7565, df = 13, p-value = 0.1025
+```{r}
+# for depth
+# i = "Syn"
+# i = "Pico"
+i = "Nano"
+
+t_test_df<- sub %>%
+  filter(population == i) %>%
+  select(depth, water_mass, conc_ml) 
+
+# summary <- t_test_df %>%
+#   group_by(depth) %>%
+#   summarise(count = n(),
+#     mean = mean(conc_ml, na.rm = TRUE),
+#     sd = sd(conc_ml, na.rm = TRUE))
+# print(summary)
+# 
+#  p <- t_test_df %>%
+#    ggplot(aes(x=depth, y=conc_ml))  +geom_boxplot() + geom_point() +
+#     facet_grid(~depth, scales = "free") +
+#     scale_y_continuous(trans='log10') + annotation_logticks(sides = "l")  + ggtitle(i)
+#  print(p)
+# 
+#  
+ 
+ # checks, all groups meet assumptions of normality and homoskedasticity
+hist(t_test_df$conc_ml)
+qqnorm(t_test_df$conc_ml)
+p<-with(t_test_df, shapiro.test(conc_ml[depth == "SUR"]))
+print(p)
+p<-with(t_test_df, shapiro.test(conc_ml[depth == "DCM"]))
+print(p)
+
+lm <- lm(conc_ml ~ depth, data=t_test_df)
+plot(lm) 
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(conc_ml ~ depth, t_test_df)
+
+# parametric
+res <- t.test(conc_ml ~ depth, data =  t_test_df, var.equal = TRUE)
+print(res)
+```
+
+
 # Table 2 - summary for paper - pp, npp, cell conc
 
 ```{r}
@@ -485,10 +612,10 @@ summary
 # cell conc summary - only change for SA2
 summary <- pp_rates %>%
   filter(exp != "5") %>%
-  select(water_mass, population, cycle_name, conc_ml) %>%
+  select(water_mass, depth, population, cycle_name, conc_ml) %>%
   distinct() %>%
   pivot_longer(conc_ml, names_to = "data", values_to = "value") %>%
-  group_by(data, population, water_mass) %>%
+  group_by(data, population, depth) %>%
   summarize(mean = round(mean(value), 0),
             sd = round(sd(value),0), 
             n = n(),

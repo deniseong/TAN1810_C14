@@ -232,6 +232,76 @@ npp_summary
 
 ```
 
+
+# statistical test
+
+```{r}
+library("ggpubr")
+
+t_test_df<- chl %>%
+  select(cycle_name, areal_chl) %>%
+  distinct() %>%
+  mutate(water_mass = dplyr::recode(cycle_name, 
+                             "SA-Sc" = "SA",
+                             "SA1" = "SA",
+                             "SA2" = "SA",
+                             "ST1" = "ST",
+                             "ST2" = "ST"
+                             ))
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(t_test_df$areal_chl)
+qqnorm(t_test_df$areal_chl)
+p<-with(t_test_df, shapiro.test(areal_chl[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(areal_chl[water_mass == "SA"]))
+print(p)
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(areal_chl ~ water_mass, t_test_df)
+
+res <- t.test(areal_chl ~ water_mass, data =  t_test_df, var.equal = TRUE)
+print(res)
+
+res <- wilcox.test(areal_chl ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+```
+
+```{r}
+library("ggpubr")
+
+t_test_df<- npp %>%
+  mutate(water_mass = dplyr::recode(cycle_name, 
+                             "SA-Sc" = "SA",
+                             "SA1" = "SA",
+                             "SA2" = "SA",
+                             "ST1" = "ST",
+                             "ST2" = "ST"
+                             )) %>%
+  dplyr::select(water_mass, cycle_name, CTD, areal_PP) %>%
+  distinct() %>%
+  filter(!is.na(areal_PP))
+
+# checks, all groups meet assumptions of normality and homoskedasticity
+hist(t_test_df$areal_PP)
+qqnorm(t_test_df$areal_PP)
+p<-with(t_test_df, shapiro.test(areal_PP[water_mass == "ST"]))
+print(p)
+p<-with(t_test_df, shapiro.test(areal_PP[water_mass == "SA"]))
+print(p)
+
+# check for variance. If variance sig different, use var.equal = FALSE
+var.test(areal_PP ~ water_mass, t_test_df)
+
+res <- t.test(areal_PP ~ water_mass, data =  t_test_df, var.equal = TRUE)
+print(res)
+
+res <- wilcox.test(areal_PP ~ water_mass, data = t_test_df,
+                   exact = FALSE)
+print(res)
+```
+
 #integrated chla and integrated npp plot
 
 ## prepare dataframe
@@ -417,3 +487,23 @@ plot
 # pdf("figures/2_NPP chla/20221213_depth chla npp combine_v2.pdf", height=6, width=6) ; plot(plot) ; dev.off()
 
 ```
+
+
+```{r}
+chl_test <- chl %>%
+  select(cycle_name, areal_chl,exp) %>%
+  distinct() %>%
+  filter(!is.na(exp))
+
+
+npp_test <- npp %>%
+  select(cycle_name,areal_PP,exp) %>%
+  distinct()%>%
+  filter(!is.na(exp))
+
+test <- full_join(npp_test,chl_test,by = join_by(exp == exp)) %>%
+  mutate(npp_chla = areal_PP/areal_chl) %>%
+  select(cycle_name.x, exp, npp_chla) %>%
+  filter(!is.na(npp_chla))
+```
+
