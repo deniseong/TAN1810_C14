@@ -549,6 +549,11 @@ pdf("nano_species_heatmap.pdf", height=6, width=9) ; plot(p4) ; dev.off()
 ```{r}
 # pivot longer dataframe
 otu_rel_abund <- long_nano_1 %>%
+    # mutate(order = case_when(species == "Heterocapsa_nei/rotundata" ~ "Dinophyceae_X", #reclassify 2 species
+                             # species == "Gyrodinium_spirale" ~ "Dinophyceae_X",
+                             # TRUE~ as.character(species))) %>%
+    mutate(trophic_mode = case_when(order == "Dinophyceae_X" ~ "dinophyceae",
+                                    TRUE~ as.character(trophic_mode))) %>%
     group_by(file_code) %>%
     mutate(rel_abund = n_reads / sum(n_reads)) %>%
     ungroup() %>%
@@ -558,7 +563,7 @@ otu_rel_abund <- long_nano_1 %>%
                  values_to = "taxon") 
 
 taxon_rel_abund <- otu_rel_abund %>%
-    filter(level == "trophic_mode_2") %>% #choose level here 
+    filter(level == "trophic_mode") %>% #choose level here 
     group_by(water_mass, cycle_name_2, file_code, taxon) %>%
     summarise(rel_abund = 100*sum(rel_abund)) %>%
     pivot_wider(names_from = taxon, values_from = rel_abund) %>% #from here is to replace any file_code with NA as 0
