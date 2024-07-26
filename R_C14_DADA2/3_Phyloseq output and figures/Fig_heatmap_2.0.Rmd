@@ -304,7 +304,7 @@ taxon_rel_abund <- otu_rel_abund %>%
 
 ```{r}
 
-p5 <- taxon_rel_abund %>%
+p6 <- taxon_rel_abund %>%
     group_by(file_code, cycle_name_2, taxon) %>%
      summarise(rel_abund = sum(rel_abund)) %>%
      group_by(cycle_name_2, taxon) %>%
@@ -341,7 +341,7 @@ p5 <- taxon_rel_abund %>%
      # facet_grid(class~., scales = "free_y", space = "free", switch = "y") +
      ggtitle("Picoeukaryotes - trophic mode")
 
-p5
+p6
 ```
 
 # Sorted nano
@@ -549,9 +549,6 @@ pdf("nano_species_heatmap.pdf", height=6, width=9) ; plot(p4) ; dev.off()
 ```{r}
 # pivot longer dataframe
 otu_rel_abund <- long_nano_1 %>%
-    # mutate(order = case_when(species == "Heterocapsa_nei/rotundata" ~ "Dinophyceae_X", #reclassify 2 species
-                             # species == "Gyrodinium_spirale" ~ "Dinophyceae_X",
-                             # TRUE~ as.character(species))) %>%
     mutate(trophic_mode = case_when(order == "Dinophyceae_X" ~ "dinophyceae",
                                     TRUE~ as.character(trophic_mode))) %>%
     group_by(file_code) %>%
@@ -575,7 +572,7 @@ taxon_rel_abund <- otu_rel_abund %>%
 
 ```{r}
 
-p6 <- taxon_rel_abund %>%
+p7 <- taxon_rel_abund %>%
     group_by(file_code, cycle_name_2, taxon) %>%
      summarise(rel_abund = sum(rel_abund)) %>%
      group_by(cycle_name_2, taxon) %>%
@@ -611,7 +608,7 @@ p6 <- taxon_rel_abund %>%
       ylab(NULL) +
      ggtitle("Nanoeukaryotes - trophic mode")
 
-p6
+p7
 ```
 
 # Sorted syn
@@ -765,7 +762,14 @@ plot <- (p1 |plot_spacer() | p5) / (p2|p3) + plot_annotation(tag_levels = 'A') +
 plot
 pdf("heatmap_community.pdf", height=6, width=12) ; plot(plot) ; dev.off()
 ```
+# Figure 5 - Heatmap trophic mode
+```{r}
+library(patchwork)
+plot <- (p6|p7) + plot_annotation(tag_levels = 'A') + plot_layout(guides = 'collect')
 
+plot
+pdf("heatmap_trophic mode.pdf", height=4, width=12) ; plot(plot) ; dev.off()
+```
 # Supplementary table S5
 abundant species trophic mode assignment
 ```{r}
