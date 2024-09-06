@@ -24,6 +24,23 @@ cold_standard <- readxl::read_excel(here("Output", "Raw data", "NPP_cold_standar
          depth = `sample`)
 cold_standard$exp <- as.character(cold_standard$exp)
 group_rates <- readxl::read_excel(here("Output", "Raw data","Rates_cell_npp_method2.xlsx"))
+
+# summary for supp
+cold_standard %>%
+  select(cold_corrected) %>%
+  filter(!(is.na(cold_corrected))) %>%
+  summarise(mean = round(mean(cold_corrected), 2),
+            sd = round(sd(cold_corrected),2)
+             ) %>%
+  unite("mean_sd", mean:sd, sep = " ± ")
+
+cold_standard %>%
+  select(standard_corrected) %>%
+  filter(!(is.na(standard_corrected))) %>%
+  summarise(mean = round(mean(standard_corrected), 2),
+            sd = round(sd(standard_corrected),2)
+             ) %>%
+  unite("mean_sd", mean:sd, sep = " ± ")
 ```
 
 #Compute NPP for EACH vial by adding the NPP values of group-specific rates.
@@ -68,10 +85,10 @@ summary<- cold_group %>%
   summarise(value = mean(cold_corrected)) %>%
   group_by(cycle_name) %>%
   summarise(mean = round(mean(value), 2),
-            # sd = round(sd(value),2)
-             ) #%>%
-   # unite("mean_sd", mean:sd, sep = " ± ") %>%
-  # pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
+            sd = round(sd(value),2)
+             ) %>%
+  unite("mean_sd", mean:sd, sep = " ± ") %>%
+  pivot_wider(names_from = "cycle_name", values_from = "mean_sd")
 summary
 
 ```
@@ -92,6 +109,14 @@ t_test_df<- cold_group %>%
                              "ST1" = "ST",
                              "ST2" = "ST"
                              )) 
+
+summary <-  t_test_df %>%
+  group_by(type) %>%
+  summarise(mean = round(mean(npp), 2),
+            sd = round(sd(npp),2),
+            n = n()) %>%
+  unite("mean_sd", mean:sd, sep = " ± ")
+summary
 ```
 
 ```{r}

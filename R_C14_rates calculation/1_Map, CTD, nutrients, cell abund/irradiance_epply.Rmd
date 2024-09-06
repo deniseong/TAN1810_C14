@@ -1,0 +1,162 @@
+---
+title: "irradiance_eppley"
+output: html_document
+date: "2024-08-07"
+---
+
+
+```{r knitr_init, echo=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=TRUE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE,
+               tidy = FALSE,
+               fig.height=8, 
+               fig.width=8,
+               results = 'asis')
+opts_knit$set(width=75)
+```
+
+# Load libraries
+
+```{r, message=FALSE, warning=FALSE}
+library(here)
+source(here("0_init_files", "init.R")) #for libraries
+source(here("0_init_files", "init_markdown.R")) #for maerkdown libraries
+library(hms)
+colours_cycle <- readxl::read_excel(here("0_init_files", "colours_cycle.xlsx"))
+colours_cycle <- structure(colours_cycle$colour,.Names=colours_cycle$cycle)
+```
+
+##Read table
+```{r}
+irr_import <- read.csv(here("0_data_used", "das-data_2018-10-21_2018-11-21_TAN1810.csv"))  %>%
+  select(nzst, Eppley_PSP1_Rin) %>%
+  mutate(nzst =  ymd_hms(nzst)) %>%
+  mutate(date = date(nzst)) %>%
+  mutate(time = as_hms(nzst)) %>%
+  mutate(julian_day = julian(date, origin = date("2018-01-01")))
+```
+
+
+```{r}
+#classify and select dates only for incubation exp
+irr_raw <- irr_import %>%
+  mutate(cycle = NA)
+
+irr_raw$julian_day <- as.character(irr_raw$julian_day)
+irr_raw$cycle[grep("297", irr_raw$julian_day)] = "1"
+irr_raw$cycle[grep("298", irr_raw$julian_day)] = "1"
+irr_raw$cycle[grep("299", irr_raw$julian_day)] = "1"
+irr_raw$cycle[grep("300", irr_raw$julian_day)] = "1"
+irr_raw$cycle[grep("301", irr_raw$julian_day)] = "1"
+irr_raw$cycle[grep("302", irr_raw$julian_day)] = "1"
+irr_raw$cycle[grep("305", irr_raw$julian_day)] = "2"
+irr_raw$cycle[grep("306", irr_raw$julian_day)] = "2"
+irr_raw$cycle[grep("307", irr_raw$julian_day)] = "2"
+irr_raw$cycle[grep("308", irr_raw$julian_day)] = "2"
+irr_raw$cycle[grep("309", irr_raw$julian_day)] = "2"
+irr_raw$cycle[grep("311", irr_raw$julian_day)] = "3"
+irr_raw$cycle[grep("312", irr_raw$julian_day)] = "3"
+irr_raw$cycle[grep("313", irr_raw$julian_day)] = "3"
+irr_raw$cycle[grep("315", irr_raw$julian_day)] = "4"
+irr_raw$cycle[grep("316", irr_raw$julian_day)] = "4"
+irr_raw$cycle[grep("317", irr_raw$julian_day)] = "4"
+irr_raw$cycle[grep("319", irr_raw$julian_day)] = "5"
+irr_raw$cycle[grep("320", irr_raw$julian_day)] = "5"
+
+irr_raw <- irr_raw %>% mutate(cycle_name = dplyr::recode(cycle, "1" = "SA-Sc",
+                                    "2" = "SA1",
+                                    "3" = "ST1",
+                                    "4" = "ST2",
+                                    "5" = "SA2")) %>%
+  filter(!is.na(cycle)) %>% #remove rows without cycle number
+  mutate(cycle_name = fct_relevel(cycle_name, "ST1", "ST2", "SA-Sc", "SA1", "SA2")) %>%
+  filter(julian_day %in% c("297", "298", "305", "306",  "308", "309", "311", "312", "315", "316", "319")) %>%
+  mutate(exp = case_when(julian_day == "297" ~  "1",
+                         julian_day == "298" ~  "2",
+                         julian_day == "305" ~  "3",
+                         julian_day == "306" ~  "4",
+                         julian_day == "308" ~  "5",
+                         julian_day == "309" ~  "6",
+                         julian_day == "311" ~  "7",
+                         julian_day == "312" ~  "8",
+                         julian_day == "315" ~  "9",
+                         julian_day == "316" ~  "10",
+                         julian_day == "319" ~  "11")) %>%
+  mutate(exp = fct_relevel(exp, "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11")) %>%
+  mutate(water_mass = case_when(cycle_name == "ST1" ~ "ST", 
+                                cycle_name == "ST2" ~ "ST",
+                                cycle_name == "SA-Sc" ~ "SA",
+                                cycle_name == "SA1" ~ "SA",
+                                cycle_name == "SA2" ~ "SA")) %>%
+  mutate(water_mass = fct_relevel(water_mass, "ST", "SA"))
+
+#check the dates
+check <- irr_raw  %>% 
+  select(cycle_name, exp, cycle, date, julian_day) %>%
+  distinct()
+check
+```
+
+```{r}
+irr<- irr_raw %>%
+  mutate(Eppley_PSP1_Rin = case_when(Eppley_PSP1_Rin < 0 ~ 0,
+                                     TRUE ~ Eppley_PSP1_Rin)) %>%
+  mutate(par = Eppley_PSP1_Rin*2.15867163879613) 
+
+irr_sum <- irr%>%
+  group_by(water_mass,cycle_name,date,exp) %>%
+  mutate(int_par = (par +lag(par))*60/2) %>%
+  replace(is.na(.), 0) %>%
+  summarize(areal_par = sum(int_par)/1000000) #%>%
+  # filter(exp!= 7)
+```
+
+```{r}
+p <- irr %>%
+  group_by(cycle, julian_day) %>%
+  group_modify(~ add_row(.x,.before=0)) %>% # add gaps in the dataframe for geom_path linebreaks
+  ggplot(aes(x=time, y=par, colour=cycle_name)) + 
+  geom_path(size=0.5) +
+  geom_point(size=0.5, alpha = 0.6) +
+  labs(y=PAR~(uM/m^2/s))+ 
+  # ylab("Global horizontal irradiance (W/m2)")+
+  xlab("Time NZST") +
+  labs(colour = "Cycle") +
+  scale_colour_manual(values = colours_cycle) 
+p
+```
+
+```{r}
+df.mean = irr_sum %>% 
+  group_by(water_mass) %>% 
+  mutate(ymean = mean(areal_par),
+         sd = sd(areal_par),
+         ymin = ymean-sd,
+         ymax = ymean+sd)
+
+p <- ggplot()+
+  geom_bar(data = irr_sum, aes(x = exp, y = areal_par, fill = cycle_name), stat="identity", colour = "black") +
+  geom_errorbar(data=df.mean, 
+                aes(x = exp, ymax = ymean, ymin = ymean),
+               size=0.5, linetype = "longdash", inherit.aes = F, width = 1) +
+  labs(y=expression(Daily~integrated~incident~irradiance~(mol~m^{-2}~day^{-1})),
+       fill = "Cycle")+
+  xlab("Exp") +
+  scale_fill_manual(values = colours_cycle) +
+  facet_grid(.~water_mass, scales = "free", space = "free")
+p
+
+pdf("int_par.pdf", height=4, width=8) ; plot(p) ; dev.off()
+
+```
+
