@@ -1,6 +1,7 @@
 # TAN1810_C14
 
-Script and data for:
+Script and data for: Ong, D. R. Y., Gutiérrez-Rodríguez, A., Safi, K. A., Marie, D., Selph, K. E., Stukel, M. R., Décima, M., & Lopes dos Santos, A. (2024). Consistent cell-specific carbon fixation rates by small eukaryotic phytoplankton in contrasting nutrient-limited conditions. Limnology and Oceanography, n/a(n/a). https://doi.org/10.1002/lno.12751
+
 
 All bioinformatics data have been deposited in NCBI Sequence Read Archive (petB (filtered and sorted)-PRJNA885274, 18SV4 (filtered)-PRJNA670061 and PRJNA1033349, 18SV4 (sorted)-PRJNA1033349).
 
